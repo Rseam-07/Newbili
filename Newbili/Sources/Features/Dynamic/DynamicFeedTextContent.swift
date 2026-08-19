@@ -1,0 +1,50 @@
+import SwiftUI
+
+struct DynamicFeedTextContent: View {
+    @Environment(\.appThemeTintColor) private var appTintColor
+
+    let collapsedInput: DynamicAttributedTextInput
+    let expandedInput: DynamicAttributedTextInput
+    let copyText: String?
+    let preferredWidth: CGFloat?
+    let showsExpandButton: Bool
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            DynamicRichTextView(
+                input: isExpanded ? expandedInput : collapsedInput,
+                preferredWidth: preferredWidth
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+            .dynamicCopyableText(copyText)
+
+            if showsExpandButton {
+                Button(action: toggleExpanded) {
+                    HStack(spacing: 4) {
+                        Text(isExpanded ? "收起" : "展开")
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .appTypography(.action, fallback: .footnote.weight(.semibold))
+                    .foregroundStyle(appTintColor)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func toggleExpanded() {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isExpanded.toggle()
+        }
+    }
+}

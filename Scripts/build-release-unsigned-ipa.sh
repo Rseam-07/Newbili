@@ -1,0 +1,52 @@
+#!/bin/zsh
+set -euo pipefail
+
+# Build a production Release IPA without signing it. The resulting archive is
+# intended for a third-party sideloader that applies its own signature.
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DERIVED_DATA_PATH="$ROOT_DIR/build/ReleaseUnsignedDerivedData"
+EXPORT_DIR="$ROOT_DIR/build/release-unsigned-ipa"
+LOG_DIR="$ROOT_DIR/build/logs"
+LOG_PATH="$LOG_DIR/release-unsigned-ipa.log"
+IPA_PATH="$EXPORT_DIR/Newbili-release-unsigned.ipa"
+
+mkdir -p "$EXPORT_DIR" "$LOG_DIR"
+
+echo "Building Release (unsigned, device) ..."
+if ! xcodebuild build \
+    -project "$ROOT_DIR/Newbili.xcodeproj" \
+    -scheme Newbili \
+    -configuration Release \
+    -sdk iphoneos \
+    -destination "generic/platform=iOS" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    CODE_SIGN_IDENTITY="" \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO \
+    AD_HOC_CODE_SIGNING_ALLOWED=YES \
+    ENABLE_DEBUG_DYLIB=NO > "$LOG_PATH" 2>&1; then
+  echo "Build failed. Log: $LOG_PATH" >&2
+  tail -120 "$LOG_PATH" >&2
+  exit 1
+fi
+
+APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release-iphoneos/Newbili.app"
+if [[ ! -d "$APP_PATH" ]]; then
+  echo "Build succeeded but app bundle not found: $APP_PATH" >&2
+  exit 1
+fi
+
+zsh "$ROOT_DIR/Scripts/remove-empty-frameworks.sh" "$APP_PATH"
+
+echo "Packaging IPA ..."
+PAYLOAD_DIR="$EXPORT_DIR/Payload"
+rm -rf "$PAYLOAD_DIR" "$IPA_PATH"
+mkdir -p "$PAYLOAD_DIR"
+cp -R "$APP_PATH" "$PAYLOAD_DIR/"
+
+(cd "$EXPORT_DIR" && zip -qry "$IPA_PATH" Payload)
+rm -rf "$PAYLOAD_DIR"
+
+echo "Unsigned Release IPA: $IPA_PATH"
+echo "Build log: $LOG_PATH"

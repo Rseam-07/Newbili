@@ -1,0 +1,62 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: xcode-27
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          xcodebuild -showsdks
+          test "$(xcodebuild -version | awk 'NR == 1 { split($2, version, "."); print version[1] }')" -ge 27
+
+      - name: Build Release app without signing
+        run: |
+          set -euo pipefail
+          DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
+          BUILD_DIR="$RUNNER_TEMP/build"
+          xcodebuild \
+            -project Newbili.xcodeproj \
+            -scheme Newbili \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            COPY_PHASE_STRIP=YES \
+            STRIP_INSTALLED_PRODUCT=YES \
+            DEPLOYMENT_POSTPROCESSING=YES \
+            build
+          APP_PATH="$(find "$DERIVED_DATA_PATH/Build/Products" -maxdepth 2 -name '*.app' -type d | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle was produced." >&2
+            exit 1
+          fi
+          mkdir -p "$BUILD_DIR/Payload"
+          cp -R "$APP_PATH" "$BUILD_DIR/Payload/"
+          (cd "$BUILD_DIR" && zip -qry "$GITHUB_WORKSPACE/Newbili-release-unsigned.ipa" Payload)
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Newbili-release-unsigned-ipa
+          path: Newbili-release-unsigned.ipa
+          if-no-files-found: error
