@@ -586,7 +586,7 @@ final class VideoListenModeTests: XCTestCase {
     }
 
     @MainActor
-    func testListenSessionDoesNotRestoreAcrossDetailInstances() throws {
+    func testListenSessionRestoresForSameDetailOnly() throws {
         let defaults = makeUserDefaults()
         let libraryStore = LibraryStore(userDefaults: defaults)
         let sessionStore = VideoListenPlaybackSessionStore()
@@ -600,7 +600,8 @@ final class VideoListenModeTests: XCTestCase {
         sessionStore.save(
             VideoListenPlaybackSessionState(
                 audioPreferenceKey: aacPreference,
-                wantsPlayback: false
+                wantsPlayback: false,
+                resumeTime: 612.25
             ),
             for: video
         )
@@ -610,10 +611,19 @@ final class VideoListenModeTests: XCTestCase {
             libraryStore: libraryStore,
             playbackSessionStore: sessionStore
         )
+        defer {
+            AudioMiniPlayerCoordinator.shared.release(restoredViewModel, stopsPlayback: false)
+        }
         restoredViewModel.applyVideoListenAudioVariants(from: audioData)
 
-        XCTAssertEqual(restoredViewModel.playbackContentMode, .video)
-        XCTAssertNil(restoredViewModel.selectedVideoListenAudioPreferenceKey)
+        XCTAssertEqual(restoredViewModel.playbackContentMode, .audioOnly)
+        XCTAssertEqual(restoredViewModel.selectedVideoListenAudioPreferenceKey, aacPreference)
+        XCTAssertFalse(restoredViewModel.currentPlaybackIntent())
+        XCTAssertEqual(
+            try XCTUnwrap(restoredViewModel.pendingPlaybackHistoryResumeTime),
+            612.25,
+            accuracy: 0.001
+        )
 
         let unrelatedViewModel = makeViewModel(
             video: otherVideo,

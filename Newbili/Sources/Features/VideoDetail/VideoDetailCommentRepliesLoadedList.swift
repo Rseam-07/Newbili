@@ -5,6 +5,7 @@ struct CommentRepliesLoadedList: View {
     let rootComment: Comment
     let loadMoreReplies: (Comment) async -> Void
     let showDialog: (Comment) -> Void
+    let toggleLike: (Comment) -> Void
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
@@ -13,7 +14,10 @@ struct CommentRepliesLoadedList: View {
                     item: replyDisplay,
                     showDialog: replyDisplay.canShowDialog ? {
                         showDialog(replyDisplay.reply)
-                    } : nil
+                    } : nil,
+                    toggleLike: {
+                        toggleLike(replyDisplay.reply)
+                    }
                 )
                 .padding(.horizontal, 16)
 

@@ -14,7 +14,7 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         displayArea: DanmakuDisplayArea,
         fontWeight: DanmakuFontWeightOption,
         loadFactor: Double = 1.0,
-        hidesInPortrait: Bool = true
+        hidesInPortrait: Bool = false
     ) {
         self.fontScale = fontScale
         self.opacity = opacity
@@ -40,7 +40,7 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         self.displayArea = try container.decode(DanmakuDisplayArea.self, forKey: .displayArea)
         self.fontWeight = try container.decode(DanmakuFontWeightOption.self, forKey: .fontWeight)
         self.loadFactor = try container.decodeIfPresent(Double.self, forKey: .loadFactor) ?? 1.0
-        self.hidesInPortrait = try container.decodeIfPresent(Bool.self, forKey: .hidesInPortrait) ?? true
+        self.hidesInPortrait = try container.decodeIfPresent(Bool.self, forKey: .hidesInPortrait) ?? false
     }
 
     static let `default` = DanmakuSettings(
@@ -49,7 +49,7 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         displayArea: .topHalf,
         fontWeight: .semibold,
         loadFactor: 1.0,
-        hidesInPortrait: true
+        hidesInPortrait: false
     )
 
     var normalized: DanmakuSettings {
@@ -156,6 +156,74 @@ enum DanmakuFontWeightOption: String, Codable, CaseIterable, Identifiable, Senda
         case .black:
             return "特粗"
         }
+    }
+}
+
+enum DanmakuPostMode: Int, CaseIterable, Identifiable, Sendable {
+    case scrolling = 1
+    case bottom = 4
+    case top = 5
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .scrolling:
+            return "滚动"
+        case .bottom:
+            return "底部"
+        case .top:
+            return "顶部"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .scrolling:
+            return "text.line.first.and.arrowtriangle.forward"
+        case .bottom:
+            return "text.aligncenter"
+        case .top:
+            return "text.aligncenter"
+        }
+    }
+}
+
+nonisolated struct DanmakuPostResult: Decodable, Sendable {
+    let dmid: Int64?
+    let dmidString: String?
+    let visible: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case dmid
+        case dmidString = "dmid_str"
+        case visible
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let numericID = try? container.decodeIfPresent(Int64.self, forKey: .dmid) {
+            dmid = numericID
+        } else if let stringID = try? container.decodeIfPresent(String.self, forKey: .dmid) {
+            dmid = Int64(stringID)
+        } else {
+            dmid = nil
+        }
+        dmidString = try container.decodeIfPresent(String.self, forKey: .dmidString)
+        if let boolValue = try? container.decodeIfPresent(Bool.self, forKey: .visible) {
+            visible = boolValue
+        } else if let intValue = try? container.decodeIfPresent(Int.self, forKey: .visible) {
+            visible = intValue != 0
+        } else {
+            visible = nil
+        }
+    }
+
+    var identifier: String? {
+        if let dmidString, !dmidString.isEmpty {
+            return dmidString
+        }
+        return dmid.map(String.init)
     }
 }
 

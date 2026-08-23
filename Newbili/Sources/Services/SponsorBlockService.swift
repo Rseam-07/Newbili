@@ -1,6 +1,6 @@
 import Foundation
 
-struct SponsorBlockSegment: Identifiable, Codable, Equatable, Sendable {
+nonisolated struct SponsorBlockSegment: Identifiable, Codable, Equatable, Sendable {
     var id: String { uuid }
 
     let uuid: String
@@ -41,7 +41,7 @@ struct SponsorBlockSegment: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-struct SponsorBlockSkipEvent: Equatable, Sendable {
+nonisolated struct SponsorBlockSkipEvent: Equatable, Sendable {
     let segment: SponsorBlockSegment
     let fromTime: TimeInterval
     let skippedAt: Date
@@ -74,8 +74,7 @@ final class SponsorBlockService: @unchecked Sendable {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
-        request.setValue("cc.bili", forHTTPHeaderField: "Origin")
-        request.setValue("cc.bili/1.0", forHTTPHeaderField: "X-Ext-Version")
+        applyClientHeaders(to: &request)
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await session.data(for: request)
@@ -89,7 +88,11 @@ final class SponsorBlockService: @unchecked Sendable {
             throw BiliAPIError.api(code: httpResponse.statusCode, message: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
         }
 
-        return try JSONDecoder().decode([SponsorBlockSegmentResponse].self, from: data)
+        return try Self.decodeSegments(from: data)
+    }
+
+    static func decodeSegments(from data: Data) throws -> [SponsorBlockSegment] {
+        try JSONDecoder().decode([SponsorBlockSegmentResponse].self, from: data)
             .compactMap(SponsorBlockSegment.init(response:))
             .filter(\.isSkippable)
             .sorted { $0.startTime < $1.startTime }
@@ -107,17 +110,22 @@ final class SponsorBlockService: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 8
-        request.setValue("cc.bili", forHTTPHeaderField: "Origin")
-        request.setValue("cc.bili/1.0", forHTTPHeaderField: "X-Ext-Version")
+        applyClientHeaders(to: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         request.httpBody = try? JSONEncoder().encode(["UUID": uuid])
 
         _ = try? await session.data(for: request)
     }
+
+    private func applyClientHeaders(to request: inout URLRequest) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        request.setValue("Newbili", forHTTPHeaderField: "Origin")
+        request.setValue(version ?? "1.0.1", forHTTPHeaderField: "X-Ext-Version")
+    }
 }
 
-private struct SponsorBlockSegmentResponse: Decodable {
+private nonisolated struct SponsorBlockSegmentResponse: Decodable {
     let cid: String?
     let category: String
     let actionType: String?
@@ -138,7 +146,7 @@ private struct SponsorBlockSegmentResponse: Decodable {
 }
 
 private extension SponsorBlockSegment {
-    init?(response: SponsorBlockSegmentResponse) {
+    nonisolated init?(response: SponsorBlockSegmentResponse) {
         guard response.segment.count >= 2 else { return nil }
         let startTime = response.segment[0]
         let endTime = response.segment[1]

@@ -3,6 +3,7 @@ import Foundation
 struct VideoListenPlaybackSessionState: Equatable, Sendable {
     let audioPreferenceKey: String?
     let wantsPlayback: Bool
+    let resumeTime: TimeInterval?
 }
 
 @MainActor

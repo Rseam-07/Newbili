@@ -162,6 +162,7 @@ extension RootTabView {
     }
 
     func openVideo(_ video: VideoItem) {
+        audioMiniPlayerCoordinator.stopUnlessPreparedForDetailOpen(video)
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: video.bvid, title: video.title)
         if bottomMode == .video {
@@ -189,6 +190,7 @@ extension RootTabView {
     }
 
     func openVideoComment(_ route: VideoCommentRoute) {
+        audioMiniPlayerCoordinator.stopUnlessPreparedForDetailOpen(route.video)
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: route.video.bvid, title: route.video.title)
         if bottomMode == .video {
@@ -213,6 +215,11 @@ extension RootTabView {
         } else {
             withAnimation(.smooth(duration: 0.30), push)
         }
+    }
+
+    func openAudioMiniPlayerDetail() {
+        guard let video = audioMiniPlayerCoordinator.prepareForDetailOpen() else { return }
+        openVideo(video)
     }
 
     func pushVideo(_ video: VideoItem) {

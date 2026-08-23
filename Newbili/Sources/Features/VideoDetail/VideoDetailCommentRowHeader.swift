@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CommentRowHeader: View {
     let display: VideoDetailCommentDisplayModel
+    let toggleLike: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -16,11 +17,16 @@ struct CommentRowHeader: View {
 
             Spacer(minLength: 8)
 
-            CommentMetricBadge(
-                text: display.likeText,
-                systemImage: display.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
-                isHighlighted: display.isLiked
-            )
+            Button(action: toggleLike) {
+                CommentMetricBadge(
+                    text: display.likeText,
+                    systemImage: display.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
+                    isHighlighted: display.isLiked
+                )
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityLabel(display.isLiked ? "取消点赞" : "点赞")
         }
     }
 }

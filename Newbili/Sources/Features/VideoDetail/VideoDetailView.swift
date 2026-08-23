@@ -78,7 +78,12 @@ struct VideoDetailView: View {
             onDisappear: {
                 fullscreenCoordinator.resetForDisappear()
                 let performanceTestMediaURLs = holder.viewModel?.performanceTestMediaURLs ?? []
-                holder.viewModel?.stopPlaybackForNavigation()
+                if let viewModel = holder.viewModel,
+                   AudioMiniPlayerCoordinator.shared.shouldKeepAlive(viewModel) {
+                    viewModel.persistVideoListenPlaybackSession()
+                } else {
+                    holder.viewModel?.stopPlaybackForNavigation()
+                }
                 guard playbackOptions == .performanceTest else { return }
                 clearPerformanceTestCache(
                     bvid: seedVideo.bvid,

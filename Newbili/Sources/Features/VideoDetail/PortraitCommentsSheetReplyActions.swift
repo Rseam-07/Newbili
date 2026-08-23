@@ -6,6 +6,7 @@ struct PortraitCommentsSheetReplyActions {
     let loadMoreReplies: (Comment) async -> Void
     let loadDialog: (Comment, Comment) async -> Void
     let reloadDialog: (Comment, Comment) async -> Void
+    let toggleLike: (Comment) -> Void
 
     @MainActor
     func loadMoreRepliesAction(_ comment: Comment) {

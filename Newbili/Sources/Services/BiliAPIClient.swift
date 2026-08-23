@@ -1191,6 +1191,91 @@ nonisolated final class BiliAPIClient {
         }
     }
 
+    func fetchRankingVideos(regionID: Int) async throws -> [VideoItem] {
+        let signedQuery = try await signedWBIQuery([
+            "rid": String(max(0, regionID)),
+            "type": "all"
+        ])
+        let response: BiliResponse<BiliPage<VideoItem>> = try await get(
+            base: baseURL,
+            path: "/x/web-interface/ranking/v2",
+            query: signedQuery,
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return response.payload?.list ?? []
+    }
+
+    func fetchPgcRanking(seasonType: Int) async throws -> [PgcRankItem] {
+        let signedQuery = try await signedWBIQuery([
+            "day": "3",
+            "season_type": String(seasonType)
+        ])
+        let response: BiliResponse<PgcRankPayload> = try await get(
+            base: baseURL,
+            path: seasonType == 1 ? "/pgc/web/rank/list" : "/pgc/season/rank/web/list",
+            query: signedQuery,
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return response.payload?.list ?? []
+    }
+
+    func fetchPgcBrowse(kind: HomePgcKind, page: Int) async throws -> PgcBrowsePage {
+        var query = [
+            "st": "1",
+            "order": "3",
+            "season_version": "-1",
+            "spoken_language_type": "-1",
+            "area": "-1",
+            "is_finish": "-1",
+            "copyright": "-1",
+            "season_status": "-1",
+            "season_month": "-1",
+            "year": "-1",
+            "style_id": "-1",
+            "sort": "0",
+            "season_type": "1",
+            "pagesize": "20",
+            "type": "1",
+            "page": String(max(1, page))
+        ]
+        if let indexType = kind.indexType {
+            query["index_type"] = String(indexType)
+        }
+        let response: BiliResponse<PgcBrowsePage> = try await get(
+            base: baseURL,
+            path: "/pgc/season/index/result",
+            query: query,
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0, let payload = response.payload else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return payload
+    }
+
+    func fetchPgcTimeline(types: Int) async throws -> [PgcTimelineDay] {
+        let response: BiliResponse<[PgcTimelineDay]> = try await get(
+            base: baseURL,
+            path: "/pgc/web/timeline",
+            query: [
+                "types": String(types),
+                "before": "6",
+                "after": "6"
+            ],
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return response.payload ?? []
+    }
+
     func fetchVideoDetail(bvid: String, bypassesCache: Bool = false) async throws -> VideoItem {
         let snapshot = await requestSnapshot()
         if bypassesCache {
@@ -1891,6 +1976,56 @@ nonisolated final class BiliAPIClient {
             retryPolicy: .idempotentMutation
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+    }
+
+    func postDanmaku(
+        bvid: String,
+        cid: Int,
+        progress: TimeInterval,
+        text: String,
+        mode: DanmakuPostMode,
+        fontSize: Int,
+        color: UInt32
+    ) async throws -> DanmakuPostResult? {
+        let normalizedBVID = bvid.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedBVID.isEmpty, cid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的视频或分 P 信息")
+        }
+        guard !normalizedText.isEmpty else {
+            throw BiliAPIError.api(code: -1, message: "弹幕内容不能为空")
+        }
+        guard normalizedText.count <= 100 else {
+            throw BiliAPIError.api(code: -1, message: "弹幕最多 100 个字符")
+        }
+
+        let context = try await requireCSRFContext(for: .interaction)
+        let progressMilliseconds = Int64((max(0, progress) * 1_000).rounded())
+        let randomTimestamp = Int64((Date().timeIntervalSince1970 * 1_000_000).rounded())
+        let response: BiliResponse<DanmakuPostResult> = try await postForm(
+            base: baseURL,
+            path: "/x/v2/dm/post",
+            body: [
+                "type": "1",
+                "oid": String(cid),
+                "msg": normalizedText,
+                "mode": String(mode.rawValue),
+                "bvid": normalizedBVID,
+                "progress": String(progressMilliseconds),
+                "color": String(color),
+                "fontsize": String(fontSize),
+                "pool": "0",
+                "rnd": String(randomTimestamp),
+                "csrf": context.csrf,
+                "csrf_token": context.csrf
+            ],
+            referer: "https://www.bilibili.com/video/\(normalizedBVID)",
+            cookieHeader: context.snapshot.cookieHeader
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return response.payload
     }
 
     func addVideoCoin(aid: Int, multiply: Int = 1, selectLike: Bool = false) async throws {
@@ -6760,6 +6895,31 @@ nonisolated final class BiliAPIClient {
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
         return response.payload ?? CommentPage(replies: [], topReplies: [], cursor: nil)
+    }
+
+    func setCommentLike(oid: String, type: Int, rpid: Int, liked: Bool) async throws {
+        let normalizedOID = oid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedOID.isEmpty, type > 0, rpid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "评论参数无效")
+        }
+        let context = try await requireCSRFContext(for: .interaction)
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL,
+            path: "/x/v2/reply/action",
+            body: [
+                "oid": normalizedOID,
+                "type": String(type),
+                "rpid": String(rpid),
+                "action": liked ? "1" : "0",
+                "csrf": context.csrf,
+                "csrf_token": context.csrf
+            ],
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .idempotentMutation
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
     }
 
     func fetchNavUser() async throws -> NavUserInfo {

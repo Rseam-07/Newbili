@@ -1257,9 +1257,9 @@ final class DanmakuAnimationOverlayView: UIView {
         let loadSheddingFactor = isLoadShedding ? 0.46 : 1.0
         let rateFactor: Double
         if playbackRate >= 1.75 {
-            rateFactor = 0.58
+            rateFactor = 0.86
         } else if playbackRate > 1.15 {
-            rateFactor = 0.72
+            rateFactor = 0.92
         } else {
             rateFactor = 1.0
         }
@@ -1277,11 +1277,17 @@ final class DanmakuAnimationOverlayView: UIView {
 
     private var preferredFrameRateRange: CAFrameRateRange {
         let environment = PlaybackEnvironment.current
-        if isLoadShedding || playbackRate >= 1.75 || environment.isThermallyConstrained {
+        if isLoadShedding || environment.isThermallyConstrained {
             return CAFrameRateRange(minimum: 10, maximum: 18, preferred: 14)
         }
-        if playbackRate > 1.15 || environment.isThermallyElevated || environment.isLowPowerModeEnabled {
+        if environment.isThermallyElevated || environment.isLowPowerModeEnabled {
             return CAFrameRateRange(minimum: 10, maximum: 20, preferred: 16)
+        }
+        if playbackRate >= 1.75 {
+            return CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        }
+        if playbackRate > 1.15 {
+            return CAFrameRateRange(minimum: 24, maximum: 60, preferred: 48)
         }
         return CAFrameRateRange(minimum: 12, maximum: 24, preferred: 20)
     }
@@ -1359,8 +1365,11 @@ final class DanmakuAnimationOverlayView: UIView {
         if isLoadShedding {
             return 0.22
         }
-        if playbackRate > 1.15 || PlaybackEnvironment.current.isThermallyElevated {
+        if PlaybackEnvironment.current.isThermallyElevated {
             return 0.32
+        }
+        if playbackRate > 1.15 {
+            return 0.50
         }
         return 0.48
     }

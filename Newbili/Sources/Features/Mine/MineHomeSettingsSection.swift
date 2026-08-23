@@ -8,6 +8,23 @@ struct MineHomeSettingsSection: View {
     var body: some View {
         Section("首页") {
             Picker(selection: Binding(
+                get: { libraryStore.homePresentationStyle },
+                set: { libraryStore.setHomePresentationStyle($0) }
+            )) {
+                ForEach(HomePresentationStyle.allCases) { style in
+                    Label(style.title, systemImage: style.systemImage)
+                        .tag(style)
+                }
+            } label: {
+                Label("首页风格", systemImage: "sparkles.rectangle.stack")
+            }
+            .pickerStyle(.navigationLink)
+
+            Text(libraryStore.homePresentationStyle.subtitle)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Picker(selection: Binding(
                 get: { libraryStore.homeFeedLayout },
                 set: { libraryStore.setHomeFeedLayout($0) }
             )) {

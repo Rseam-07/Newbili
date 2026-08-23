@@ -108,6 +108,29 @@ extension VideoDetailViewModel {
         automaticVideoListenAudioVariantID = variants.first { $0.stream == automaticStream }?.id
             ?? variants.first?.id
         failedVideoListenAudioVariantIDs.removeAll()
+
+        guard let restoredState = pendingVideoListenPlaybackSessionState else { return }
+        guard !variants.isEmpty else {
+            playbackContentMode = .video
+            selectedVideoListenAudioPreferenceKey = nil
+            pendingVideoListenPlaybackIntent = nil
+            pendingVideoListenPlaybackSessionState = nil
+            videoListenPlaybackSessionStore.removeState(for: detail)
+            AudioMiniPlayerCoordinator.shared.release(self, stopsPlayback: false)
+            return
+        }
+
+        if let preferenceKey = restoredState.audioPreferenceKey,
+           variants.contains(where: { $0.preferenceKey == preferenceKey }) {
+            selectedVideoListenAudioPreferenceKey = preferenceKey
+        } else {
+            selectedVideoListenAudioPreferenceKey = nil
+        }
+        playbackContentMode = .audioOnly
+        pendingVideoListenPlaybackIntent = restoredState.wantsPlayback
+        pendingVideoListenPlaybackSessionState = nil
+        AudioMiniPlayerCoordinator.shared.adopt(self)
+        persistVideoListenPlaybackSession(wantsPlayback: restoredState.wantsPlayback)
     }
 
     func clearVideoListenAudioVariants() {
@@ -184,9 +207,11 @@ extension VideoDetailViewModel {
         playbackFallbackMessage = nil
         if isEnabled {
             persistVideoListenPlaybackSession(wantsPlayback: shouldResumePlayback)
+            AudioMiniPlayerCoordinator.shared.adopt(self)
             scheduleVideoListenQueuePreparation()
             scheduleVideoListenContinuationPreload()
         } else {
+            AudioMiniPlayerCoordinator.shared.release(self, stopsPlayback: false)
             cancelVideoListenQueueTasks(resetSession: false)
             videoListenPlaybackSessionStore.removeState(for: detail)
             pendingVideoListenPlaybackSessionState = nil
@@ -212,6 +237,7 @@ extension VideoDetailViewModel {
         isSwitchingVideoListenMode = false
         videoListenPlaybackSessionStore.removeState(for: detail)
         pendingVideoListenPlaybackSessionState = nil
+        AudioMiniPlayerCoordinator.shared.release(self, stopsPlayback: false)
         cancelVideoListenSleepTimer()
         playbackFallbackMessage = "当前分 P 没有独立音频，已切回视频"
     }
@@ -267,6 +293,7 @@ extension VideoDetailViewModel {
         isSwitchingVideoListenMode = false
         videoListenPlaybackSessionStore.removeState(for: detail)
         pendingVideoListenPlaybackSessionState = nil
+        AudioMiniPlayerCoordinator.shared.release(self, stopsPlayback: false)
         cancelVideoListenSleepTimer()
         let failureDetail = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         playbackFallbackMessage = failureDetail.isEmpty
@@ -1192,7 +1219,8 @@ extension VideoDetailViewModel {
         videoListenPlaybackSessionStore.save(
             VideoListenPlaybackSessionState(
                 audioPreferenceKey: selectedVideoListenAudioPreferenceKey,
-                wantsPlayback: wantsPlayback ?? currentPlaybackIntent()
+                wantsPlayback: wantsPlayback ?? currentPlaybackIntent(),
+                resumeTime: currentPlaybackResumeTime()
             ),
             for: detail
         )

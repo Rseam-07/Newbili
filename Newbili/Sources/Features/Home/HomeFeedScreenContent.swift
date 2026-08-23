@@ -11,6 +11,7 @@ struct HomeFeedScreenContent: View {
     let onOpenAccountMessages: () -> Void
     @State var viewportState = HomeFeedViewportState()
     @State var actionStore = HomeFeedScreenActionStore()
+    @State private var primarySection = HomePrimarySection.recommend
 
     init(
         viewModel: HomeViewModel,
@@ -29,22 +30,52 @@ struct HomeFeedScreenContent: View {
     var body: some View {
         let renderPack = renderPack
 
-        HomeFeedScreenBody(
-            viewModel: viewModel,
-            runtimeSettings: runtimeSettings,
-            libraryStore: dependencies.libraryStore,
-            viewportState: $viewportState,
-            detailPath: $detailPath,
-            contentActions: renderPack.contentActions,
-            actionStore: actionStore,
-            launchConfiguration: launchConfiguration
-        )
+        Group {
+            switch primarySection {
+            case .recommend, .popular:
+                if libraryStore.homePresentationStyle == .immersive {
+                    HomeImmersiveFeedScreen(
+                        viewModel: viewModel,
+                        runtimeSettings: runtimeSettings,
+                        libraryStore: dependencies.libraryStore,
+                        viewportState: $viewportState,
+                        detailPath: $detailPath,
+                        contentActions: renderPack.contentActions,
+                        actionStore: actionStore,
+                        launchConfiguration: launchConfiguration
+                    )
+                } else {
+                    HomeFeedScreenBody(
+                        viewModel: viewModel,
+                        runtimeSettings: runtimeSettings,
+                        libraryStore: dependencies.libraryStore,
+                        viewportState: $viewportState,
+                        detailPath: $detailPath,
+                        contentActions: renderPack.contentActions,
+                        actionStore: actionStore,
+                        launchConfiguration: launchConfiguration
+                    )
+                }
+            case .regions:
+                HomeRegionRankingView()
+            case .bangumi:
+                HomePgcBrowseView(kind: .bangumi)
+            case .cinema:
+                HomePgcBrowseView(kind: .cinema)
+            }
+        }
         .homeFeedNavigationChrome(
-            viewModel: viewModel,
-            modeActions: actionStore.mode,
+            primarySection: $primarySection,
+            onSelectSection: selectPrimarySection,
             accountMessageViewModel: accountMessageViewModel,
-            isModeSwitcherExperimentEnabled: libraryStore.homeNavigationModeSwitcherExperimentEnabled,
+            isModeSwitcherExperimentEnabled: true,
             onOpenAccountMessages: onOpenAccountMessages
         )
+    }
+
+    private func selectPrimarySection(_ section: HomePrimarySection) {
+        primarySection = section
+        guard let mode = section.feedMode, mode != viewModel.mode else { return }
+        actionStore.mode.switchMode(mode, viewModel: viewModel)
     }
 }

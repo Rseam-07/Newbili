@@ -5,6 +5,7 @@ struct CommentDialogSheet: View {
     let focusReply: Comment
     @ObservedObject var store: VideoDetailCommentThreadRenderStore
     let reloadDialog: (Comment, Comment) async -> Void
+    let toggleLike: (Comment) -> Void
     let actions: CommentDialogSheetActions
 
     init(
@@ -12,12 +13,14 @@ struct CommentDialogSheet: View {
         focusReply: Comment,
         store: VideoDetailCommentThreadRenderStore,
         loadDialog: @escaping (Comment, Comment) async -> Void,
-        reloadDialog: @escaping (Comment, Comment) async -> Void
+        reloadDialog: @escaping (Comment, Comment) async -> Void,
+        toggleLike: @escaping (Comment) -> Void
     ) {
         self.rootComment = rootComment
         self.focusReply = focusReply
         self.store = store
         self.reloadDialog = reloadDialog
+        self.toggleLike = toggleLike
         actions = CommentDialogSheetActionsBuilder(
             rootComment: rootComment,
             focusReply: focusReply,
@@ -41,7 +44,8 @@ struct CommentDialogSheet: View {
                             rootComment: rootComment,
                             focusReply: focusReply,
                             store: store,
-                            reloadDialog: reloadDialog
+                            reloadDialog: reloadDialog,
+                            toggleLike: toggleLike
                         )
                     }
                 }

@@ -3080,6 +3080,69 @@ nonisolated struct Comment: Identifiable, Decodable, Hashable {
 
     var id: Int { rpid }
 
+    init(
+        rpid: Int,
+        rootID: Int?,
+        parentID: Int?,
+        dialogID: Int?,
+        member: CommentMember?,
+        content: CommentContent?,
+        like: Int?,
+        ctime: Int?,
+        replies: [Comment]?,
+        replyCount: Int?,
+        likeState: Int?
+    ) {
+        self.rpid = rpid
+        self.rootID = rootID
+        self.parentID = parentID
+        self.dialogID = dialogID
+        self.member = member
+        self.content = content
+        self.like = like
+        self.ctime = ctime
+        self.replies = replies
+        self.replyCount = replyCount
+        self.likeState = likeState
+    }
+
+    func updatingLike(count: Int, state: Int) -> Comment {
+        Comment(
+            rpid: rpid,
+            rootID: rootID,
+            parentID: parentID,
+            dialogID: dialogID,
+            member: member,
+            content: content,
+            like: max(0, count),
+            ctime: ctime,
+            replies: replies,
+            replyCount: replyCount,
+            likeState: state
+        )
+    }
+
+    func replacingCommentLike(id targetID: Int, count: Int, state: Int) -> Comment {
+        let updatedReplies = replies?.map {
+            $0.replacingCommentLike(id: targetID, count: count, state: state)
+        }
+        let base = rpid == targetID ? updatingLike(count: count, state: state) : self
+        guard updatedReplies != base.replies else { return base }
+        return Comment(
+            rpid: base.rpid,
+            rootID: base.rootID,
+            parentID: base.parentID,
+            dialogID: base.dialogID,
+            member: base.member,
+            content: base.content,
+            like: base.like,
+            ctime: base.ctime,
+            replies: updatedReplies,
+            replyCount: base.replyCount,
+            likeState: base.likeState
+        )
+    }
+
     var containsGoodsPromotion: Bool {
         content?.containsGoodsPromotion == true
             || replies?.contains(where: \.containsGoodsPromotion) == true

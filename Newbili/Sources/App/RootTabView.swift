@@ -9,6 +9,7 @@ struct RootTabView: View {
     @StateObject var homeViewModelHolder = RootHomeViewModelHolder()
     @StateObject var mineViewModelHolder = MineViewModelHolder()
     @StateObject var searchBottomAccessoryStore = SearchBottomAccessoryStore()
+    @StateObject var audioMiniPlayerCoordinator = AudioMiniPlayerCoordinator.shared
     @State var selectedTab = Self.initialTab.appTab
     @State var bottomMode: BottomTabMode = .root
     @State var rootTabBarRestoreRequestID = 0
@@ -135,12 +136,34 @@ struct RootTabView: View {
             }
         }
         .tint(libraryStore.appTintColor)
-        .tabViewBottomAccessory(isEnabled: showsSearchBottomAccessory) {
-            SearchTabBottomAccessory(store: searchBottomAccessoryStore)
+        .tabViewBottomAccessory(isEnabled: showsRootBottomAccessory) {
+            rootBottomAccessory
         }
         .tabBarMinimizeBehavior(rootTabBarMinimizeBehavior)
         .restoresRootTabBarWhenRequested(requestID: rootTabBarRestoreRequestID)
         .background(RootTabBarAppearanceInstaller(tintColorHex: libraryStore.appTintColorHex))
+    }
+
+    private var showsRootBottomAccessory: Bool {
+        showsAudioMiniPlayerAccessory || showsSearchBottomAccessory
+    }
+
+    private var showsAudioMiniPlayerAccessory: Bool {
+        bottomMode == .root
+            && rootNavigationPath.isEmpty
+            && audioMiniPlayerCoordinator.snapshot != nil
+    }
+
+    @ViewBuilder
+    private var rootBottomAccessory: some View {
+        if showsAudioMiniPlayerAccessory {
+            AudioMiniPlayerBottomAccessory(
+                coordinator: audioMiniPlayerCoordinator,
+                openDetail: openAudioMiniPlayerDetail
+            )
+        } else {
+            SearchTabBottomAccessory(store: searchBottomAccessoryStore)
+        }
     }
 
     private var showsSearchBottomAccessory: Bool {

@@ -531,6 +531,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
     @State private var portraitMoreControlsRequestID: UUID?
     @State private var isMoreControlsButtonPressed = false
     @State private var isVideoListenQueuePresented = false
+    @State private var isDanmakuComposerPresented = false
 
     init(
         viewModel: PlayerStateViewModel,
@@ -776,6 +777,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             withTransaction(transaction) {
                 isMoreControlsPresented = false
                 isVideoListenQueuePresented = false
+                isDanmakuComposerPresented = false
             }
             playbackControlsVisibility.cancelAutoHide()
         }
@@ -795,6 +797,16 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                 SurfaceOnlyVideoListenQueuePage(
                     detailViewModel: detailViewModel,
                     closeSheet: { isVideoListenQueuePresented = false }
+                )
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isDanmakuComposerPresented) {
+            NavigationStack {
+                SurfaceOnlyDanmakuComposerPage(
+                    detailViewModel: detailViewModel,
+                    close: { isDanmakuComposerPresented = false }
                 )
             }
             .presentationDetents([.medium, .large])
@@ -874,10 +886,12 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             isDanmakuEnabled: keepsChromeMounted && overlaySnapshot.isDanmakuEnabled && !isAudioOnlyPlayback,
             onToggleDanmaku: isAudioOnlyPlayback ? nil : onToggleDanmaku,
             onShowDanmakuSettings: isAudioOnlyPlayback ? nil : onShowDanmakuSettings,
+            onSendDanmaku: isAudioOnlyPlayback ? nil : { isDanmakuComposerPresented = true },
             isSecondaryControlsPresented: keepsChromeMounted
                 && (isMoreControlsPresented
                     || portraitMoreControlsRequestID != nil
-                    || isVideoListenQueuePresented),
+                    || isVideoListenQueuePresented
+                    || isDanmakuComposerPresented),
             ignoresContainerSafeArea: true,
             keepsPlayerSurfaceStable: true,
             fullscreenMode: fullscreenMode,
@@ -1829,6 +1843,7 @@ private enum SurfaceOnlyLandscapeMoreControlsPage {
     case queue
     case playbackOrder
     case sleepTimer
+    case danmakuComposer
     case danmaku
     case rate
 
@@ -1846,6 +1861,8 @@ private enum SurfaceOnlyLandscapeMoreControlsPage {
             return "播放顺序"
         case .sleepTimer:
             return "定时关闭"
+        case .danmakuComposer:
+            return "发送弹幕"
         case .danmaku:
             return "弹幕设置"
         case .rate:
@@ -1921,6 +1938,12 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
                 playbackOrderPage
             case .sleepTimer:
                 sleepTimerPage
+            case .danmakuComposer:
+                SurfaceOnlyDanmakuComposerPage(
+                    detailViewModel: detailViewModel,
+                    close: close
+                )
+                .scrollContentBackground(.hidden)
             case .danmaku:
                 SurfaceOnlyDanmakuSettingsPage(
                     detailViewModel: detailViewModel,

@@ -9,6 +9,7 @@ extension PortraitCommentsSheet {
         selectCommentSort: @escaping (CommentSort) async -> Void,
         retryComments: @escaping () async -> Void,
         loadMoreComments: @escaping () async -> Void,
+        toggleLike: @escaping (Comment) -> Void = { _ in },
         loadReplies: @escaping (Comment) async -> Void,
         reloadReplies: @escaping (Comment) async -> Void,
         loadMoreReplies: @escaping (Comment) async -> Void,
@@ -24,12 +25,14 @@ extension PortraitCommentsSheet {
                 selectCommentSort: selectCommentSort,
                 retryComments: retryComments,
                 loadMoreComments: loadMoreComments,
+                toggleLike: toggleLike,
                 replies: PortraitCommentsSheetReplyActions(
                     loadReplies: loadReplies,
                     reloadReplies: reloadReplies,
                     loadMoreReplies: loadMoreReplies,
                     loadDialog: loadDialog,
-                    reloadDialog: reloadDialog
+                    reloadDialog: reloadDialog,
+                    toggleLike: toggleLike
                 )
             )
         )

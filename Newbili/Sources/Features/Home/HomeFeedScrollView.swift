@@ -11,6 +11,7 @@ struct HomeFeedScrollView<FeedContent: View>: View {
     @ObservedObject var scrollActions: HomeFeedScrollActions
     let refreshActions: HomeFeedRefreshActions
     let layout: HomeFeedLayout
+    let background: Color
     @ViewBuilder let feedContent: () -> FeedContent
 
     var body: some View {
@@ -41,7 +42,7 @@ struct HomeFeedScrollView<FeedContent: View>: View {
             )
             .scrollBounceBehavior(.always, axes: .vertical)
             .defersRemoteImageLoadsDuringFastScroll()
-            .background(layout.homeFeedBackground)
+            .background(background)
             .nativeTopScrollEdgeEffect()
             .animation(.smooth(duration: 0.24), value: layout)
             .homeFeedScrollOverlays(

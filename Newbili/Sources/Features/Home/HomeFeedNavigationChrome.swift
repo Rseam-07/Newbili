@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct HomeFeedNavigationChrome: ViewModifier {
-    @ObservedObject var viewModel: HomeViewModel
-    let modeActions: HomeFeedModeActions
+    @Binding var primarySection: HomePrimarySection
+    let onSelectSection: (HomePrimarySection) -> Void
     let accountMessageViewModel: AccountMessageCenterViewModel?
     let isModeSwitcherExperimentEnabled: Bool
     let onOpenAccountMessages: () -> Void
@@ -11,28 +11,25 @@ struct HomeFeedNavigationChrome: ViewModifier {
     func body(content: Content) -> some View {
         if isModeSwitcherExperimentEnabled {
             content
-                .rootNavigationTitle(
-                    "首页",
-                    accessoryUsesFullWidth: true
-                ) {
-                    GlassEffectContainer(spacing: 8) {
-                        ZStack {
-                            HomeNavigationModeControl(
-                                viewModel: viewModel,
-                                onSelectMode: switchMode
-                            )
-                            .frame(width: 112)
-
-                            accountMessageButton
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    HomeNavigationModeControl(
+                        selection: $primarySection,
+                        onSelect: onSelectSection
+                    )
+                    .padding(.vertical, 7)
+                    .background(.ultraThinMaterial)
+                }
+                .rootNavigationTitle("首页") {
+                    accountMessageButton
                 }
                 .nativeTopNavigationChrome()
         } else {
             content
                 .rootNavigationTitle("首页") {
-                    HomeFeedModeMenu(currentMode: viewModel.mode, onSelectMode: switchMode)
+                    HomePrimarySectionMenu(
+                        selection: primarySection,
+                        onSelect: onSelectSection
+                    )
                 }
                 .nativeTopNavigationChrome()
         }
@@ -53,23 +50,20 @@ struct HomeFeedNavigationChrome: ViewModifier {
         }
     }
 
-    private func switchMode(_ mode: HomeFeedMode) {
-        modeActions.switchMode(mode, viewModel: viewModel)
-    }
 }
 
 extension View {
     func homeFeedNavigationChrome(
-        viewModel: HomeViewModel,
-        modeActions: HomeFeedModeActions,
+        primarySection: Binding<HomePrimarySection>,
+        onSelectSection: @escaping (HomePrimarySection) -> Void,
         accountMessageViewModel: AccountMessageCenterViewModel?,
         isModeSwitcherExperimentEnabled: Bool,
         onOpenAccountMessages: @escaping () -> Void
     ) -> some View {
         modifier(
             HomeFeedNavigationChrome(
-                viewModel: viewModel,
-                modeActions: modeActions,
+                primarySection: primarySection,
+                onSelectSection: onSelectSection,
                 accountMessageViewModel: accountMessageViewModel,
                 isModeSwitcherExperimentEnabled: isModeSwitcherExperimentEnabled,
                 onOpenAccountMessages: onOpenAccountMessages
@@ -78,78 +72,63 @@ extension View {
     }
 }
 
-private enum HomeNavigationModeOption: String, CaseIterable, Identifiable, Hashable {
-    case recommend
-    case popular
+private struct HomeNavigationModeControl: View {
+    @Binding var selection: HomePrimarySection
+    let onSelect: (HomePrimarySection) -> Void
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .recommend:
-            return "推荐"
-        case .popular:
-            return "热门"
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                ForEach(HomePrimarySection.allCases) { section in
+                    Button {
+                        onSelect(section)
+                    } label: {
+                        Text(section.title)
+                            .font(.subheadline.weight(selection == section ? .bold : .medium))
+                            .foregroundStyle(selection == section ? .primary : .secondary)
+                            .padding(.horizontal, 11)
+                            .frame(height: 30)
+                            .background {
+                                if selection == section {
+                                    Capsule()
+                                        .fill(.primary.opacity(0.10))
+                                        .biliPlayerClearGlass(interactive: true, in: Capsule())
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .id(section)
+                }
+            }
+            .padding(.horizontal, 2)
         }
+        .scrollIndicators(.hidden)
+        .accessibilityElement(children: .contain)
     }
 }
 
-private struct HomeNavigationModeControl: View {
-    @ObservedObject var viewModel: HomeViewModel
-    let onSelectMode: (HomeFeedMode) -> Void
-    @State private var selectedOption: HomeNavigationModeOption
-
-    init(
-        viewModel: HomeViewModel,
-        onSelectMode: @escaping (HomeFeedMode) -> Void
-    ) {
-        self.viewModel = viewModel
-        self.onSelectMode = onSelectMode
-        _selectedOption = State(initialValue: Self.option(for: viewModel.mode))
-    }
+private struct HomePrimarySectionMenu: View {
+    let selection: HomePrimarySection
+    let onSelect: (HomePrimarySection) -> Void
 
     var body: some View {
-        Picker(
-            "首页模式",
-            selection: Binding(
-                get: { selectedOption },
-                set: select
-            )
-        ) {
-            ForEach(HomeNavigationModeOption.allCases) { option in
-                Text(option.title).tag(option)
+        Menu {
+            ForEach(HomePrimarySection.allCases) { section in
+                Button {
+                    onSelect(section)
+                } label: {
+                    Label(
+                        section.title,
+                        systemImage: selection == section ? "checkmark" : section.systemImage
+                    )
+                }
             }
+        } label: {
+            Image(systemName: selection.systemImage)
+                .frame(width: 34, height: 34)
         }
-        .pickerStyle(.segmented)
-        .controlSize(.small)
-        .labelsHidden()
-        .accessibilityLabel("首页模式")
-        .onAppear {
-            selectedOption = Self.option(for: viewModel.mode)
-        }
-        .onChange(of: viewModel.mode) { _, mode in
-            selectedOption = Self.option(for: mode)
-        }
-    }
-
-    private func select(_ option: HomeNavigationModeOption) {
-        switch option {
-        case .recommend:
-            selectedOption = option
-            onSelectMode(.recommend)
-        case .popular:
-            selectedOption = option
-            onSelectMode(.popular)
-        }
-    }
-
-    private static func option(for mode: HomeFeedMode) -> HomeNavigationModeOption {
-        switch mode {
-        case .recommend:
-            return .recommend
-        case .popular:
-            return .popular
-        }
+        .accessibilityLabel("首页内容")
+        .accessibilityValue(selection.title)
     }
 }
 

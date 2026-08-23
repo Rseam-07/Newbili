@@ -9,6 +9,7 @@ struct CommentRepliesSheet: View {
     let loadMoreReplies: (Comment) async -> Void
     let loadDialog: (Comment, Comment) async -> Void
     let reloadDialog: (Comment, Comment) async -> Void
+    let toggleLike: (Comment) -> Void
     @State private var dialogReply: Comment?
     @State private var didPresentInitialReply = false
 
@@ -20,7 +21,8 @@ struct CommentRepliesSheet: View {
         reloadReplies: @escaping (Comment) async -> Void,
         loadMoreReplies: @escaping (Comment) async -> Void,
         loadDialog: @escaping (Comment, Comment) async -> Void,
-        reloadDialog: @escaping (Comment, Comment) async -> Void
+        reloadDialog: @escaping (Comment, Comment) async -> Void,
+        toggleLike: @escaping (Comment) -> Void
     ) {
         self.rootComment = rootComment
         self.store = store
@@ -30,6 +32,7 @@ struct CommentRepliesSheet: View {
         self.loadMoreReplies = loadMoreReplies
         self.loadDialog = loadDialog
         self.reloadDialog = reloadDialog
+        self.toggleLike = toggleLike
     }
 
     var body: some View {
@@ -40,6 +43,7 @@ struct CommentRepliesSheet: View {
                 reloadReplies: reloadReplies,
                 loadMoreReplies: loadMoreReplies,
                 showDialog: showDialog,
+                toggleLike: toggleLike,
                 loadReplies: loadReplies
             )
         }
@@ -51,7 +55,8 @@ struct CommentRepliesSheet: View {
                 focusReply: reply,
                 store: store,
                 loadDialog: loadDialog,
-                reloadDialog: reloadDialog
+                reloadDialog: reloadDialog,
+                toggleLike: toggleLike
             )
         }
         .onChange(of: replyIDs) { _, _ in

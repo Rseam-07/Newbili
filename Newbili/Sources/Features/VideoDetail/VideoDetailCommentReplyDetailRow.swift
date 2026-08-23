@@ -5,13 +5,19 @@ struct CommentReplyDetailRow: View {
 
     let item: VideoDetailCommentReplyDisplayItem
     let showDialog: (() -> Void)?
+    let toggleLike: () -> Void
 
     private var reply: Comment { item.reply }
     private var display: VideoDetailCommentDisplayModel { item.display }
 
-    init(item: VideoDetailCommentReplyDisplayItem, showDialog: (() -> Void)?) {
+    init(
+        item: VideoDetailCommentReplyDisplayItem,
+        showDialog: (() -> Void)?,
+        toggleLike: @escaping () -> Void = {}
+    ) {
         self.item = item
         self.showDialog = showDialog
+        self.toggleLike = toggleLike
     }
 
     var body: some View {
@@ -35,11 +41,16 @@ struct CommentReplyDetailRow: View {
 
                     Spacer(minLength: 8)
 
-                    CommentMetricBadge(
-                        text: display.likeText,
-                        systemImage: display.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
-                        isHighlighted: display.isLiked
-                    )
+                    Button(action: toggleLike) {
+                        CommentMetricBadge(
+                            text: display.likeText,
+                            systemImage: display.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
+                            isHighlighted: display.isLiked
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel(display.isLiked ? "取消点赞" : "点赞")
                 }
 
                 BiliEmoteText(

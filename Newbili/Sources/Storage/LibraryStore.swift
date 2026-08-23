@@ -162,6 +162,7 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var force120HzScrollingEnabled: Bool
     @Published private(set) var visibleRootTabs: [AppTab]
     @Published private(set) var homeRefreshTriggerDistance: Double
+    @Published private(set) var homePresentationStyle: HomePresentationStyle
     @Published private(set) var homeFeedLayout: HomeFeedLayout
     @Published private(set) var homeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference
     @Published private(set) var showsHotSearches: Bool
@@ -273,6 +274,7 @@ final class LibraryStore: ObservableObject {
     private static let force120HzScrollingEnabledKey = RefreshRateManager.isEnabledKey
     private static let visibleRootTabsKey = "cc.bili.display.visibleRootTabs.v1"
     private static let homeRefreshTriggerDistanceKey = "cc.bili.home.refreshTriggerDistance.v1"
+    private static let homePresentationStyleKey = "cc.bili.home.presentationStyle.v1"
     private static let homeFeedLayoutKey = "cc.bili.home.feedLayout.v1"
     private static let homeRecommendFeedSourcePreferenceKey = "cc.bili.home.recommendFeedSourcePreference.v1"
     private static let showsHotSearchesKey = "cc.bili.search.showsHotSearches.v1"
@@ -282,6 +284,7 @@ final class LibraryStore: ObservableObject {
     nonisolated static let defaultAppTintColorHex = AppThemeTintColor.defaultHex
     nonisolated static let defaultPlaybackStreamSourcePreference: PlaybackStreamSourcePreference = .app
     nonisolated static let defaultHomeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference = .app
+    nonisolated static let defaultHomePresentationStyle: HomePresentationStyle = .immersive
     nonisolated static let defaultHomeFeedLayout: HomeFeedLayout = .singleColumn
     nonisolated static let defaultPlaybackHistorySyncThresholdSeconds = 5
     nonisolated static let supportedPlaybackHistorySyncThresholdSeconds = [5, 10, 30]
@@ -542,6 +545,9 @@ final class LibraryStore: ObservableObject {
         self.homeRefreshTriggerDistance = Self.normalizedHomeRefreshDistance(
             userDefaults.object(forKey: Self.homeRefreshTriggerDistanceKey) as? Double ?? Self.defaultHomeRefreshTriggerDistance
         )
+        self.homePresentationStyle = HomePresentationStyle(
+            rawValue: userDefaults.string(forKey: Self.homePresentationStyleKey) ?? ""
+        ) ?? Self.defaultHomePresentationStyle
         self.homeFeedLayout = HomeFeedLayout(
             rawValue: userDefaults.string(forKey: Self.homeFeedLayoutKey) ?? ""
         ) ?? Self.defaultHomeFeedLayout
@@ -1241,6 +1247,11 @@ final class LibraryStore: ObservableObject {
         let normalizedDistance = Self.normalizedHomeRefreshDistance(distance)
         homeRefreshTriggerDistance = normalizedDistance
         userDefaults.set(normalizedDistance, forKey: Self.homeRefreshTriggerDistanceKey)
+    }
+
+    func setHomePresentationStyle(_ style: HomePresentationStyle) {
+        homePresentationStyle = style
+        userDefaults.set(style.rawValue, forKey: Self.homePresentationStyleKey)
     }
 
     func setHomeFeedLayout(_ layout: HomeFeedLayout) {

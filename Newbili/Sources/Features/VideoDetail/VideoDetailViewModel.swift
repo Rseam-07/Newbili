@@ -121,6 +121,7 @@ final class VideoDetailViewModel: ObservableObject {
         didSet { scheduleRenderStoreSync(.networkDiagnostics) }
     }
     var commentThreadState = VideoDetailCommentThreadState()
+    var commentLikeMutationIDs = Set<Int>()
 
     let serviceDependencies: VideoDetailViewModelDependencies
     let playbackOptions: VideoDetailPlaybackOptions
@@ -159,12 +160,25 @@ final class VideoDetailViewModel: ObservableObject {
         videoListenPlaybackSessionStore: VideoListenPlaybackSessionStore? = nil
     ) {
         let resolvedVideoListenPlaybackSessionStore = videoListenPlaybackSessionStore
-            ?? VideoListenPlaybackSessionStore()
+            ?? .shared
+        let restoredVideoListenState = resolvedVideoListenPlaybackSessionStore.state(for: seedVideo)
+        let initialSelectedCID = seedVideo.historyCID ?? seedVideo.cid ?? seedVideo.pages?.first?.cid
         self.detail = seedVideo
-        self.selectedCID = seedVideo.historyCID ?? seedVideo.cid ?? seedVideo.pages?.first?.cid
+        self.selectedCID = initialSelectedCID
         self.videoListenQueueSession = VideoListenQueueSession(seedVideo: seedVideo)
         self.videoListenPlaybackSessionStore = resolvedVideoListenPlaybackSessionStore
-        self.pendingVideoListenPlaybackSessionState = nil
+        self.pendingVideoListenPlaybackSessionState = restoredVideoListenState
+        if let restoredVideoListenState {
+            self.playbackContentMode = .audioOnly
+            self.selectedVideoListenAudioPreferenceKey = restoredVideoListenState.audioPreferenceKey
+            self.pendingVideoListenPlaybackIntent = restoredVideoListenState.wantsPlayback
+            if let resumeTime = restoredVideoListenState.resumeTime,
+               resumeTime.isFinite,
+                resumeTime > 0.25 {
+                self.pendingPlaybackHistoryResumeTime = resumeTime
+                self.pendingPlaybackHistoryResumeCID = initialSelectedCID
+            }
+        }
         self.serviceDependencies = VideoDetailViewModelDependencies(
             api: api,
             libraryStore: libraryStore,

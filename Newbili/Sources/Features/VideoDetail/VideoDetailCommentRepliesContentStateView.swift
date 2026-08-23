@@ -6,6 +6,7 @@ struct CommentRepliesContentStateView: View {
     let rootComment: Comment
     let loadMoreReplies: (Comment) async -> Void
     let showDialog: (Comment) -> Void
+    let toggleLike: (Comment) -> Void
     let actions: CommentRepliesContentStateActions
 
     init(
@@ -14,13 +15,15 @@ struct CommentRepliesContentStateView: View {
         rootComment: Comment,
         reloadReplies: @escaping (Comment) async -> Void,
         loadMoreReplies: @escaping (Comment) async -> Void,
-        showDialog: @escaping (Comment) -> Void
+        showDialog: @escaping (Comment) -> Void,
+        toggleLike: @escaping (Comment) -> Void
     ) {
         self.state = state
         self.snapshot = snapshot
         self.rootComment = rootComment
         self.loadMoreReplies = loadMoreReplies
         self.showDialog = showDialog
+        self.toggleLike = toggleLike
         actions = CommentRepliesContentStateActions(
             rootComment: rootComment,
             reloadReplies: reloadReplies
@@ -48,7 +51,8 @@ struct CommentRepliesContentStateView: View {
                 snapshot: snapshot,
                 rootComment: rootComment,
                 loadMoreReplies: loadMoreReplies,
-                showDialog: showDialog
+                showDialog: showDialog,
+                toggleLike: toggleLike
             )
         }
     }

@@ -5,6 +5,7 @@ struct PortraitCommentsSheetActions {
     let selectCommentSort: (CommentSort) async -> Void
     let retryComments: () async -> Void
     let loadMoreComments: () async -> Void
+    let toggleLike: (Comment) -> Void
     let replies: PortraitCommentsSheetReplyActions
 
     @MainActor

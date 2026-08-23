@@ -4,6 +4,7 @@ struct VideoDetailCommentsSectionActions {
     let retryComments: () async -> Void
     let loadMoreComments: () async -> Void
     let showReplies: (Comment) -> Void
+    let toggleLike: (Comment) -> Void
     let showAllComments: (() -> Void)?
 
     @MainActor

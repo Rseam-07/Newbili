@@ -20,6 +20,7 @@ struct BiliPlayerViewConfiguration {
     let isDanmakuEnabled: Bool
     let onToggleDanmaku: (() -> Void)?
     let onShowDanmakuSettings: (() -> Void)?
+    let onSendDanmaku: (() -> Void)?
     let isSecondaryControlsPresented: Bool
     let durationHint: TimeInterval?
     let embeddedAspectRatio: CGFloat
@@ -66,6 +67,7 @@ struct BiliPlayerViewConfiguration {
         isDanmakuEnabled: Bool,
         onToggleDanmaku: (() -> Void)?,
         onShowDanmakuSettings: (() -> Void)?,
+        onSendDanmaku: (() -> Void)?,
         isSecondaryControlsPresented: Bool,
         durationHint: TimeInterval?,
         embeddedAspectRatio: CGFloat,
@@ -100,6 +102,7 @@ struct BiliPlayerViewConfiguration {
         self.isDanmakuEnabled = isDanmakuEnabled
         self.onToggleDanmaku = onToggleDanmaku
         self.onShowDanmakuSettings = onShowDanmakuSettings
+        self.onSendDanmaku = onSendDanmaku
         self.isSecondaryControlsPresented = isSecondaryControlsPresented
         self.durationHint = durationHint
         self.embeddedAspectRatio = embeddedAspectRatio

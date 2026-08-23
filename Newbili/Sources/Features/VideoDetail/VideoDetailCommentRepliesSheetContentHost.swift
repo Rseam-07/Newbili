@@ -6,6 +6,7 @@ struct CommentRepliesSheetContentHost: View {
     let reloadReplies: (Comment) async -> Void
     let loadMoreReplies: (Comment) async -> Void
     let showDialog: (Comment) -> Void
+    let toggleLike: (Comment) -> Void
     let actions: CommentRepliesSheetContentHostActions
 
     init(
@@ -14,6 +15,7 @@ struct CommentRepliesSheetContentHost: View {
         reloadReplies: @escaping (Comment) async -> Void,
         loadMoreReplies: @escaping (Comment) async -> Void,
         showDialog: @escaping (Comment) -> Void,
+        toggleLike: @escaping (Comment) -> Void,
         loadReplies: @escaping (Comment) async -> Void
     ) {
         self.rootComment = rootComment
@@ -21,6 +23,7 @@ struct CommentRepliesSheetContentHost: View {
         self.reloadReplies = reloadReplies
         self.loadMoreReplies = loadMoreReplies
         self.showDialog = showDialog
+        self.toggleLike = toggleLike
         actions = CommentRepliesSheetContentHostActionsBuilder(
             rootComment: rootComment,
             loadReplies: loadReplies
@@ -42,7 +45,8 @@ struct CommentRepliesSheetContentHost: View {
                     store: store,
                     reloadReplies: reloadReplies,
                     loadMoreReplies: loadMoreReplies,
-                    showDialog: showDialog
+                    showDialog: showDialog,
+                    toggleLike: toggleLike
                 )
             }
         }

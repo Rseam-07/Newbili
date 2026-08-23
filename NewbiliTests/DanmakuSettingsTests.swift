@@ -17,6 +17,6 @@ final class DanmakuSettingsTests: XCTestCase {
 
         let settings = try JSONDecoder().decode(DanmakuSettings.self, from: data)
 
-        XCTAssertTrue(settings.hidesInPortrait)
+        XCTAssertFalse(settings.hidesInPortrait)
     }
 }

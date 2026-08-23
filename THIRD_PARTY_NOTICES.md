@@ -10,6 +10,7 @@ Newbili is distributed under GPL-3.0-only. The following list records projects a
 
 ## Design and native-client references
 
+- **AniShelf** — <https://github.com/samuelhe52/AniShelf> — Apache-2.0. Newbili's PGC browsing surfaces adapt its immersive artwork, soft color-orb background, rounded poster-card, and content-hierarchy ideas while retaining Newbili's own navigation and playback behavior.
 - **MiniBili-WEB** — <https://github.com/ResistanceTo/MiniBili-WEB> — MIT. Apple-platform product presentation and interface reference.
 - **PiliPod** — <https://github.com/BPTPW/PiliPod> — GPL-3.0. Swift-native client and player-interaction reference.
 

@@ -7,7 +7,11 @@ struct VideoDetailViewModelHolderCleanupActions {
     func makeCleanupPlayback() -> () -> Void {
         { [viewModel] in
             Task { @MainActor [viewModel] in
-                viewModel.stopPlaybackForNavigation()
+                if AudioMiniPlayerCoordinator.shared.shouldKeepAlive(viewModel) {
+                    viewModel.persistVideoListenPlaybackSession()
+                } else {
+                    viewModel.stopPlaybackForNavigation()
+                }
             }
         }
     }

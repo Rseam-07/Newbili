@@ -31,7 +31,8 @@ struct VideoDetailReplySheetHost: View {
             reloadReplies: renderPack.actions.reloadReplies,
             loadMoreReplies: renderPack.actions.loadMoreReplies,
             loadDialog: renderPack.actions.loadDialog,
-            reloadDialog: renderPack.actions.reloadDialog
+            reloadDialog: renderPack.actions.reloadDialog,
+            toggleLike: renderPack.actions.toggleCommentLike
         )
     }
 }

@@ -61,6 +61,11 @@ struct BiliPlayerNativeControlsActionBuilder {
                     configuration.onToggleDanmaku?()
                 }
             },
+            onSendDanmaku: {
+                guard !viewModel.isTerminated else { return }
+                visibilityActions.markInteraction(keepsVisible: true)
+                configuration.onSendDanmaku?()
+            },
             onToggleFullscreen: {
                 guard !viewModel.isTerminated else { return }
                 visibilityActions.markInteraction()

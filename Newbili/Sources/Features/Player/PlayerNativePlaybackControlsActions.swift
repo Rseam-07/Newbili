@@ -7,5 +7,6 @@ struct PlayerNativePlaybackControlsActions {
     let onScrubCancelled: () -> Void
     let onTogglePlayback: () -> Void
     let onToggleDanmaku: () -> Void
+    let onSendDanmaku: () -> Void
     let onToggleFullscreen: () -> Void
 }

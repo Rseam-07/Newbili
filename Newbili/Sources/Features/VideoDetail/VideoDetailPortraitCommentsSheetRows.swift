@@ -26,6 +26,9 @@ struct PortraitCommentsSheetCommentRows: View {
                     style: .plain,
                     showReplies: {
                         replySheetComment = item.comment
+                    },
+                    toggleLike: {
+                        actions.toggleLike(item.comment)
                     }
                 )
                 .equatable()

@@ -4,14 +4,17 @@ struct CommentDialogStateContent: View {
     let snapshot: VideoDetailCommentThreadDialogSnapshot
     let focusReplyID: Int
     let actions: CommentDialogStateContentActions
+    let toggleLike: (Comment) -> Void
 
     init(
         snapshot: VideoDetailCommentThreadDialogSnapshot,
         focusReplyID: Int,
-        reloadDialog: @escaping () async -> Void
+        reloadDialog: @escaping () async -> Void,
+        toggleLike: @escaping (Comment) -> Void
     ) {
         self.snapshot = snapshot
         self.focusReplyID = focusReplyID
+        self.toggleLike = toggleLike
         actions = CommentDialogStateContentActions(reloadDialog: reloadDialog)
     }
 
@@ -28,7 +31,8 @@ struct CommentDialogStateContent: View {
                 items: snapshot.items,
                 focusReplyID: focusReplyID,
                 footerFailureMessage: footerFailureMessage,
-                retryDialog: actions.reloadDialogAction
+                retryDialog: actions.reloadDialogAction,
+                toggleLike: toggleLike
             )
         }
     }

@@ -16,7 +16,7 @@ Newbili（简称 **nb**）是一个以 SwiftUI、UIKit 和 AVFoundation 编写�
 
 ## 当前能力
 
-- 首页推荐、热门、排行榜、搜索、多类型搜索结果与 UP 主空间。
+- 首页推荐、热门、完整分区榜单、番剧/影视索引与更新日历、搜索、多类型搜索结果和 UP 主空间；首页可选默认沉浸式新版或简约信息流。
 - 视频详情、分 P、清晰度/编码/线路选择、续播、点赞、投币、收藏、评论与分享。
 - 默认使用自研播放器控件，保留弹幕、全屏手势、画中画、听视频、SponsorBlock 等能力；设置中可切换为 iOS 原生播放控件。
 - 动态流、动态详情、评论互动、图文/视频/转发动态展示。
@@ -25,7 +25,7 @@ Newbili（简称 **nb**）是一个以 SwiftUI、UIKit 和 AVFoundation 编写�
 - 观看记录、收藏夹、稍后再看及基础账号消息/私信界面。
 - 原生标签页、导航栈、菜单、表单、材质与 Liquid Glass 外观。
 
-Newbili 仍在持续补齐 PiliPlus 的长尾功能。PGC 完整索引、离线下载、WebDAV、DLNA、完整专栏/音频、动态发布和私信高级能力尚未全部达到一比一覆盖；请以 [功能对照基线](UPSTREAM_PARITY_2026-08-19.md) 为准，避免把“已有入口”误认为“完整闭环”。
+Newbili 仍在持续补齐 PiliPlus 的长尾功能。PGC 高级筛选与完整追番管理、离线下载、WebDAV、DLNA、完整专栏/音频、动态发布和私信高级能力尚未全部达到一比一覆盖；请以 [功能对照基线](UPSTREAM_PARITY_2026-08-19.md) 为准，避免把“已有入口”误认为“完整闭环”。
 
 ## 播放器设计
 
@@ -120,6 +120,7 @@ Newbili 的原生实现由本仓库维护，但功能语义、接口行为、交
 | [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) | 最主要的功能、接口参数与行为对照上游 | GPL-3.0 |
 | [PiliPalaX](https://github.com/orz12/PiliPalaX) | PiliPlus 的上游演进链路 | GPL-3.0 |
 | [PiliPala](https://github.com/guozhigq/pilipala) | PiliPalaX / PiliPlus 的原始上游链路 | GPL-3.0 |
+| [AniShelf](https://github.com/samuelhe52/AniShelf) | 番剧、动漫与影视页面的沉浸背景、海报卡片和信息层级设计参考 | Apache-2.0；Newbili 已按自身导航与播放链路重新实现 |
 | [MiniBili-WEB](https://github.com/ResistanceTo/MiniBili-WEB) | Apple 平台产品呈现与界面参考 | MIT |
 | [PiliPod](https://github.com/BPTPW/PiliPod) | Swift 原生客户端与播放器交互参考 | GPL-3.0 |
 | [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) | 公开接口文档与字段语义参考 | 仓库未声明标准开源许可证；仅作资料引用 |

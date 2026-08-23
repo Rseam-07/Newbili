@@ -6,6 +6,7 @@ struct CommentRepliesContent: View {
     let reloadReplies: (Comment) async -> Void
     let loadMoreReplies: (Comment) async -> Void
     let showDialog: (Comment) -> Void
+    let toggleLike: (Comment) -> Void
 
     var body: some View {
         let snapshot = store.repliesSnapshot(for: rootComment)
@@ -16,7 +17,8 @@ struct CommentRepliesContent: View {
             rootComment: rootComment,
             reloadReplies: reloadReplies,
             loadMoreReplies: loadMoreReplies,
-            showDialog: showDialog
+            showDialog: showDialog,
+            toggleLike: toggleLike
         )
     }
 }

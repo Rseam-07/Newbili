@@ -7,6 +7,7 @@ struct PlayerNativeControlButtonRow: View {
     let isPlaying: Bool
     let isDanmakuEnabled: Bool
     let showsDanmakuButton: Bool
+    let showsSendDanmakuButton: Bool
     let canToggleFullscreen: Bool
     let isFullscreenActive: Bool
     let controlsAccessory: AnyView?
@@ -56,6 +57,15 @@ struct PlayerNativeControlButtonRow: View {
                         accessibilityLabel: "弹幕设置",
                         metrics: metrics,
                         action: actions.onToggleDanmaku
+                    )
+                }
+
+                if showsSendDanmakuButton {
+                    PlayerNativeGlassIconButton(
+                        systemName: "paperplane.fill",
+                        accessibilityLabel: "发送弹幕",
+                        metrics: metrics,
+                        action: actions.onSendDanmaku
                     )
                 }
 

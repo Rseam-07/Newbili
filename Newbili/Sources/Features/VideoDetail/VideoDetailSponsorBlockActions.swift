@@ -27,9 +27,7 @@ extension VideoDetailViewModel {
                   self.selectedCID == cid,
                   self.sponsorBlockIdentity(for: self.detail.bvid, cid: cid) == identity
             else { return }
-            guard let release = await self.waitForPlaybackStartupRelease(acceptsFailure: false),
-                  case .firstFrame = release,
-                  !Task.isCancelled,
+            guard !Task.isCancelled,
                   !self.isPlaybackInvalidatedForNavigation,
                   self.sponsorBlockGeneration == generation,
                   self.selectedCID == cid,

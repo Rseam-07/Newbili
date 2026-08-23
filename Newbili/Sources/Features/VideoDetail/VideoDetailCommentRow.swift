@@ -4,6 +4,7 @@ struct CommentRow: View, Equatable {
     let item: VideoDetailCommentDisplayItem
     let style: CommentSectionStyle
     let showReplies: () -> Void
+    let toggleLike: () -> Void
 
     private var comment: Comment { item.comment }
     private var display: VideoDetailCommentDisplayModel { item.display }
@@ -11,11 +12,13 @@ struct CommentRow: View, Equatable {
     init(
         item: VideoDetailCommentDisplayItem,
         style: CommentSectionStyle,
-        showReplies: @escaping () -> Void
+        showReplies: @escaping () -> Void,
+        toggleLike: @escaping () -> Void
     ) {
         self.item = item
         self.style = style
         self.showReplies = showReplies
+        self.toggleLike = toggleLike
     }
 
     static func == (lhs: CommentRow, rhs: CommentRow) -> Bool {
@@ -31,7 +34,7 @@ struct CommentRow: View, Equatable {
             )
 
             VStack(alignment: .leading, spacing: 5) {
-                CommentRowHeader(display: display)
+                CommentRowHeader(display: display, toggleLike: toggleLike)
 
                 BiliEmoteText(
                     content: comment.content,

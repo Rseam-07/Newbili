@@ -19,7 +19,8 @@ private struct VideoDetailSheetHostModifier: ViewModifier {
                             focusReply: reply,
                             store: viewModel.commentThreadRenderStore,
                             loadDialog: sheetActions.replies.loadDialog,
-                            reloadDialog: sheetActions.replies.reloadDialog
+                            reloadDialog: sheetActions.replies.reloadDialog,
+                            toggleLike: { viewModel.toggleCommentLike($0) }
                         )
                         .environment(\.commentContentOwnerMID, viewModel.detail.owner?.mid)
                     } else {

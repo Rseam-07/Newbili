@@ -25,6 +25,9 @@ struct VideoDetailEmbeddedCommentsSectionActionsBuilder {
             showReplies: { comment in
                 onReply(comment)
             },
+            toggleLike: { [weak viewModel] comment in
+                viewModel?.toggleCommentLike(comment)
+            },
             showAllComments: nil
         )
     }

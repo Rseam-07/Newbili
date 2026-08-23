@@ -69,7 +69,7 @@ struct MineSettingsSection: View {
 
     private var homeAndSearchSummary: String {
         let hotSearch = libraryStore.showsHotSearches ? "热搜开启" : "热搜关闭"
-        return "\(libraryStore.homeFeedLayout.title) · \(libraryStore.homeRecommendFeedSourcePreference.title) · \(hotSearch)"
+        return "\(libraryStore.homePresentationStyle.title) · \(libraryStore.homeFeedLayout.title) · \(libraryStore.homeRecommendFeedSourcePreference.title) · \(hotSearch)"
     }
 
     private var privacySummary: String {

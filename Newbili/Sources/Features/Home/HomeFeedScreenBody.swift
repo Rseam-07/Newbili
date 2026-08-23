@@ -27,7 +27,8 @@ struct HomeFeedScreenBody: View {
             viewportState: $viewportState,
             scrollActions: actionStore.scroll,
             refreshActions: actionStore.refresh,
-            layout: layout
+            layout: layout,
+            background: layout.homeFeedBackground
         ) {
             HomeFeedContentSection(
                 metrics: layoutMetrics,

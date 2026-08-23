@@ -14,7 +14,7 @@ struct VideoDetailViewCloseActions {
         guard !presentationState.wrappedValue.isClosingDetail else { return }
         presentationState.wrappedValue.isClosingDetail = true
         fullscreenCoordinator.resetForDisappear()
-        holder.viewModel?.stopPlaybackForNavigation()
+        preserveAudioOrStopPlayback()
         if let onRequestClose {
             onRequestClose()
         } else {
@@ -30,13 +30,22 @@ struct VideoDetailViewCloseActions {
         guard !presentationState.wrappedValue.isClosingDetail else { return }
         presentationState.wrappedValue.isClosingDetail = true
         fullscreenCoordinator.resetForDisappear()
-        holder.viewModel?.stopPlaybackForNavigation()
+        preserveAudioOrStopPlayback()
         if let onPopOne {
             onPopOne()
         } else if let onRequestClose {
             onRequestClose()
         } else {
             dismiss()
+        }
+    }
+
+    private func preserveAudioOrStopPlayback() {
+        guard let viewModel = holder.viewModel else { return }
+        if AudioMiniPlayerCoordinator.shared.shouldKeepAlive(viewModel) {
+            viewModel.persistVideoListenPlaybackSession()
+        } else {
+            viewModel.stopPlaybackForNavigation()
         }
     }
 }

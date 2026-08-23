@@ -16,6 +16,8 @@ struct BiliPlayerNativeControlsHost: View {
             isDanmakuEnabled: context.configuration.isDanmakuEnabled,
             showsDanmakuButton: context.configuration.controlLayout.isLive
                 && context.configuration.onShowDanmakuSettings != nil,
+            showsSendDanmakuButton: !context.configuration.controlLayout.isLive
+                && context.configuration.onSendDanmaku != nil,
             canToggleFullscreen: context.configuration.canToggleFullscreen,
             isFullscreenActive: context.configuration.isFullscreenActive,
             controlsAccessory: context.configuration.controlsAccessory,

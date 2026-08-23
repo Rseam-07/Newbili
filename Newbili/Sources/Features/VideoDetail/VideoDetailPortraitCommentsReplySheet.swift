@@ -13,7 +13,8 @@ struct PortraitCommentsReplySheet: View {
             reloadReplies: actions.reloadReplies,
             loadMoreReplies: actions.loadMoreReplies,
             loadDialog: actions.loadDialog,
-            reloadDialog: actions.reloadDialog
+            reloadDialog: actions.reloadDialog,
+            toggleLike: actions.toggleLike
         )
     }
 }

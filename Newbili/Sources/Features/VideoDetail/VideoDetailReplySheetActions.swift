@@ -23,4 +23,8 @@ struct VideoDetailReplySheetActions {
     func reloadDialog(for rootComment: Comment, reply: Comment) async {
         await viewModel.reloadDialog(for: rootComment, reply: reply)
     }
+
+    func toggleCommentLike(_ comment: Comment) {
+        viewModel.toggleCommentLike(comment)
+    }
 }

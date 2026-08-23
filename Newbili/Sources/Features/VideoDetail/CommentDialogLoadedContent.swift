@@ -5,13 +5,17 @@ struct CommentDialogLoadedContent: View {
     let focusReplyID: Int
     let footerFailureMessage: String?
     let retryDialog: () -> Void
+    let toggleLike: (Comment) -> Void
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 CommentDialogRow(
                     item: item,
-                    isFocused: item.id == focusReplyID
+                    isFocused: item.id == focusReplyID,
+                    toggleLike: {
+                        toggleLike(item.reply)
+                    }
                 )
                 .padding(.horizontal, 16)
                 .id(item.id)
