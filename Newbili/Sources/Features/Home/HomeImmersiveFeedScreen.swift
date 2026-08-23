@@ -20,8 +20,6 @@ struct HomeImmersiveFeedScreen: View {
             metrics: metrics,
             displayScale: displayScale
         )
-        let remainingCells = Array(viewModel.videoCells.dropFirst())
-
         ZStack {
             HomeImmersiveBackdrop(mode: viewModel.mode)
 
@@ -46,12 +44,13 @@ struct HomeImmersiveFeedScreen: View {
                         .padding(.bottom, 22)
                     }
 
-                    if !remainingCells.isEmpty {
+                    if viewModel.videoCells.count > 1 {
                         HomeImmersiveFeedHeading(mode: viewModel.mode)
 
                         HomeFeedContentSection(
                             metrics: metrics,
-                            cells: remainingCells,
+                            cells: viewModel.videoCells,
+                            cellStartIndex: 1,
                             lastSeenMarkerIndex: adjustedLastSeenMarkerIndex,
                             isLoadingMore: viewModel.state.isLoading
                                 && !viewModel.isRefreshing
@@ -213,6 +212,8 @@ private struct HomeImmersiveFeedHeading: View {
 
 private struct HomeImmersiveBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(HomeRealtimeBlurSettings.storageKey)
+    private var realtimeAmbientBlurEnabled = HomeRealtimeBlurSettings.defaultIsEnabled
     let mode: HomeFeedMode
 
     var body: some View {
@@ -225,19 +226,62 @@ private struct HomeImmersiveBackdrop: View {
                 endPoint: .bottomTrailing
             )
 
-            Circle()
-                .fill((mode == .popular ? Color.orange : Color.pink).opacity(colorScheme == .dark ? 0.24 : 0.16))
-                .frame(width: 360, height: 360)
-                .blur(radius: 84)
+            if realtimeAmbientBlurEnabled {
+                Circle()
+                    .fill((mode == .popular ? Color.orange : Color.pink).opacity(colorScheme == .dark ? 0.24 : 0.16))
+                    .frame(width: 360, height: 360)
+                    .blur(radius: 84)
+                    .offset(x: -160, y: -250)
+
+                Circle()
+                    .fill(Color.cyan.opacity(colorScheme == .dark ? 0.17 : 0.12))
+                    .frame(width: 380, height: 380)
+                    .blur(radius: 88)
+                    .offset(x: 170, y: 310)
+            } else {
+                HomeAmbientGradientGlow(
+                    color: mode == .popular ? .orange : .pink,
+                    innerOpacity: colorScheme == .dark ? 0.24 : 0.16,
+                    middleOpacity: colorScheme == .dark ? 0.11 : 0.07,
+                    endRadius: 260
+                )
+                .frame(width: 520, height: 520)
                 .offset(x: -160, y: -250)
 
-            Circle()
-                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.17 : 0.12))
-                .frame(width: 380, height: 380)
-                .blur(radius: 88)
+                HomeAmbientGradientGlow(
+                    color: .cyan,
+                    innerOpacity: colorScheme == .dark ? 0.17 : 0.12,
+                    middleOpacity: colorScheme == .dark ? 0.08 : 0.05,
+                    endRadius: 280
+                )
+                .frame(width: 560, height: 560)
                 .offset(x: 170, y: 310)
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+}
+
+struct HomeAmbientGradientGlow: View {
+    let color: Color
+    let innerOpacity: Double
+    let middleOpacity: Double
+    let endRadius: CGFloat
+
+    var body: some View {
+        Ellipse()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        color.opacity(innerOpacity),
+                        color.opacity(middleOpacity),
+                        .clear
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: endRadius
+                )
+            )
     }
 }

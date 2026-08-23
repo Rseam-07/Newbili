@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeFeedSingleColumnContent: View {
     let metrics: HomeFeedLayoutMetrics
     let cells: [HomeVideoCellModel]
+    let cellStartIndex: Int
     let lastSeenMarkerIndex: Int?
     let isLoadingMore: Bool
     let actions: HomeFeedContentActions
@@ -11,17 +12,21 @@ struct HomeFeedSingleColumnContent: View {
         cells.last?.id
     }
 
+    private var visibleCells: ArraySlice<HomeVideoCellModel> {
+        cells.dropFirst(cellStartIndex)
+    }
+
     private var visibleLastSeenMarkerIndex: Int? {
         guard let lastSeenMarkerIndex,
               lastSeenMarkerIndex > 0,
-              lastSeenMarkerIndex < cells.count
+              lastSeenMarkerIndex < visibleCells.count
         else { return nil }
         return lastSeenMarkerIndex
     }
 
     var body: some View {
         LazyVStack(spacing: 0) {
-            ForEach(cells) { cell in
+            ForEach(visibleCells) { cell in
                 if visibleLastSeenMarkerIndex == cell.index {
                     HomeFeedLastSeenMarkerCard(
                         metrics: metrics,

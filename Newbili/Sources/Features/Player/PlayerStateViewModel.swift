@@ -411,8 +411,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     @Published private(set) var bufferingCount = 0
     @Published private(set) var lastBufferingElapsedMilliseconds: Int?
     @Published private(set) var playbackPhase: PlayerPlaybackPhase = .idle
-    private(set) var canRequestNextTrack = false
-    private(set) var canRequestPreviousTrack = false
+    @Published private(set) var canRequestNextTrack = false
+    @Published private(set) var canRequestPreviousTrack = false
     @Published private(set) var recoveryAttemptCount = 0
     @Published private(set) var engineDiagnostics: PlayerEngineDiagnostics = .empty
     @Published private(set) var videoPresentationSize: CGSize = .zero

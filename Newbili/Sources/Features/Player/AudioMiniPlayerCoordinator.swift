@@ -9,6 +9,15 @@ struct AudioMiniPlayerSnapshot: Equatable {
     let ownerName: String
 }
 
+enum AudioMiniPlayerSnapshotPublicationPolicy {
+    static func shouldPublish(
+        _ nextSnapshot: AudioMiniPlayerSnapshot?,
+        replacing currentSnapshot: AudioMiniPlayerSnapshot?
+    ) -> Bool {
+        nextSnapshot != currentSnapshot
+    }
+}
+
 @MainActor
 final class AudioMiniPlayerCoordinator: ObservableObject {
     static let shared = AudioMiniPlayerCoordinator()
@@ -83,10 +92,14 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
     }
 
     private func bindViewModel(_ viewModel: VideoDetailViewModel) {
-        viewModelCancellable = viewModel.objectWillChange.sink { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.scheduleRefresh()
-            }
+        viewModelCancellable = Publishers.CombineLatest3(
+            viewModel.$detail,
+            viewModel.$stablePlayerViewModel,
+            viewModel.$playbackContentMode
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            self?.scheduleRefresh()
         }
     }
 
@@ -95,10 +108,14 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
         playerCancellable?.cancel()
         playerCancellable = nil
         observedPlayer = player
-        playerCancellable = player?.objectWillChange.sink { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.scheduleRefresh()
-            }
+        guard let player else { return }
+        playerCancellable = Publishers.CombineLatest(
+            player.$isPlaying.removeDuplicates(),
+            player.$canRequestNextTrack.removeDuplicates()
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            self?.scheduleRefresh()
         }
     }
 
@@ -116,20 +133,27 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
         guard let viewModel = retainedViewModel,
               viewModel.isVideoListenModeEnabled
         else {
-            snapshot = nil
+            if snapshot != nil {
+                snapshot = nil
+            }
             return
         }
         let player = viewModel.stablePlayerViewModel
         bindPlayerIfNeeded(player)
         let ownerName = viewModel.detail.owner?.name
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        snapshot = AudioMiniPlayerSnapshot(
+        let nextSnapshot = AudioMiniPlayerSnapshot(
             video: viewModel.detail,
             isPlaying: player?.isPlaying == true,
             canPlayNext: player?.canRequestNextTrack == true,
             artworkURLString: viewModel.detail.pic?.normalizedBiliURL(),
             ownerName: ownerName.isEmpty ? "未知 UP 主" : ownerName
         )
+        guard AudioMiniPlayerSnapshotPublicationPolicy.shouldPublish(
+            nextSnapshot,
+            replacing: snapshot
+        ) else { return }
+        snapshot = nextSnapshot
     }
 
     private func clearRetention() {
@@ -141,6 +165,8 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
         playerCancellable = nil
         observedPlayer = nil
         retainedViewModel = nil
-        snapshot = nil
+        if snapshot != nil {
+            snapshot = nil
+        }
     }
 }

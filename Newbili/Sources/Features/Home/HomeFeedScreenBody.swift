@@ -33,6 +33,7 @@ struct HomeFeedScreenBody: View {
             HomeFeedContentSection(
                 metrics: layoutMetrics,
                 cells: viewModel.videoCells,
+                cellStartIndex: 0,
                 lastSeenMarkerIndex: viewModel.lastSeenMarkerIndex,
                 isLoadingMore: viewModel.state.isLoading && !viewModel.isRefreshing && !viewModel.isUserRefreshing,
                 actions: contentActions

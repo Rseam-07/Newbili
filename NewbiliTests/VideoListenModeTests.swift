@@ -715,6 +715,9 @@ final class VideoListenModeTests: XCTestCase {
             object: AVAudioSession.sharedInstance()
         )
         await settleNotificationDelivery(milliseconds: 100)
+        await waitUntil(timeoutMilliseconds: 1_000) {
+            engine.prepareCallCount == 1
+        }
 
         XCTAssertEqual(engine.prepareCallCount, 1)
         XCTAssertTrue(player.wantsAutoplay)
@@ -881,6 +884,19 @@ final class VideoListenModeTests: XCTestCase {
     private func settleNotificationDelivery(milliseconds: UInt64 = 50) async {
         try? await Task.sleep(nanoseconds: milliseconds * 1_000_000)
         await Task.yield()
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeoutMilliseconds: UInt64,
+        condition: () -> Bool
+    ) async {
+        let pollIntervalMilliseconds: UInt64 = 10
+        let maximumAttempts = max(1, Int(timeoutMilliseconds / pollIntervalMilliseconds))
+        for _ in 0..<maximumAttempts {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: pollIntervalMilliseconds * 1_000_000)
+        }
     }
 
     private func makeUserDefaults() -> UserDefaults {

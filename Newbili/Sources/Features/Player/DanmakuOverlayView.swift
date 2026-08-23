@@ -278,6 +278,7 @@ final class DanmakuAnimationOverlayView: UIView {
     private var anchorHostTime = CACurrentMediaTime()
     private var displayLink: CADisplayLink?
     private var activeEntries: [String: ActiveEntry] = [:]
+    private var retirementCandidateIDs: [String] = []
     private var reusableLabels: [UILabel] = []
     private var scrollingLaneStates: [Int: LaneState] = [:]
     private var textSizeCache: [TextMeasurementKey: CGSize] = [:]
@@ -290,6 +291,8 @@ final class DanmakuAnimationOverlayView: UIView {
     private var isLayoutSettling = false
     private var isLayoutTransitioning = false
     private var needsLayoutRebuildAfterTransition = false
+    private var renderEnvironment = PlaybackEnvironment.current
+    private var lastRenderEnvironmentRefreshTime = CACurrentMediaTime()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -484,6 +487,7 @@ final class DanmakuAnimationOverlayView: UIView {
 
     @objc private func tick(_ displayLink: CADisplayLink) {
         guard shouldRenderDanmaku, isPlaying else { return }
+        refreshRenderEnvironmentIfNeeded(hostTime: displayLink.timestamp)
         let playbackTime = effectivePlaybackTime(hostTime: displayLink.timestamp)
         retireExpiredActiveEntries(at: playbackTime)
         guard !isLayoutSettling, !isLayoutTransitioning else { return }
@@ -1019,9 +1023,26 @@ final class DanmakuAnimationOverlayView: UIView {
 
     private func retireExpiredActiveEntries(at playbackTime: TimeInterval) {
         guard !activeEntries.isEmpty else { return }
-        for entry in Array(activeEntries.values)
+        retirementCandidateIDs.removeAll(keepingCapacity: true)
+        for entry in activeEntries.values
         where shouldRetire(entry: entry, label: entry.label, at: playbackTime) {
+            retirementCandidateIDs.append(entry.id)
+        }
+        for id in retirementCandidateIDs {
+            guard let entry = activeEntries[id] else { continue }
             removeActiveLabel(id: entry.id, label: entry.label, shouldRecycle: true)
+        }
+    }
+
+    private func refreshRenderEnvironmentIfNeeded(hostTime: CFTimeInterval) {
+        guard hostTime - lastRenderEnvironmentRefreshTime >= 1 else { return }
+        lastRenderEnvironmentRefreshTime = hostTime
+        let nextEnvironment = PlaybackEnvironment.current
+        let frameRateMayChange = nextEnvironment.isLowPowerModeEnabled != renderEnvironment.isLowPowerModeEnabled
+            || nextEnvironment.thermalPressure != renderEnvironment.thermalPressure
+        renderEnvironment = nextEnvironment
+        if frameRateMayChange {
+            displayLink?.preferredFrameRateRange = preferredFrameRateRange
         }
     }
 
@@ -1253,7 +1274,7 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private var adaptiveDanmakuLoadFactor: Double {
-        let environment = PlaybackEnvironment.current
+        let environment = renderEnvironment
         let loadSheddingFactor = isLoadShedding ? 0.46 : 1.0
         let rateFactor: Double
         if playbackRate >= 1.75 {
@@ -1276,7 +1297,7 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private var preferredFrameRateRange: CAFrameRateRange {
-        let environment = PlaybackEnvironment.current
+        let environment = renderEnvironment
         if isLoadShedding || environment.isThermallyConstrained {
             return CAFrameRateRange(minimum: 10, maximum: 18, preferred: 14)
         }
@@ -1365,7 +1386,7 @@ final class DanmakuAnimationOverlayView: UIView {
         if isLoadShedding {
             return 0.22
         }
-        if PlaybackEnvironment.current.isThermallyElevated {
+        if renderEnvironment.isThermallyElevated {
             return 0.32
         }
         if playbackRate > 1.15 {

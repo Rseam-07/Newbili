@@ -3,6 +3,8 @@ import SwiftUI
 struct MineHomeSettingsSection: View {
     @EnvironmentObject private var homeRecommendDiagnosticsStore: HomeRecommendDiagnosticsStore
     @EnvironmentObject private var sessionStore: SessionStore
+    @AppStorage(HomeRealtimeBlurSettings.storageKey)
+    private var realtimeAmbientBlurEnabled = HomeRealtimeBlurSettings.defaultIsEnabled
     @ObservedObject var libraryStore: LibraryStore
 
     var body: some View {
@@ -21,6 +23,16 @@ struct MineHomeSettingsSection: View {
             .pickerStyle(.navigationLink)
 
             Text(libraryStore.homePresentationStyle.subtitle)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Toggle(isOn: $realtimeAmbientBlurEnabled) {
+                Label("实时玻璃光晕", systemImage: "circle.hexagongrid.fill")
+            }
+
+            Text(realtimeAmbientBlurEnabled
+                 ? "使用完整实时模糊绘制新版首页、番剧和影视背景光晕。"
+                 : "改用低开销渐变光晕；仅在你主动关闭时改变背景效果。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 

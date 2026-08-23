@@ -1,5 +1,10 @@
 import Foundation
 
+nonisolated enum HomeRealtimeBlurSettings {
+    static let storageKey = "cc.bili.home.realtimeAmbientBlurEnabled.v1"
+    static let defaultIsEnabled = true
+}
+
 nonisolated enum HomePresentationStyle: String, CaseIterable, Identifiable, Codable, Sendable {
     case immersive
     case simple

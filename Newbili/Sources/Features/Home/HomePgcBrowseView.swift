@@ -76,7 +76,7 @@ struct HomePgcBrowseView: View {
                 alignment: .leading,
                 spacing: 18
             ) {
-                ForEach(Array(viewModel.items.dropFirst())) { item in
+                ForEach(viewModel.items.dropFirst()) { item in
                     PgcPosterGridCard(item: item, open: open)
                         .onAppear {
                             guard item.id == viewModel.items.last?.id else { return }
@@ -123,8 +123,10 @@ struct HomePgcBrowseView: View {
             if let selectedTimelineDay {
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 12) {
-                        ForEach(selectedTimelineDay.episodes.filter(\.published)) { episode in
-                            PgcTimelineEpisodeCard(episode: episode, open: open)
+                        ForEach(selectedTimelineDay.episodes) { episode in
+                            if episode.published {
+                                PgcTimelineEpisodeCard(episode: episode, open: open)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -488,6 +490,8 @@ private struct PgcTimelineDayChip: View {
 
 private struct HomePgcBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(HomeRealtimeBlurSettings.storageKey)
+    private var realtimeAmbientBlurEnabled = HomeRealtimeBlurSettings.defaultIsEnabled
     let kind: HomePgcKind
 
     var body: some View {
@@ -500,17 +504,37 @@ private struct HomePgcBackdrop: View {
                 endPoint: .bottomTrailing
             )
 
-            Circle()
-                .fill((kind == .bangumi ? Color.pink : Color.orange).opacity(colorScheme == .dark ? 0.28 : 0.20))
-                .frame(width: 330, height: 330)
-                .blur(radius: 72)
+            if realtimeAmbientBlurEnabled {
+                Circle()
+                    .fill((kind == .bangumi ? Color.pink : Color.orange).opacity(colorScheme == .dark ? 0.28 : 0.20))
+                    .frame(width: 330, height: 330)
+                    .blur(radius: 72)
+                    .offset(x: -150, y: -230)
+
+                Circle()
+                    .fill(Color.cyan.opacity(colorScheme == .dark ? 0.20 : 0.15))
+                    .frame(width: 360, height: 360)
+                    .blur(radius: 78)
+                    .offset(x: 150, y: 260)
+            } else {
+                HomeAmbientGradientGlow(
+                    color: kind == .bangumi ? .pink : .orange,
+                    innerOpacity: colorScheme == .dark ? 0.28 : 0.20,
+                    middleOpacity: colorScheme == .dark ? 0.13 : 0.09,
+                    endRadius: 235
+                )
+                .frame(width: 470, height: 470)
                 .offset(x: -150, y: -230)
 
-            Circle()
-                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.20 : 0.15))
-                .frame(width: 360, height: 360)
-                .blur(radius: 78)
+                HomeAmbientGradientGlow(
+                    color: .cyan,
+                    innerOpacity: colorScheme == .dark ? 0.20 : 0.15,
+                    middleOpacity: colorScheme == .dark ? 0.09 : 0.07,
+                    endRadius: 255
+                )
+                .frame(width: 510, height: 510)
                 .offset(x: 150, y: 260)
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)

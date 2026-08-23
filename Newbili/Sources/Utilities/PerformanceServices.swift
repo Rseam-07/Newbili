@@ -3540,6 +3540,7 @@ final class RemoteImageDisplayMemoryCache {
 
     private let cache = NSCache<NSString, UIImage>()
     private var appliedBudget: (countLimit: Int, costLimit: Int)?
+    private var lastBudgetEvaluationTime: CFTimeInterval = -.infinity
     private var loadHits = 0
     private var loadMisses = 0
 
@@ -3586,6 +3587,9 @@ final class RemoteImageDisplayMemoryCache {
     }
 
     private func applyAdaptiveBudgetIfNeeded() {
+        let now = CACurrentMediaTime()
+        guard appliedBudget == nil || now - lastBudgetEvaluationTime >= 1 else { return }
+        lastBudgetEvaluationTime = now
         let environment = PlaybackEnvironment.current
         let budget: (countLimit: Int, costLimit: Int)
         if environment.isLowPowerModeEnabled || environment.isThermallyConstrained {
