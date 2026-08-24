@@ -521,6 +521,8 @@ private struct AccountMessageFeedRow: View {
                 messageContent
             }
             .buttonStyle(.plain)
+        } else if hasInlineBodyLinks {
+            messageContent
         } else if item.routeURL != nil || item.commentTarget != nil {
             AccountMessageRouteButton(item: item, viewModel: viewModel) {
                 messageContent
@@ -560,10 +562,12 @@ private struct AccountMessageFeedRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if hasInlineBodyLinks, item.routeURL != nil {
-                    Label("查看详情", systemImage: "arrow.up.right.square")
-                        .appTypography(.action, fallback: .caption.weight(.medium))
-                        .foregroundStyle(appTintColor)
+                if hasInlineBodyLinks, let routeURL = item.routeURL {
+                    AppLinkButton(url: routeURL) {
+                        Label("在 App 内处理", systemImage: "arrow.up.right.square")
+                            .appTypography(.action, fallback: .caption.weight(.medium))
+                            .foregroundStyle(appTintColor)
+                    }
                 }
             }
 
@@ -584,16 +588,25 @@ private struct AccountMessageFeedRow: View {
     }
 
     private var messageBody: some View {
-        BiliEmoteText(
-            content: nil,
-            plainText: item.body,
-            inlineEmotes: viewModel.inlineEmotes,
-            font: .subheadline,
-            textColor: .primary,
-            emoteSize: 21,
-            showsLinkButtons: false,
-            typographyRole: .messagePreview
-        )
+        Group {
+            if hasInlineBodyLinks {
+                Text(AccountMessageRichTextParser.attributedString(from: item.body))
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .tint(appTintColor)
+            } else {
+                BiliEmoteText(
+                    content: nil,
+                    plainText: item.body,
+                    inlineEmotes: viewModel.inlineEmotes,
+                    font: .subheadline,
+                    textColor: .primary,
+                    emoteSize: 21,
+                    showsLinkButtons: false,
+                    typographyRole: .messagePreview
+                )
+            }
+        }
         .lineLimit(5)
     }
 

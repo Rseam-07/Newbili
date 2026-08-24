@@ -32,6 +32,13 @@ Carthage/Build/
 *.dSYM/
 *.log
 
+# Android / Gradle
+android/.gradle/
+android/local.properties
+android/**/build/
+*.aab
+*.apk
+
 # Signing, secrets, and local-only config
 .env
 .env.*

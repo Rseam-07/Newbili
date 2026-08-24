@@ -28,6 +28,7 @@ private struct DynamicContentRoot: View {
                     api: api,
                     viewModel: viewModel,
                     isLoggedIn: sessionStore.isLoggedIn,
+                    layoutPreference: libraryStore.dynamicFeedLayoutPreference,
                     pullRefreshTriggerDistance: CGFloat(pullRefreshSettings.triggerDistance)
                 )
             } else {

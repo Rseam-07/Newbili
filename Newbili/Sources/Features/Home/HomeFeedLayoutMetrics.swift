@@ -15,10 +15,19 @@ struct HomeFeedLayoutMetrics {
         self.mode = mode
         let doubleColumnSpacing: CGFloat = mode == .borderedDoubleColumn ? 12 : 14
         let doubleColumnCoverHeightRatio: CGFloat = mode == .borderedDoubleColumn ? 10 / 16 : 9 / 16
-        doubleColumns = [
-            GridItem(.flexible(), spacing: doubleColumnSpacing),
-            GridItem(.flexible(), spacing: doubleColumnSpacing)
-        ]
+        let wideColumnCount: Int
+        switch containerWidth {
+        case 1_240...:
+            wideColumnCount = 4
+        case 800...:
+            wideColumnCount = 3
+        default:
+            wideColumnCount = 2
+        }
+        doubleColumns = Array(
+            repeating: GridItem(.flexible(minimum: 0), spacing: doubleColumnSpacing),
+            count: wideColumnCount
+        )
         singleColumnHorizontalPadding = mode == .borderedSingleColumn ? 16 : 12
 
         switch mode {
@@ -45,7 +54,10 @@ struct HomeFeedLayoutMetrics {
             singleColumnFixedCoverSize = nil
         }
 
-        let doubleWidth = (containerWidth - (feedHorizontalPadding * 2) - doubleColumnSpacing) / 2
+        let totalDoubleColumnSpacing = doubleColumnSpacing * CGFloat(wideColumnCount - 1)
+        let doubleWidth = (
+            containerWidth - (feedHorizontalPadding * 2) - totalDoubleColumnSpacing
+        ) / CGFloat(wideColumnCount)
         if doubleWidth > 0 {
             doubleColumnFixedCoverSize = CGSize(width: doubleWidth, height: doubleWidth * doubleColumnCoverHeightRatio)
         } else {

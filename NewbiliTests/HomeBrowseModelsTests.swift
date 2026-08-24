@@ -113,6 +113,22 @@ final class HomeBrowseModelsTests: XCTestCase {
         XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .simple)
     }
 
+    @MainActor
+    func testDynamicFeedLayoutDefaultsToAutomaticAndPersistsTwoColumns() {
+        let suiteName = "HomeBrowseModelsTests.DynamicLayout.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LibraryStore(userDefaults: defaults)
+        XCTAssertEqual(store.dynamicFeedLayoutPreference, .automatic)
+
+        store.setDynamicFeedLayoutPreference(.doubleColumn)
+        XCTAssertEqual(
+            LibraryStore(userDefaults: defaults).dynamicFeedLayoutPreference,
+            .doubleColumn
+        )
+    }
+
     private func decode<Value: Decodable>(
         _ type: Value.Type,
         from json: String

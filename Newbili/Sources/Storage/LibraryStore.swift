@@ -166,6 +166,7 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var homeRefreshTriggerDistance: Double
     @Published private(set) var homePresentationStyle: HomePresentationStyle
     @Published private(set) var homeFeedLayout: HomeFeedLayout
+    @Published private(set) var dynamicFeedLayoutPreference: DynamicFeedLayoutPreference
     @Published private(set) var homeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference
     @Published private(set) var showsHotSearches: Bool
 
@@ -280,6 +281,7 @@ final class LibraryStore: ObservableObject {
     private static let homeRefreshTriggerDistanceKey = "cc.bili.home.refreshTriggerDistance.v1"
     private static let homePresentationStyleKey = "cc.bili.home.presentationStyle.v1"
     private static let homeFeedLayoutKey = "cc.bili.home.feedLayout.v1"
+    private static let dynamicFeedLayoutPreferenceKey = "cc.bili.dynamic.feedLayout.v1"
     private static let homeRecommendFeedSourcePreferenceKey = "cc.bili.home.recommendFeedSourcePreference.v1"
     private static let showsHotSearchesKey = "cc.bili.search.showsHotSearches.v1"
     private static let supportedPlaybackRates = [0.75, 1.0, 1.25, 1.5, 2.0]
@@ -290,6 +292,7 @@ final class LibraryStore: ObservableObject {
     nonisolated static let defaultHomeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference = .app
     nonisolated static let defaultHomePresentationStyle: HomePresentationStyle = .immersive
     nonisolated static let defaultHomeFeedLayout: HomeFeedLayout = .singleColumn
+    nonisolated static let defaultDynamicFeedLayoutPreference: DynamicFeedLayoutPreference = .automatic
     nonisolated static let defaultPlaybackHistorySyncThresholdSeconds = 5
     nonisolated static let supportedPlaybackHistorySyncThresholdSeconds = [5, 10, 30]
     nonisolated static let supportedVideoQualities = BiliVideoQuality.supportedQualities
@@ -565,6 +568,9 @@ final class LibraryStore: ObservableObject {
         self.homeFeedLayout = HomeFeedLayout(
             rawValue: userDefaults.string(forKey: Self.homeFeedLayoutKey) ?? ""
         ) ?? Self.defaultHomeFeedLayout
+        self.dynamicFeedLayoutPreference = DynamicFeedLayoutPreference(
+            rawValue: userDefaults.string(forKey: Self.dynamicFeedLayoutPreferenceKey) ?? ""
+        ) ?? Self.defaultDynamicFeedLayoutPreference
         self.homeRecommendFeedSourcePreference = HomeRecommendFeedSourcePreference(
             rawValue: userDefaults.string(forKey: Self.homeRecommendFeedSourcePreferenceKey) ?? ""
         ) ?? Self.defaultHomeRecommendFeedSourcePreference
@@ -1307,6 +1313,11 @@ final class LibraryStore: ObservableObject {
         userDefaults.set(layout.rawValue, forKey: Self.homeFeedLayoutKey)
     }
 
+    func setDynamicFeedLayoutPreference(_ preference: DynamicFeedLayoutPreference) {
+        dynamicFeedLayoutPreference = preference
+        userDefaults.set(preference.rawValue, forKey: Self.dynamicFeedLayoutPreferenceKey)
+    }
+
     func setShowsHotSearches(_ isEnabled: Bool) {
         showsHotSearches = isEnabled
         userDefaults.set(isEnabled, forKey: Self.showsHotSearchesKey)
@@ -1519,6 +1530,47 @@ enum HomeFeedLayout: String, CaseIterable, Identifiable {
             return "rectangle.grid.1x2.fill"
         case .singleColumn:
             return "rectangle.grid.1x2"
+        }
+    }
+}
+
+enum DynamicFeedLayoutPreference: String, CaseIterable, Identifiable {
+    case automatic
+    case singleColumn
+    case doubleColumn
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic:
+            return "自动"
+        case .singleColumn:
+            return "单栏"
+        case .doubleColumn:
+            return "双栏"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .automatic:
+            return "iPad 宽屏使用双栏，窄分屏和 iPhone 使用单栏。"
+        case .singleColumn:
+            return "所有窗口宽度都使用完整信息单栏。"
+        case .doubleColumn:
+            return "所有窗口宽度都使用紧凑双栏。"
+        }
+    }
+
+    func usesDoubleColumn(availableWidth: CGFloat) -> Bool {
+        switch self {
+        case .automatic:
+            return availableWidth >= 700
+        case .singleColumn:
+            return false
+        case .doubleColumn:
+            return true
         }
     }
 }

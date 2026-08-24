@@ -76,7 +76,12 @@ extension RootTabView {
         case .user(let owner):
             openUserFromLink(owner)
         case .browser(let url):
-            inAppBrowserItem = InAppBrowserItem(url: url)
+            inAppBrowserItem = InAppBrowserItem(
+                url: url,
+                cookieHeader: AppLinkRouter.isAuthenticatedBiliWebDestination(url)
+                    ? dependencies.sessionStore.cookieHeader()
+                    : nil
+            )
         }
     }
 

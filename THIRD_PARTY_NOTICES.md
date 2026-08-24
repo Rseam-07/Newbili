@@ -13,6 +13,8 @@ Newbili is distributed under GPL-3.0-only. The following list records projects a
 - **AniShelf** — <https://github.com/samuelhe52/AniShelf> — Apache-2.0. Newbili's PGC browsing surfaces adapt its immersive artwork, soft color-orb background, rounded poster-card, and content-hierarchy ideas while retaining Newbili's own navigation and playback behavior.
 - **MiniBili-WEB** — <https://github.com/ResistanceTo/MiniBili-WEB> — MIT. Apple-platform product presentation and interface reference.
 - **PiliPod** — <https://github.com/BPTPW/PiliPod> — GPL-3.0. Swift-native client and player-interaction reference.
+- **AndroidLiquidGlass / Backdrop** — <https://github.com/Kyant0/AndroidLiquidGlass> — Apache-2.0. Android 客户端通过 Maven Central 的 `io.github.kyant0:backdrop:2.0.0` 使用其 Compose Multiplatform 液态玻璃底层；Newbili 自行实现导航和高层控件。
+- **Kyant Shapes** — <https://github.com/Kyant0/ComposeShapes> — Apache-2.0. Android 玻璃导航使用其连续 Capsule 形状。
 
 ## API documentation and community services
 

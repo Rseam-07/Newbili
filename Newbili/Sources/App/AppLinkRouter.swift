@@ -1,13 +1,33 @@
 import Foundation
 import SafariServices
 import SwiftUI
+import WebKit
 
 struct InAppBrowserItem: Identifiable {
     let id = UUID()
     let url: URL
+    let cookieHeader: String?
+
+    init(url: URL, cookieHeader: String? = nil) {
+        self.url = url
+        self.cookieHeader = cookieHeader
+    }
 }
 
-struct InAppBrowserView: UIViewControllerRepresentable {
+struct InAppBrowserView: View {
+    let url: URL
+    var cookieHeader: String? = nil
+
+    var body: some View {
+        if AppLinkRouter.isAuthenticatedBiliWebDestination(url) {
+            AuthenticatedBiliBrowserView(url: url, cookieHeader: cookieHeader)
+        } else {
+            SafariBrowserView(url: url)
+        }
+    }
+}
+
+private struct SafariBrowserView: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context _: Context) -> SFSafariViewController {
@@ -17,6 +37,143 @@ struct InAppBrowserView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_: SFSafariViewController, context _: Context) {}
+}
+
+private struct AuthenticatedBiliBrowserView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let url: URL
+    let cookieHeader: String?
+    @State private var reloadID = 0
+
+    var body: some View {
+        NavigationStack {
+            AuthenticatedBiliWebView(
+                url: url,
+                cookieHeader: cookieHeader,
+                reloadID: reloadID
+            )
+            .hiddenInlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        reloadID &+= 1
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("重新加载")
+                }
+            }
+        }
+    }
+}
+
+private struct AuthenticatedBiliWebView: UIViewRepresentable {
+    let url: URL
+    let cookieHeader: String?
+    let reloadID: Int
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
+        webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.lastReloadID = reloadID
+        seedCookiesAndLoad(in: webView)
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard context.coordinator.lastReloadID != reloadID else { return }
+        context.coordinator.lastReloadID = reloadID
+        webView.reload()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    private func seedCookiesAndLoad(in webView: WKWebView) {
+        let cookies = BiliEmbeddedBrowserCookieFactory.cookies(from: cookieHeader)
+        guard !cookies.isEmpty else {
+            webView.load(request)
+            return
+        }
+
+        let group = DispatchGroup()
+        let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+        for cookie in cookies {
+            group.enter()
+            cookieStore.setCookie(cookie) {
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            webView.load(request)
+        }
+    }
+
+    private var request: URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        return request
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+        var lastReloadID = 0
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if navigationAction.targetFrame == nil {
+                webView.load(navigationAction.request)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            if navigationAction.targetFrame == nil {
+                webView.load(navigationAction.request)
+            }
+            return nil
+        }
+    }
+}
+
+private enum BiliEmbeddedBrowserCookieFactory {
+    static func cookies(from header: String?) -> [HTTPCookie] {
+        guard let header else { return [] }
+        return header.split(separator: ";").compactMap { component in
+            let pair = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2 else { return nil }
+            let name = String(pair[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(pair[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !value.isEmpty else { return nil }
+            return HTTPCookie(properties: [
+                .domain: ".bilibili.com",
+                .path: "/",
+                .name: name,
+                .value: value,
+                .secure: "TRUE"
+            ])
+        }
+    }
 }
 
 enum AppLinkDestination {
@@ -83,6 +240,11 @@ nonisolated enum AppLinkRouter {
     static func canHandle(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased() else { return false }
         return scheme == "http" || scheme == "https"
+    }
+
+    static func isAuthenticatedBiliWebDestination(_ url: URL) -> Bool {
+        guard let host = (normalizedHTTPURL(url) ?? url).host?.lowercased() else { return false }
+        return host == "bilibili.com" || host.hasSuffix(".bilibili.com")
     }
 
     static func displayTitle(for url: URL) -> String {

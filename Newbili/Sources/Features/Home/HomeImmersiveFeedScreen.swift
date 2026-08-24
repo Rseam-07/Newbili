@@ -75,16 +75,11 @@ struct HomeImmersiveFeedScreen: View {
     }
 
     private var effectiveLayout: HomeFeedLayout {
-        guard dynamicTypeSize.isAccessibilitySize else {
-            return runtimeSettings.homeFeedLayout
-        }
-
-        switch runtimeSettings.homeFeedLayout {
-        case .doubleColumn, .borderedDoubleColumn:
-            return .singleColumn
-        case .singleColumn, .borderedSingleColumn:
-            return runtimeSettings.homeFeedLayout
-        }
+        HomeImmersiveAdaptiveLayoutPolicy.resolve(
+            preferredLayout: runtimeSettings.homeFeedLayout,
+            containerWidth: viewportState.feedContainerWidth,
+            usesAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+        )
     }
 
     private var adjustedLastSeenMarkerIndex: Int? {
@@ -98,6 +93,36 @@ struct HomeImmersiveFeedScreen: View {
             lifecycleActions: actionStore.lifecycle,
             detailOpenActions: actionStore.detailOpen
         )
+    }
+}
+
+nonisolated enum HomeImmersiveAdaptiveLayoutPolicy {
+    static func resolve(
+        preferredLayout: HomeFeedLayout,
+        containerWidth: CGFloat,
+        usesAccessibilitySize: Bool
+    ) -> HomeFeedLayout {
+        if usesAccessibilitySize {
+            switch preferredLayout {
+            case .doubleColumn, .borderedDoubleColumn:
+                return .singleColumn
+            case .singleColumn, .borderedSingleColumn:
+                return preferredLayout
+            }
+        }
+
+        guard containerWidth >= 760 else {
+            return preferredLayout
+        }
+
+        switch preferredLayout {
+        case .singleColumn:
+            return .doubleColumn
+        case .borderedSingleColumn:
+            return .borderedDoubleColumn
+        case .doubleColumn, .borderedDoubleColumn:
+            return preferredLayout
+        }
     }
 }
 

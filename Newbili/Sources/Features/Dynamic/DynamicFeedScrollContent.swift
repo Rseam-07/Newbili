@@ -9,6 +9,7 @@ struct DynamicFeedScrollContent: View {
     @ObservedObject var viewModel: DynamicViewModel
     let isLoggedIn: Bool
     let contentWidth: CGFloat
+    let usesDoubleColumn: Bool
     let pullRefreshTriggerDistance: CGFloat
     @State private var pullRefreshDistance: CGFloat = 0
     @State private var pullRefreshActions = HomeFeedRefreshActions()
@@ -23,7 +24,8 @@ struct DynamicFeedScrollContent: View {
                 api: api,
                 viewModel: viewModel,
                 isLoggedIn: isLoggedIn,
-                contentWidth: contentWidth
+                contentWidth: contentWidth,
+                usesDoubleColumn: usesDoubleColumn
             )
             .padding(.horizontal, 16)
             .padding(.top, 28)
@@ -72,6 +74,7 @@ private struct DynamicFeedBodyContent: View {
     @ObservedObject var viewModel: DynamicViewModel
     let isLoggedIn: Bool
     let contentWidth: CGFloat
+    let usesDoubleColumn: Bool
 
     var body: some View {
         LazyVStack(spacing: 0) {
@@ -91,12 +94,21 @@ private struct DynamicFeedBodyContent: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 110)
             } else {
-                DynamicFeedItemsList(
-                    api: api,
-                    viewModel: viewModel,
-                    items: viewModel.items,
-                    contentWidth: contentWidth
-                )
+                if usesDoubleColumn {
+                    DynamicFeedItemsGrid(
+                        api: api,
+                        viewModel: viewModel,
+                        items: viewModel.items,
+                        contentWidth: contentWidth
+                    )
+                } else {
+                    DynamicFeedItemsList(
+                        api: api,
+                        viewModel: viewModel,
+                        items: viewModel.items,
+                        contentWidth: contentWidth
+                    )
+                }
 
                 DynamicFeedFooter(viewModel: viewModel)
                     .padding(.top, 6)

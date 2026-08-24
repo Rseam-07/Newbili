@@ -33,6 +33,53 @@ struct DynamicFeedItemsList: View {
     }
 }
 
+struct DynamicFeedItemsGrid: View {
+    let api: BiliAPIClient
+    @ObservedObject var viewModel: DynamicViewModel
+    let items: [DynamicFeedItem]
+    let contentWidth: CGFloat
+
+    private let spacing: CGFloat = 12
+
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(minimum: 0), spacing: spacing),
+            GridItem(.flexible(minimum: 0), spacing: spacing)
+        ]
+    }
+
+    private var itemWidth: CGFloat {
+        max(floor((contentWidth - spacing) / 2), 0)
+    }
+
+    private var lastItemID: String? {
+        items.last?.id
+    }
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
+            ForEach(items) { item in
+                DynamicFeedCard(
+                    item: item,
+                    api: api,
+                    contentWidth: itemWidth
+                )
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(12)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(.white.opacity(0.12), lineWidth: 0.75)
+                }
+                .dynamicLoadMoreTask(if: item.id == lastItemID, id: item.id) {
+                    await viewModel.loadMoreIfNeeded(current: item)
+                }
+            }
+        }
+        .padding(.vertical, 12)
+    }
+}
+
 struct DynamicFeedFooter: View {
     @Environment(\.appThemeTintColor) private var appTintColor
     @ObservedObject var viewModel: DynamicViewModel

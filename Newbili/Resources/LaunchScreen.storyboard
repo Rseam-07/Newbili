@@ -17,7 +17,7 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchLogo" translatesAutoresizingMaskIntoConstraints="NO" id="newbili-launch-logo">
-                                <rect key="frame" x="132.5" y="370" width="128" height="112"/>
+                                <rect key="frame" x="144.5" y="382" width="104" height="88"/>
                             </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="launch-safe-area"/>
@@ -25,8 +25,8 @@
                         <constraints>
                             <constraint firstItem="newbili-launch-logo" firstAttribute="centerX" secondItem="launch-root-view" secondAttribute="centerX" id="newbili-launch-center-x"/>
                             <constraint firstItem="newbili-launch-logo" firstAttribute="centerY" secondItem="launch-root-view" secondAttribute="centerY" id="newbili-launch-center-y"/>
-                            <constraint firstItem="newbili-launch-logo" firstAttribute="width" constant="128" id="newbili-launch-width"/>
-                            <constraint firstItem="newbili-launch-logo" firstAttribute="height" constant="112" id="newbili-launch-height"/>
+                            <constraint firstItem="newbili-launch-logo" firstAttribute="width" constant="104" id="newbili-launch-width"/>
+                            <constraint firstItem="newbili-launch-logo" firstAttribute="height" constant="88" id="newbili-launch-height"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -36,7 +36,7 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LaunchLogo" width="128" height="128"/>
+        <image name="LaunchLogo" width="128" height="112"/>
         <namedColor name="NewbiliDynamicLaunchBackground">
             <color red="0.965" green="0.973" blue="0.984" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>

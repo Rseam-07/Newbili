@@ -1,8 +1,15 @@
 import SwiftUI
 
-struct DynamicTopUploaderStripItem: Identifiable, Hashable {
+nonisolated struct DynamicTopUploaderStripItem: Identifiable, Hashable {
     let owner: VideoOwner
     let liveRoom: LiveRoom?
+    let hasUpdate: Bool
+
+    init(owner: VideoOwner, liveRoom: LiveRoom?, hasUpdate: Bool = false) {
+        self.owner = owner
+        self.liveRoom = liveRoom
+        self.hasUpdate = hasUpdate
+    }
 
     var id: String {
         if owner.mid > 0 {
@@ -27,7 +34,7 @@ struct FollowedLiveStrip: View {
     var body: some View {
         if !items.isEmpty || isLoading {
             VStack(alignment: .leading, spacing: 8) {
-                Text("最常访问")
+                Text("关注更新")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 2)
 
@@ -122,6 +129,15 @@ private struct FollowedLiveAvatar: View {
                         .padding(.vertical, 2.5)
                         .videoCoverBadgeBackground(style: .regular, in: Capsule())
                         .offset(y: 4)
+                } else if item.hasUpdate {
+                    Circle()
+                        .fill(appTintColor)
+                        .frame(width: 10, height: 10)
+                        .overlay {
+                            Circle().stroke(Color(.systemBackground), lineWidth: 2)
+                        }
+                        .frame(width: 48, height: 48, alignment: .topTrailing)
+                        .offset(x: 2, y: -2)
                 }
             }
 
@@ -133,7 +149,17 @@ private struct FollowedLiveAvatar: View {
         }
         .frame(width: 60)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(item.isLive ? "\(anchorName) 正在直播" : anchorName)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        if item.isLive {
+            return "\(anchorName) 正在直播"
+        }
+        if item.hasUpdate {
+            return "\(anchorName) 有新动态"
+        }
+        return anchorName
     }
 
     private var anchorName: String {

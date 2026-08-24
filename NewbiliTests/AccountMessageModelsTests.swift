@@ -737,6 +737,24 @@ final class AccountMessageModelsTests: XCTestCase {
         )
     }
 
+    func testAuthenticatedEmbeddedBrowserIsRestrictedToBilibiliHosts() throws {
+        XCTAssertTrue(
+            AppLinkRouter.isAuthenticatedBiliWebDestination(
+                try XCTUnwrap(URL(string: "https://member.bilibili.com/platform/upload-manager/article"))
+            )
+        )
+        XCTAssertTrue(
+            AppLinkRouter.isAuthenticatedBiliWebDestination(
+                try XCTUnwrap(URL(string: "https://www.bilibili.com/blackboard/joint-contribution"))
+            )
+        )
+        XCTAssertFalse(
+            AppLinkRouter.isAuthenticatedBiliWebDestination(
+                try XCTUnwrap(URL(string: "https://bilibili.com.example.org/"))
+            )
+        )
+    }
+
     private func data(_ json: String) -> Data {
         Data(json.utf8)
     }

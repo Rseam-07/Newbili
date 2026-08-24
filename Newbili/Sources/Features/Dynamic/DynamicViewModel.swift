@@ -60,11 +60,13 @@ final class DynamicViewModel: ObservableObject {
             return
         }
         state = .loading
-        refreshTopUploaderStrip()
+        isTopUploaderStripLoading = true
         do {
             items = try await lifecycleCoordinator.loadInitialPage()
+            refreshTopUploaderStrip()
             state = .loaded
         } catch {
+            isTopUploaderStripLoading = false
             state = .failed(error.localizedDescription)
         }
     }
@@ -81,11 +83,13 @@ final class DynamicViewModel: ObservableObject {
             isRefreshing = false
         }
         state = .loading
-        refreshTopUploaderStrip()
+        isTopUploaderStripLoading = true
         do {
             items = try await lifecycleCoordinator.refreshPage()
+            refreshTopUploaderStrip()
             state = .loaded
         } catch {
+            isTopUploaderStripLoading = false
             state = .failed(error.localizedDescription)
         }
     }

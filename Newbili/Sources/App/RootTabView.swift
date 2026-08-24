@@ -59,7 +59,7 @@ struct RootTabView: View {
         .animation(.smooth(duration: 0.28), value: bottomMode)
         .preferredColorScheme(runtimeSettings.appearanceMode.preferredColorScheme)
         .sheet(item: $inAppBrowserItem) { item in
-            InAppBrowserView(url: item.url)
+            InAppBrowserView(url: item.url, cookieHeader: item.cookieHeader)
                 .ignoresSafeArea()
         }
         .task {
@@ -126,22 +126,25 @@ struct RootTabView: View {
     }
 
     private var rootTabBar: some View {
-        TabView(selection: tabSelection) {
-            ForEach(visibleRootTabs) { tab in
-                Tab(value: tab) {
-                    rootTabContent(for: tab)
-                } label: {
-                    Label(tab.title, systemImage: tab.systemImage)
+        GeometryReader { proxy in
+            TabView(selection: tabSelection) {
+                ForEach(visibleRootTabs) { tab in
+                    Tab(value: tab) {
+                        rootTabContent(for: tab)
+                    } label: {
+                        Label(tab.title, systemImage: tab.systemImage)
+                    }
                 }
             }
+            .modifier(RootAdaptiveTabViewStyle(availableWidth: proxy.size.width))
+            .tint(libraryStore.appTintColor)
+            .tabViewBottomAccessory(isEnabled: showsRootBottomAccessory) {
+                rootBottomAccessory
+            }
+            .tabBarMinimizeBehavior(rootTabBarMinimizeBehavior)
+            .restoresRootTabBarWhenRequested(requestID: rootTabBarRestoreRequestID)
+            .background(RootTabBarAppearanceInstaller(tintColorHex: libraryStore.appTintColorHex))
         }
-        .tint(libraryStore.appTintColor)
-        .tabViewBottomAccessory(isEnabled: showsRootBottomAccessory) {
-            rootBottomAccessory
-        }
-        .tabBarMinimizeBehavior(rootTabBarMinimizeBehavior)
-        .restoresRootTabBarWhenRequested(requestID: rootTabBarRestoreRequestID)
-        .background(RootTabBarAppearanceInstaller(tintColorHex: libraryStore.appTintColorHex))
     }
 
     private var showsRootBottomAccessory: Bool {
@@ -264,6 +267,25 @@ struct RootTabView: View {
             return
         }
         await accountMessageViewModel.refreshUnread()
+    }
+}
+
+private struct RootAdaptiveTabViewStyle: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let availableWidth: CGFloat
+
+    private var usesSidebar: Bool {
+        horizontalSizeClass == .regular && availableWidth >= 760
+    }
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if usesSidebar {
+            content.tabViewStyle(.sidebarAdaptable)
+        } else {
+            content
+        }
     }
 }
 

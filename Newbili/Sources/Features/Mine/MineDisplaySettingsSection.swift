@@ -30,6 +30,25 @@ struct MineDisplaySettingsSection: View {
             }
             .pickerStyle(.navigationLink)
 
+            Picker(selection: Binding(
+                get: { libraryStore.dynamicFeedLayoutPreference },
+                set: { libraryStore.setDynamicFeedLayoutPreference($0) }
+            )) {
+                ForEach(DynamicFeedLayoutPreference.allCases) { preference in
+                    Text(preference.title).tag(preference)
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("动态布局", systemImage: "rectangle.grid.2x2")
+
+                    Text(libraryStore.dynamicFeedLayoutPreference.detail)
+                        .appTypography(.settingsSubtitle, fallback: .caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .pickerStyle(.navigationLink)
+
             MineThemeColorControl(libraryStore: libraryStore)
 
             Toggle(isOn: Binding(

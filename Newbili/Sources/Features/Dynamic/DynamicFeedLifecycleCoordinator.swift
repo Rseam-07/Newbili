@@ -80,13 +80,16 @@ final class DynamicFeedLifecycleCoordinator {
 
     func refreshTopUploaderStripItems(setItems: @escaping ([DynamicTopUploaderStripItem]) -> Void) {
         topUploaderStripTask?.cancel()
+        let fallbackFeedItems = filteredCurrentItems()
         topUploaderStripTask = Task { [api] in
             let portal = try? await api.fetchDynamicPortal()
             guard !Task.isCancelled else { return }
 
             let items = Self.makeTopUploaderStripItems(
                 portal: portal,
-                limit: 10
+                feedItems: fallbackFeedItems,
+                limit: 24,
+                liveLimit: 8
             )
             await MainActor.run {
                 setItems(items)
@@ -117,23 +120,43 @@ final class DynamicFeedLifecycleCoordinator {
 
     private nonisolated static func makeTopUploaderStripItems(
         portal: DynamicPortalData?,
-        limit: Int
+        feedItems: [DynamicFeedItem],
+        limit: Int,
+        liveLimit: Int
     ) -> [DynamicTopUploaderStripItem] {
         var items: [DynamicTopUploaderStripItem] = []
         var usedMIDs = Set<Int>()
 
-        for liveUser in portal?.liveUsers?.items ?? [] {
+        for liveUser in (portal?.liveUsers?.items ?? []).prefix(max(liveLimit, 0)) {
             let owner = liveUser.owner
             guard owner.mid <= 0 || usedMIDs.insert(owner.mid).inserted else { continue }
             items.append(DynamicTopUploaderStripItem(owner: owner, liveRoom: liveUser.liveRoom))
             guard items.count < limit else { return items }
         }
 
-        for upItem in portal?.upList?.items ?? [] {
+        let portalUpItems = portal?.upList?.items ?? []
+        for upItem in portalUpItems where upItem.hasUpdate == true {
+            let owner = upItem.owner
+            guard owner.mid > 0, usedMIDs.insert(owner.mid).inserted else { continue }
+            items.append(DynamicTopUploaderStripItem(owner: owner, liveRoom: nil, hasUpdate: true))
+            guard items.count < limit else { return items }
+        }
+
+        // The portal endpoint can omit `up_list` while the main feed already contains
+        // fresh followed posts. Merge those authors so live rooms never crowd updates out.
+        for feedItem in feedItems {
+            guard let author = feedItem.author else { continue }
+            let owner = author.owner
+            guard owner.mid > 0, usedMIDs.insert(owner.mid).inserted else { continue }
+            items.append(DynamicTopUploaderStripItem(owner: owner, liveRoom: nil, hasUpdate: true))
+            guard items.count < limit else { return items }
+        }
+
+        for upItem in portalUpItems where upItem.hasUpdate != true {
             let owner = upItem.owner
             guard owner.mid > 0, usedMIDs.insert(owner.mid).inserted else { continue }
             items.append(DynamicTopUploaderStripItem(owner: owner, liveRoom: nil))
-            guard items.count < limit else { break }
+            guard items.count < limit else { return items }
         }
 
         return items
