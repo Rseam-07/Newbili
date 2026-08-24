@@ -6,6 +6,7 @@ struct VideoDetailPlayerSurfaceDanmakuLayer: View {
     let usesLandscapePlaybackChrome: Bool
     let isLayoutTransitioning: Bool
     let onPlaybackTime: (TimeInterval, Bool) -> Void
+    let onSelectItem: (DanmakuItem) -> Void
 
     var body: some View {
         VideoDetailDanmakuOverlay(
@@ -14,7 +15,8 @@ struct VideoDetailPlayerSurfaceDanmakuLayer: View {
             clock: playerViewModel.playbackClock,
             usesLandscapePlaybackChrome: usesLandscapePlaybackChrome,
             isLayoutTransitioning: isLayoutTransitioning,
-            onPlaybackTime: onPlaybackTime
+            onPlaybackTime: onPlaybackTime,
+            onSelectItem: onSelectItem
         )
     }
 }

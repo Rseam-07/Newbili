@@ -7,6 +7,7 @@ struct VideoDetailDanmakuOverlay: View {
     let usesLandscapePlaybackChrome: Bool
     let isLayoutTransitioning: Bool
     let onPlaybackTime: (TimeInterval, Bool) -> Void
+    let onSelectItem: (DanmakuItem) -> Void
     @StateObject private var state = VideoDetailDanmakuOverlayState()
 
     var body: some View {
@@ -27,7 +28,8 @@ struct VideoDetailDanmakuOverlay: View {
             bottomInset: usesLandscapePlaybackChrome ? 84 : 54,
             isLayoutTransitioning: isLayoutTransitioning,
             playbackClock: clock,
-            onPlaybackTime: onPlaybackTime
+            onPlaybackTime: onPlaybackTime,
+            onSelectItem: onSelectItem
         )
         .padding(.horizontal, usesLandscapePlaybackChrome ? 0 : 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

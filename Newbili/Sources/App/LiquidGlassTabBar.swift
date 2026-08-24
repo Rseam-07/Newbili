@@ -90,6 +90,11 @@ extension View {
     }
 
     @ViewBuilder
+    func homeProgressiveTopScrollEdgeEffect() -> some View {
+        modifier(HomeProgressiveTopScrollEdgeEffect())
+    }
+
+    @ViewBuilder
     func liquidGlassTabBarBackground(isDark: Bool = false) -> some View {
         self
     }
@@ -146,6 +151,25 @@ extension View {
 
     func biliLiquidGlassForeground(shadowOpacity: Double = 0.20) -> some View {
         modifier(BiliLiquidGlassForegroundModifier(shadowOpacity: shadowOpacity))
+    }
+}
+
+private struct HomeProgressiveTopScrollEdgeEffect: ViewModifier {
+    @Environment(\.rootNavigationTitleHidden) private var rootNavigationTitleHidden
+
+    func body(content: Content) -> some View {
+        content
+            // 首页固定使用 iOS 26 风格的柔和渐进边缘，避免新样式在滚动阈值处
+            // 突然切成一整块硬质玻璃；其他页面仍服从全局设置。
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > 18
+            } action: { _, isHidden in
+                guard rootNavigationTitleHidden.wrappedValue != isHidden else { return }
+                withAnimation(.smooth(duration: 0.22)) {
+                    rootNavigationTitleHidden.wrappedValue = isHidden
+                }
+            }
     }
 }
 

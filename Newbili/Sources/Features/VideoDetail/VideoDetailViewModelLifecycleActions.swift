@@ -11,9 +11,13 @@ extension VideoDetailViewModel {
                 guard self?.isPlaybackInvalidatedForNavigation != true else { return }
                 self?.refilterLoadedComments()
             }
-        sponsorBlockCancellable = libraryStore.$sponsorBlockEnabled
-            .removeDuplicates()
-            .sink { [weak self] isEnabled in
+        sponsorBlockCancellable = Publishers.CombineLatest(
+            libraryStore.$sponsorBlockEnabled,
+            libraryStore.$sponsorBlockPreferences
+        )
+            .removeDuplicates { lhs, rhs in lhs.0 == rhs.0 && lhs.1 == rhs.1 }
+            .sink { [weak self] values in
+                let (isEnabled, _) = values
                 guard self?.isPlaybackInvalidatedForNavigation != true else { return }
                 self?.stablePlayerViewModel?.setSponsorBlockEnabled(isEnabled)
                 if isEnabled {

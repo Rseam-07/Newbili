@@ -532,6 +532,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
     @State private var isMoreControlsButtonPressed = false
     @State private var isVideoListenQueuePresented = false
     @State private var isDanmakuComposerPresented = false
+    @State private var selectedDanmakuItem: DanmakuItem?
 
     init(
         viewModel: PlayerStateViewModel,
@@ -710,10 +711,20 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                         playerViewModel: viewModel,
                         usesLandscapePlaybackChrome: configuration.isFullscreenActive,
                         isLayoutTransitioning: isBareSurfaceTransitionActive,
-                        onPlaybackTime: { detailViewModel.updateDanmakuPlaybackTime($0, underLoad: $1) }
+                        onPlaybackTime: { detailViewModel.updateDanmakuPlaybackTime($0, underLoad: $1) },
+                        onSelectItem: { item in
+                            viewModel.pause()
+                            selectedDanmakuItem = item
+                        }
                     )
-                    .allowsHitTesting(false)
                     .zIndex(2.5)
+
+                    VideoDetailSponsorBlockOverlay(
+                        playerViewModel: viewModel,
+                        libraryStore: libraryStore,
+                        isLandscape: isLandscape
+                    )
+                    .zIndex(7)
                 }
             }
         }
@@ -778,6 +789,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                 isMoreControlsPresented = false
                 isVideoListenQueuePresented = false
                 isDanmakuComposerPresented = false
+                selectedDanmakuItem = nil
             }
             playbackControlsVisibility.cancelAutoHide()
         }
@@ -811,6 +823,14 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedDanmakuItem) { item in
+            DanmakuInteractionSheet(
+                item: item,
+                cid: detailViewModel.selectedCID,
+                api: dependencies.api,
+                isLoggedIn: dependencies.sessionStore.isLoggedIn
+            )
         }
     }
 
@@ -1562,6 +1582,17 @@ private struct SurfaceOnlyMoreControlsNavigationContent: View {
                     }
                 }
 
+                if !detailViewModel.detail.isPGCEpisode {
+                    Button {
+                        toggleAnimeMark()
+                    } label: {
+                        Label(
+                            isMarkedAsAnime ? "取消番剧标记" : "标记为番剧",
+                            systemImage: isMarkedAsAnime ? "rectangle.on.rectangle.slash" : "sparkles.tv"
+                        )
+                    }
+                }
+
                 if showsVideoListenModeToggle {
                     Toggle(isOn: videoListenModeBinding) {
                         Label {
@@ -1663,6 +1694,18 @@ private struct SurfaceOnlyMoreControlsNavigationContent: View {
 
     private var mediaFormatSystemImage: String {
         detailViewModel.isVideoListenModeEnabled ? "waveform" : "film"
+    }
+
+    private var isMarkedAsAnime: Bool {
+        libraryStore.isVideoMarkedAsAnime(detailViewModel.detail.bvid)
+    }
+
+    private func toggleAnimeMark() {
+        libraryStore.setVideoMarkedAsAnime(
+            detailViewModel.detail.bvid,
+            isMarked: !isMarkedAsAnime
+        )
+        close()
     }
 
 }
@@ -2044,6 +2087,19 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
 
                     Divider().padding(.leading, 44)
 
+                    if !detailViewModel.detail.isPGCEpisode {
+                        SurfaceOnlyLandscapeMenuRow(
+                            title: isMarkedAsAnime ? "取消番剧标记" : "标记为番剧",
+                            systemImage: isMarkedAsAnime ? "rectangle.on.rectangle.slash" : "sparkles.tv",
+                            accessory: isMarkedAsAnime ? "已标记" : nil,
+                            showsChevron: false
+                        ) {
+                            toggleAnimeMark()
+                        }
+
+                        Divider().padding(.leading, 44)
+                    }
+
                     if showsVideoListenModeToggle {
                         SurfaceOnlyLandscapeToggleRow(
                             title: "听视频",
@@ -2422,6 +2478,18 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
 
     private var controlEdgeScrimAccessory: String? {
         return libraryStore.playerControlEdgeScrimEnabled ? "已开启" : "已关闭"
+    }
+
+    private var isMarkedAsAnime: Bool {
+        libraryStore.isVideoMarkedAsAnime(detailViewModel.detail.bvid)
+    }
+
+    private func toggleAnimeMark() {
+        libraryStore.setVideoMarkedAsAnime(
+            detailViewModel.detail.bvid,
+            isMarked: !isMarkedAsAnime
+        )
+        close()
     }
 }
 

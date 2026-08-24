@@ -43,7 +43,7 @@ struct HomeFeedScrollView<FeedContent: View>: View {
             .scrollBounceBehavior(.always, axes: .vertical)
             .defersRemoteImageLoadsDuringFastScroll()
             .background(background)
-            .nativeTopScrollEdgeEffect()
+            .homeProgressiveTopScrollEdgeEffect()
             .animation(.smooth(duration: 0.24), value: layout)
             .homeFeedScrollOverlays(
                 viewModel: viewModel,

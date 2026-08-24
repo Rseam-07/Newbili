@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VideoDetailLoadedDetailContentPage: View {
+    @EnvironmentObject private var libraryStore: LibraryStore
     @ObservedObject var viewModel: VideoDetailViewModel
     let layoutWidth: CGFloat
     let runtimeSettings: VideoDetailRuntimeSettingsSnapshot
@@ -15,6 +16,23 @@ struct VideoDetailLoadedDetailContentPage: View {
             VideoDetailPgcEpisodeSection(
                 detail: viewModel.detail,
                 selectEpisode: renderPack.actions.selectPgcEpisode
+            ) {
+                VideoDetailSummaryCard(
+                    viewModel: viewModel,
+                    contentWidth: renderPack.contentWidth,
+                    showsNetworkDiagnosticsButton: runtimeSettings.showsNetworkDiagnosticsButton,
+                    showsVideoInfo: false,
+                    onShowNetworkDiagnostics: onShowNetworkDiagnostics,
+                    onShowFavoriteFolders: onShowFavoriteFolders,
+                    onShowCoinPicker: onShowCoinPicker
+                )
+            }
+            .padding(.horizontal, PlaybackDetailContentMetrics.horizontalPadding)
+        } else if libraryStore.isVideoMarkedAsAnime(viewModel.detail.bvid) {
+            VideoDetailUserAnimeSection(
+                detail: viewModel.detail,
+                pageStore: renderPack.pageSelectorStore,
+                selectPage: renderPack.actions.selectPage
             ) {
                 VideoDetailSummaryCard(
                     viewModel: viewModel,

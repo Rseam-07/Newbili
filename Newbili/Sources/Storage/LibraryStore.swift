@@ -130,6 +130,8 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var danmakuEnabled: Bool
     @Published private(set) var danmakuSettings: DanmakuSettings
     @Published private(set) var sponsorBlockEnabled: Bool
+    @Published private(set) var sponsorBlockPreferences: SponsorBlockPreferences
+    @Published private(set) var markedAnimeBVIDs: Set<String>
     @Published private(set) var pictureInPictureEnabled: Bool
     @Published private(set) var usesNativePlaybackControls: Bool
     @Published private(set) var playerPerformanceOverlayEnabled: Bool
@@ -205,6 +207,8 @@ final class LibraryStore: ObservableObject {
     private static let danmakuEnabledKey = "cc.bili.playback.danmakuEnabled.v1"
     private static let danmakuSettingsKey = "cc.bili.playback.danmakuSettings.v1"
     private static let sponsorBlockEnabledKey = "cc.bili.playback.sponsorBlockEnabled.v1"
+    private static let sponsorBlockPreferencesKey = "cc.bili.playback.sponsorBlockPreferences.v1"
+    private static let markedAnimeBVIDsKey = "cc.bili.videoDetail.markedAnimeBVIDs.v1"
     private static let pictureInPictureEnabledKey = "cc.bili.playback.pictureInPictureEnabled.v1"
     private static let usesNativePlaybackControlsKey = "cc.bili.playback.usesNativePlaybackControls.v1"
     private static let playerPerformanceOverlayEnabledKey = "cc.bili.playback.performanceOverlayEnabled.v1"
@@ -477,6 +481,16 @@ final class LibraryStore: ObservableObject {
             self.danmakuSettings = .default
         }
         self.sponsorBlockEnabled = userDefaults.object(forKey: Self.sponsorBlockEnabledKey) as? Bool ?? false
+        if let preferencesData = userDefaults.data(forKey: Self.sponsorBlockPreferencesKey),
+           let preferences = try? JSONDecoder().decode(SponsorBlockPreferences.self, from: preferencesData) {
+            self.sponsorBlockPreferences = preferences.normalized
+        } else {
+            self.sponsorBlockPreferences = .default
+        }
+        self.markedAnimeBVIDs = Set(
+            (userDefaults.stringArray(forKey: Self.markedAnimeBVIDsKey) ?? [])
+                .compactMap(Self.normalizedBVID)
+        )
         self.pictureInPictureEnabled = userDefaults.object(forKey: Self.pictureInPictureEnabledKey) as? Bool ?? false
         self.usesNativePlaybackControls = userDefaults.object(forKey: Self.usesNativePlaybackControlsKey) as? Bool ?? false
         self.playerPerformanceOverlayEnabled = userDefaults.object(forKey: Self.playerPerformanceOverlayEnabledKey) as? Bool ?? false
@@ -1048,9 +1062,43 @@ final class LibraryStore: ObservableObject {
         userDefaults.set(isEnabled, forKey: Self.sponsorBlockEnabledKey)
     }
 
+    func setSponsorBlockPreferences(_ preferences: SponsorBlockPreferences) {
+        let normalizedPreferences = preferences.normalized
+        sponsorBlockPreferences = normalizedPreferences
+        guard let data = try? JSONEncoder().encode(normalizedPreferences) else { return }
+        userDefaults.set(data, forKey: Self.sponsorBlockPreferencesKey)
+    }
+
+    func setSponsorBlockBehavior(_ behavior: SponsorBlockBehavior, for category: SponsorBlockCategory) {
+        var preferences = sponsorBlockPreferences
+        preferences.categoryBehaviors[category.rawValue] = behavior
+        setSponsorBlockPreferences(preferences)
+    }
+
+    func isVideoMarkedAsAnime(_ bvid: String) -> Bool {
+        guard let normalizedBVID = Self.normalizedBVID(bvid) else { return false }
+        return markedAnimeBVIDs.contains(normalizedBVID)
+    }
+
+    func setVideoMarkedAsAnime(_ bvid: String, isMarked: Bool) {
+        guard let normalizedBVID = Self.normalizedBVID(bvid) else { return }
+        if isMarked {
+            markedAnimeBVIDs.insert(normalizedBVID)
+        } else {
+            markedAnimeBVIDs.remove(normalizedBVID)
+        }
+        userDefaults.set(markedAnimeBVIDs.sorted(), forKey: Self.markedAnimeBVIDsKey)
+    }
+
     func setPictureInPictureEnabled(_ isEnabled: Bool) {
         pictureInPictureEnabled = isEnabled
         userDefaults.set(isEnabled, forKey: Self.pictureInPictureEnabledKey)
+    }
+
+    private static func normalizedBVID(_ value: String) -> String? {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard normalized.hasPrefix("BV"), normalized.count > 2 else { return nil }
+        return normalized
     }
 
     func setPlayerPerformanceOverlayEnabled(_ isEnabled: Bool) {

@@ -2028,6 +2028,76 @@ nonisolated final class BiliAPIClient {
         return response.payload
     }
 
+    func setDanmakuLiked(cid: Int, dmid: Int64, liked: Bool) async throws -> Bool {
+        guard cid > 0, dmid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的弹幕信息")
+        }
+        let context = try await requireCSRFContext(for: .interaction)
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL,
+            path: "/x/v2/dm/thumbup/add",
+            body: [
+                "op": liked ? "1" : "2",
+                "dmid": String(dmid),
+                "oid": String(cid),
+                "platform": "web_player",
+                "polaris_app_id": "100",
+                "polaris_platform": "5",
+                "spmid": "333.788.0.0",
+                "from_spmid": "333.788.0.0",
+                "statistics": #"{"appId":100,"platform":5,"abtest":"","version":""}"#,
+                "csrf": context.csrf
+            ],
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .idempotentMutation
+        )
+        if response.code == 0 { return liked }
+        if response.code == 65006 { return true }
+        if response.code == 65004 { return false }
+        throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+    }
+
+    func reportDanmaku(
+        cid: Int,
+        dmid: Int64,
+        reason: DanmakuReportReason,
+        content: String? = nil
+    ) async throws {
+        guard cid > 0, dmid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的弹幕信息")
+        }
+        let normalizedContent = content?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if reason == .other, normalizedContent?.isEmpty != false {
+            throw BiliAPIError.api(code: -1, message: "请填写举报原因")
+        }
+        let context = try await requireCSRFContext(for: .interaction)
+        var body = [
+            "cid": String(cid),
+            "dmid": String(dmid),
+            "reason": String(reason.rawValue),
+            "block": "false",
+            "originCid": String(cid),
+            "polaris_app_id": "100",
+            "polaris_platform": "5",
+            "spmid": "333.788.0.0",
+            "from_spmid": "333.788.0.0",
+            "statistics": #"{"appId":100,"platform":5,"abtest":"","version":""}"#,
+            "csrf": context.csrf
+        ]
+        if let normalizedContent, !normalizedContent.isEmpty {
+            body["content"] = normalizedContent
+        }
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL,
+            path: "/x/dm/report/add",
+            body: body,
+            cookieHeader: context.snapshot.cookieHeader
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+    }
+
     func addVideoCoin(aid: Int, multiply: Int = 1, selectLike: Bool = false) async throws {
         guard (1...2).contains(multiply) else {
             throw BiliAPIError.api(code: -1, message: "投币数量无效")

@@ -34,7 +34,11 @@ extension VideoDetailViewModel {
                   self.sponsorBlockIdentity(for: self.detail.bvid, cid: cid) == identity
             else { return }
             do {
-                let segments = try await self.sponsorBlockService.fetchSkipSegments(bvid: bvid, cid: cid)
+                let segments = try await self.sponsorBlockService.fetchSkipSegments(
+                    bvid: bvid,
+                    cid: cid,
+                    serverURL: self.libraryStore.sponsorBlockPreferences.serverURL
+                )
                 guard !Task.isCancelled,
                       !self.isPlaybackInvalidatedForNavigation,
                       self.sponsorBlockGeneration == generation,
@@ -59,6 +63,7 @@ extension VideoDetailViewModel {
     }
 
     private func sponsorBlockIdentity(for bvid: String, cid: Int) -> String {
-        "\(bvid)-\(cid)"
+        let server = libraryStore.sponsorBlockPreferences.serverURL?.absoluteString ?? "default"
+        return "\(bvid)-\(cid)-\(server)"
     }
 }

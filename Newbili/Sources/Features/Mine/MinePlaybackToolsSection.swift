@@ -12,6 +12,16 @@ struct MinePlaybackToolsSection: View {
                 Label("空降助手", systemImage: "forward.end")
             }
 
+            NavigationLink {
+                SponsorBlockSettingsView(libraryStore: libraryStore)
+            } label: {
+                SettingsNavigationRow(
+                    title: "空降助手自定义",
+                    subtitle: sponsorBlockSummary,
+                    systemImage: "slider.horizontal.3"
+                )
+            }
+
             Toggle(isOn: Binding(
                 get: { libraryStore.diagnosticsBackgroundProcessingExperimentEnabled },
                 set: { libraryStore.setDiagnosticsBackgroundProcessingExperimentEnabled($0) }
@@ -111,5 +121,16 @@ struct MinePlaybackToolsSection: View {
                 )
             }
         }
+    }
+
+    private var sponsorBlockSummary: String {
+        let preferences = libraryStore.sponsorBlockPreferences
+        let manualCount = SponsorBlockCategory.allCases.filter {
+            preferences.behavior(for: $0.rawValue) == .skipManually
+        }.count
+        if manualCount > 0 {
+            return "(manualCount) 类手动处理 · 其余分类可分别设置"
+        }
+        return "11 类片段可分别设置跳过方式"
     }
 }

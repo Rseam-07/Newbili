@@ -189,6 +189,42 @@ enum DanmakuPostMode: Int, CaseIterable, Identifiable, Sendable {
     }
 }
 
+nonisolated enum DanmakuReportReason: Int, CaseIterable, Identifiable, Sendable {
+    case illegal = 1
+    case sexual = 2
+    case fraud = 3
+    case attack = 4
+    case privacy = 5
+    case advertisement = 6
+    case conflict = 7
+    case spoiler = 8
+    case flooding = 9
+    case irrelevant = 10
+    case youth = 12
+    case illegalLink = 13
+    case other = 11
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .illegal: return "违法违禁"
+        case .sexual: return "色情低俗"
+        case .fraud: return "赌博诈骗"
+        case .attack: return "人身攻击"
+        case .privacy: return "侵犯隐私"
+        case .advertisement: return "垃圾广告"
+        case .conflict: return "引战"
+        case .spoiler: return "剧透"
+        case .flooding: return "恶意刷屏"
+        case .irrelevant: return "视频无关"
+        case .youth: return "青少年不良信息"
+        case .illegalLink: return "违法信息外链"
+        case .other: return "其它"
+        }
+    }
+}
+
 nonisolated struct DanmakuPostResult: Decodable, Sendable {
     let dmid: Int64?
     let dmidString: String?
@@ -229,6 +265,7 @@ nonisolated struct DanmakuPostResult: Decodable, Sendable {
 
 nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
     let id: String
+    let dmid: Int64?
     let time: TimeInterval
     let mode: Int
     let fontSize: Double
@@ -239,6 +276,7 @@ nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
 
     init(
         id: String,
+        dmid: Int64? = nil,
         time: TimeInterval,
         mode: Int,
         fontSize: Double,
@@ -248,6 +286,7 @@ nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
         inlineEmotes: [String: BiliInlineEmote] = [:]
     ) {
         self.id = id
+        self.dmid = dmid
         self.time = time
         self.mode = mode
         self.fontSize = fontSize
@@ -373,6 +412,7 @@ nonisolated final class DanmakuXMLParser: NSObject, XMLParserDelegate {
 
         return DanmakuItem(
             id: id,
+            dmid: parts.count > 7 ? Int64(String(parts[7])) : nil,
             time: max(0, time),
             mode: mode,
             fontSize: fontSize,
@@ -469,6 +509,7 @@ nonisolated struct DanmakuSegmentProtobufParser {
 
         let item = DanmakuItem(
             id: itemID,
+            dmid: idString.flatMap(Int64.init) ?? numericID.flatMap { Int64(exactly: $0) },
             time: TimeInterval(progressMilliseconds) / 1000,
             mode: mode,
             fontSize: fontSize,

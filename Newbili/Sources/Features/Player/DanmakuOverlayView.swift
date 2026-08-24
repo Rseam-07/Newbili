@@ -57,6 +57,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
     let isLayoutTransitioning: Bool
     let playbackClock: PlayerPlaybackClock?
     let onPlaybackTime: ((TimeInterval, Bool) -> Void)?
+    let onSelectItem: ((DanmakuItem) -> Void)?
 
     init(
         items: [DanmakuItem],
@@ -72,7 +73,8 @@ struct DanmakuOverlayView: UIViewRepresentable {
         bottomInset: CGFloat,
         isLayoutTransitioning: Bool = false,
         playbackClock: PlayerPlaybackClock? = nil,
-        onPlaybackTime: ((TimeInterval, Bool) -> Void)? = nil
+        onPlaybackTime: ((TimeInterval, Bool) -> Void)? = nil,
+        onSelectItem: ((DanmakuItem) -> Void)? = nil
     ) {
         self.items = items
         self.itemsRevision = itemsRevision
@@ -88,6 +90,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
         self.isLayoutTransitioning = isLayoutTransitioning
         self.playbackClock = playbackClock
         self.onPlaybackTime = onPlaybackTime
+        self.onSelectItem = onSelectItem
     }
 
     func makeCoordinator() -> Coordinator {
@@ -96,6 +99,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> DanmakuAnimationOverlayView {
         let view = DanmakuAnimationOverlayView()
+        view.onSelectItem = onSelectItem
         view.setLayoutTransitioning(isLayoutTransitioning)
         let resolvedCurrentTime = playbackClock?.currentTime ?? currentTime
         let signature = configurationSignature(resolvedCurrentTime: resolvedCurrentTime)
@@ -118,6 +122,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: DanmakuAnimationOverlayView, context: Context) {
+        uiView.onSelectItem = onSelectItem
         if isLayoutTransitioning {
             uiView.setLayoutTransitioning(true)
         }
@@ -163,6 +168,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: DanmakuAnimationOverlayView, coordinator: Coordinator) {
         coordinator.unbind()
+        uiView.onSelectItem = nil
         uiView.stop()
     }
 
@@ -293,6 +299,7 @@ final class DanmakuAnimationOverlayView: UIView {
     private var needsLayoutRebuildAfterTransition = false
     private var renderEnvironment = PlaybackEnvironment.current
     private var lastRenderEnvironmentRefreshTime = CACurrentMediaTime()
+    var onSelectItem: ((DanmakuItem) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -335,6 +342,11 @@ final class DanmakuAnimationOverlayView: UIView {
         super.didMoveToWindow()
         updateDisplayLinkState()
         updateAnimationPauseState()
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard onSelectItem != nil, shouldRenderDanmaku else { return false }
+        return activeEntry(at: point) != nil
     }
 
     func setLayoutTransitioning(_ isTransitioning: Bool) {
@@ -498,8 +510,28 @@ final class DanmakuAnimationOverlayView: UIView {
         backgroundColor = .clear
         isOpaque = false
         clipsToBounds = true
-        isUserInteractionEnabled = false
+        isUserInteractionEnabled = true
         layer.allowsGroupOpacity = false
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleItemTap(_:)))
+        tapGesture.cancelsTouchesInView = true
+        addGestureRecognizer(tapGesture)
+    }
+
+    @objc private func handleItemTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended,
+              let entry = activeEntry(at: gesture.location(in: self))
+        else { return }
+        onSelectItem?(entry.item)
+    }
+
+    private func activeEntry(at point: CGPoint) -> ActiveEntry? {
+        activeEntries.values
+            .filter { entry in
+                let layer = entry.label.layer.presentation() ?? entry.label.layer
+                guard layer.opacity > 0.05 else { return false }
+                return layer.frame.insetBy(dx: -8, dy: -6).contains(point)
+            }
+            .max { lhs, rhs in lhs.createdAt < rhs.createdAt }
     }
 
     private var shouldRenderDanmaku: Bool {

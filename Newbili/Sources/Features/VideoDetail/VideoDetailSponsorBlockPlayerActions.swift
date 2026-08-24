@@ -10,11 +10,17 @@ extension VideoDetailViewModel {
 
     func applySponsorBlockSegmentsToPlayer() {
         guard !isPlaybackInvalidatedForNavigation else { return }
+        let preferences = libraryStore.sponsorBlockPreferences
         stablePlayerViewModel?.setSponsorBlockSegments(
             sponsorBlockSegments,
-            isEnabled: libraryStore.sponsorBlockEnabled
+            isEnabled: libraryStore.sponsorBlockEnabled,
+            preferences: preferences
         ) { [sponsorBlockService] event in
-            await sponsorBlockService.reportViewed(uuid: event.segment.uuid)
+            guard preferences.trackingEnabled else { return }
+            await sponsorBlockService.reportViewed(
+                uuid: event.segment.uuid,
+                serverURL: preferences.serverURL
+            )
         }
     }
 }

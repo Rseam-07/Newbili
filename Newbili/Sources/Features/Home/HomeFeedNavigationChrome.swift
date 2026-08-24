@@ -17,7 +17,7 @@ struct HomeFeedNavigationChrome: ViewModifier {
                         onSelect: onSelectSection
                     )
                     .padding(.vertical, 7)
-                    .background(.ultraThinMaterial)
+                    .background(HomeProgressiveNavigationBlur())
                 }
                 .rootNavigationTitle("首页") {
                     accountMessageButton
@@ -50,6 +50,27 @@ struct HomeFeedNavigationChrome: ViewModifier {
         }
     }
 
+}
+
+private struct HomeProgressiveNavigationBlur: View {
+    var body: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black.opacity(0.92), location: 0.58),
+                        .init(color: .black.opacity(0.42), location: 0.82),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }
 
 extension View {

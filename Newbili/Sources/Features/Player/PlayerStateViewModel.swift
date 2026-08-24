@@ -406,6 +406,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     @Published private(set) var isCurrentPlaybackSurfaceReadyForDisplay = false
     @Published private(set) var isAwaitingAppBackgroundSurfaceRecovery = false
     @Published private(set) var activeSponsorBlockSegment: SponsorBlockSegment?
+    @Published private(set) var sponsorBlockSkipNotice: SponsorBlockSkipEvent?
     @Published private(set) var prepareElapsedMilliseconds: Int?
     @Published private(set) var firstFrameElapsedMilliseconds: Int?
     @Published private(set) var bufferingCount = 0
@@ -500,6 +501,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     private var sponsorBlockSearchIndex = 0
     private var skippedSponsorBlockIDs = Set<String>()
     private var sponsorBlockReportedIDs = Set<String>()
+    private var sponsorBlockPreferences: SponsorBlockPreferences = .default
+    private var sponsorBlockNoticeTask: Task<Void, Never>?
     private var ignoredStartupPlaybackTimeOutliers = 0
     private var didRecordFirstFrameEvent = false
     private var pendingEngineFirstFrameTime: TimeInterval?
@@ -670,6 +673,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         audioSessionCancellables.removeAll()
         sponsorBlockSkipReportTasks.values.forEach { $0.cancel() }
         sponsorBlockSkipReportTasks.removeAll()
+        sponsorBlockNoticeTask?.cancel()
         onPlaybackFailure = nil
         onPlaybackFailureWithReason = nil
         onFirstFramePresented = nil
@@ -2898,6 +2902,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         audioInterruptionState.reset()
         sponsorBlockSkipReportTasks.values.forEach { $0.cancel() }
         sponsorBlockSkipReportTasks.removeAll()
+        sponsorBlockNoticeTask?.cancel()
+        sponsorBlockNoticeTask = nil
         navigationAudioSuspension = nil
         seamlessPlaybackHandoffSource = nil
         timeObserver?.invalidate()
@@ -3559,17 +3565,22 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     func setSponsorBlockSegments(
         _ segments: [SponsorBlockSegment],
         isEnabled: Bool,
+        preferences: SponsorBlockPreferences = .default,
         onSegmentSkipped: (@Sendable (SponsorBlockSkipEvent) async -> Void)? = nil
     ) {
         sponsorBlockSegments = segments
             .filter(\.isSkippable)
             .sorted { $0.startTime < $1.startTime }
         sponsorBlockEnabled = isEnabled
+        sponsorBlockPreferences = preferences.normalized
         self.onSponsorBlockSegmentSkipped = onSegmentSkipped
         skippedSponsorBlockIDs.removeAll()
         sponsorBlockReportedIDs.removeAll()
         sponsorBlockSearchIndex = 0
         activeSponsorBlockSegment = nil
+        sponsorBlockSkipNotice = nil
+        sponsorBlockNoticeTask?.cancel()
+        sponsorBlockNoticeTask = nil
     }
 
     func setSponsorBlockEnabled(_ isEnabled: Bool) {
@@ -3577,6 +3588,11 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         if !isEnabled {
             activeSponsorBlockSegment = nil
         }
+    }
+
+    func skipActiveSponsorBlockSegment() {
+        guard let segment = activeSponsorBlockSegment else { return }
+        performSponsorBlockSkip(segment, from: currentTime, recordsSkipOnce: true)
     }
 
     func togglePictureInPicture() {
@@ -5677,21 +5693,60 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         }
 
         activeSponsorBlockSegment = segment
-        guard !skippedSponsorBlockIDs.contains(segment.id) else { return }
+        let behavior = sponsorBlockPreferences.behavior(
+            for: segment.category,
+            duration: segment.duration
+        )
+        switch behavior {
+        case .disable:
+            activeSponsorBlockSegment = nil
+            return
+        case .showOnly, .skipManually:
+            return
+        case .skipOnce:
+            guard !skippedSponsorBlockIDs.contains(segment.id) else { return }
+            performSponsorBlockSkip(segment, from: time, recordsSkipOnce: true)
+        case .alwaysSkip:
+            performSponsorBlockSkip(segment, from: time, recordsSkipOnce: false)
+        }
+    }
+
+    private func performSponsorBlockSkip(
+        _ segment: SponsorBlockSegment,
+        from time: TimeInterval,
+        recordsSkipOnce: Bool
+    ) {
         guard let skippedTo = engine.seek(toTime: segment.endTime) else { return }
-        skippedSponsorBlockIDs.insert(segment.id)
+        if recordsSkipOnce {
+            skippedSponsorBlockIDs.insert(segment.id)
+        }
         updatePlaybackTime(skippedTo, force: true, countsAsNaturalPlayback: false)
         PlayerMetricsLog.logger.info(
             "sponsorBlockSkipped id=\(self.metricsID, privacy: .public) category=\(segment.category, privacy: .public) from=\(time, format: .fixed(precision: 2), privacy: .public) to=\(skippedTo, format: .fixed(precision: 2), privacy: .public)"
         )
 
-        if wantsAutoplay {
-            guard canActivatePlayback() else { return }
+        if wantsAutoplay, canActivatePlayback() {
             engine.play()
             engine.setPlaybackRate(playbackRate.rawValue)
         }
         invalidatePictureInPicturePlaybackState()
+        presentSponsorBlockSkipNoticeIfNeeded(segment: segment, from: time)
         reportSponsorBlockSkip(segment, from: time)
+    }
+
+    private func presentSponsorBlockSkipNoticeIfNeeded(
+        segment: SponsorBlockSegment,
+        from time: TimeInterval
+    ) {
+        guard sponsorBlockPreferences.showsSkipNotice else { return }
+        let event = SponsorBlockSkipEvent(segment: segment, fromTime: time, skippedAt: Date())
+        sponsorBlockSkipNotice = event
+        sponsorBlockNoticeTask?.cancel()
+        sponsorBlockNoticeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_600_000_000)
+            guard !Task.isCancelled else { return }
+            self?.sponsorBlockSkipNotice = nil
+        }
     }
 
     private func sponsorBlockSegment(at time: TimeInterval) -> SponsorBlockSegment? {
