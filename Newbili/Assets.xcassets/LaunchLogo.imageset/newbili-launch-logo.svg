@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="112" viewBox="0 0 128 112">
-  <g fill="none" stroke="#FF4B8B" stroke-linecap="round" stroke-width="6">
-    <path d="M55 29 L43 16"/><path d="M73 29 L85 16"/>
-  </g>
-  <rect x="20" y="28" width="88" height="66" rx="22" fill="#FF4B8B"/>
-  <rect x="29" y="37" width="70" height="45" rx="14" fill="#201A2A"/>
-  <rect x="36" y="89" width="14" height="8" rx="4" fill="#FF4B8B"/>
-  <rect x="78" y="89" width="14" height="8" rx="4" fill="#FF4B8B"/>
-  <rect x="42" y="53" width="11" height="7" rx="3.5" fill="#FF77AB"/>
-  <rect x="75" y="53" width="11" height="7" rx="3.5" fill="#87EDFF"/>
-  <path d="M52 68 C58 73 70 73 76 68" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-width="4"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="112" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#21145E"/><stop offset="0.55" stop-color="#24208F"/><stop offset="1" stop-color="#0A4BA7"/></linearGradient></defs>
+  <g fill="none" stroke="#FF4B8B" stroke-linecap="round" stroke-width="58"><path d="M421 299 L326 183"/><path d="M603 299 L698 183"/></g>
+  <circle cx="315" cy="170" r="42" fill="#FF4B8B"/><circle cx="709" cy="170" r="42" fill="#FF4B8B"/>
+  <rect x="150" y="288" width="724" height="574" rx="184" fill="#FF4B8B"/>
+  <rect x="166" y="304" width="692" height="542" rx="168" fill="none" stroke="#87EDFF" stroke-width="18" opacity="0.72"/>
+  <rect x="298" y="823" width="116" height="68" rx="34" fill="#FF4B8B"/><rect x="610" y="823" width="116" height="68" rx="34" fill="#FF4B8B"/>
+  <rect x="236" y="376" width="552" height="370" rx="116" fill="url(#screen)"/>
+  <rect x="250" y="390" width="524" height="342" rx="102" fill="none" stroke="#3ADCF2" stroke-width="14" opacity="0.8"/>
+  <circle cx="364" cy="568" r="42" fill="#FF67C6"/><circle cx="474" cy="568" r="42" fill="#61E9FF"/>
+  <path d="M568 495 C568 472 594 458 614 471 L708 534 C728 547 728 577 708 590 L614 653 C594 666 568 652 568 629 Z" fill="#FFFFFF"/>
+  <g fill="none" stroke="#61E9FF" stroke-linecap="round" stroke-width="22"><path d="M702 512 H754"/><path d="M722 558 H778"/><path d="M702 604 H754"/></g>
 </svg>

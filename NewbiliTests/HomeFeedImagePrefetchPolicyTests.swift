@@ -99,4 +99,73 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
             4
         )
     }
+
+    func testCinematicShelvesUseActualAvailableWidthForIPadAndFoldables() {
+        XCTAssertFalse(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 759,
+                viewportHeight: 1_024
+            )
+        )
+        XCTAssertTrue(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 760,
+                viewportHeight: 1_024
+            )
+        )
+        XCTAssertTrue(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 1_366,
+                viewportHeight: 1_024
+            )
+        )
+        XCTAssertTrue(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 844,
+                viewportHeight: 390
+            )
+        )
+        XCTAssertTrue(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 700,
+                viewportHeight: 390
+            )
+        )
+        XCTAssertFalse(
+            HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: 700,
+                viewportHeight: 960
+            )
+        )
+    }
+
+    func testCinematicHeroCompressesForIPhoneLandscapeHeight() {
+        XCTAssertEqual(
+            HomeCinematicWideLayoutPolicy.heroHeight(
+                containerWidth: 844,
+                viewportHeight: 390
+            ),
+            358.8,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            HomeCinematicWideLayoutPolicy.heroHeight(
+                containerWidth: 1_024,
+                viewportHeight: 1_366
+            ),
+            720,
+            accuracy: 0.01
+        )
+    }
+
+    func testCinematicShelfPlanKeepsStableGroupsAndFinalRemainder() {
+        XCTAssertEqual(
+            HomeCinematicShelfPlan.itemRanges(totalItemCount: 18, itemsPerShelf: 8),
+            [0..<8, 8..<16, 16..<18]
+        )
+        XCTAssertEqual(
+            HomeCinematicShelfPlan.itemRanges(totalItemCount: 0, itemsPerShelf: 8),
+            []
+        )
+    }
 }

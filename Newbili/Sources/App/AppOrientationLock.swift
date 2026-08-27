@@ -1,8 +1,18 @@
 import UIKit
 
+nonisolated enum AppOrientationPolicy {
+    static func rootOrientations(for idiom: UIUserInterfaceIdiom) -> UIInterfaceOrientationMask {
+        idiom == .pad ? .all : .allButUpsideDown
+    }
+}
+
 @MainActor
 enum AppOrientationLock {
-    private(set) static var supportedOrientations: UIInterfaceOrientationMask = .portrait
+    private(set) static var supportedOrientations: UIInterfaceOrientationMask = rootOrientations
+
+    static var rootOrientations: UIInterfaceOrientationMask {
+        AppOrientationPolicy.rootOrientations(for: UIDevice.current.userInterfaceIdiom)
+    }
 
     static func update(
         to orientations: UIInterfaceOrientationMask,
@@ -20,6 +30,10 @@ enum AppOrientationLock {
 
     static func restorePortrait(in scene: UIWindowScene? = nil) {
         update(to: .portrait, in: scene, requestsGeometryUpdate: true)
+    }
+
+    static func restoreRootOrientations(in scene: UIWindowScene? = nil) {
+        update(to: rootOrientations, in: scene, requestsGeometryUpdate: true)
     }
 
     static func requestGeometryUpdate(

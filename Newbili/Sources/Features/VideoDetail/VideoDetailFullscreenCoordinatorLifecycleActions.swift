@@ -16,7 +16,7 @@ extension VideoDetailFullscreenCoordinator {
         trigger = .none
         isCompletingExit = false
         isSystemRotationLayoutTransitioning = false
-        AppOrientationLock.restorePortrait()
+        AppOrientationLock.restoreRootOrientations()
     }
 
     func exitFullscreen(

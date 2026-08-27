@@ -59,7 +59,7 @@ struct LiveRoomContentView: View {
         .onDisappear {
             pendingFullscreenExitTask?.cancel()
             UIDevice.current.endGeneratingDeviceOrientationNotifications()
-            AppOrientationLock.restorePortrait()
+            AppOrientationLock.restoreRootOrientations()
             fullscreenMode = nil
             isCompletingFullscreenExit = false
         }

@@ -63,6 +63,7 @@ struct RootTabView: View {
                 .ignoresSafeArea()
         }
         .task {
+            restoreRootOrientationsIfNeeded()
             AppIconController.apply(libraryStore.appIconPreference)
             PictureInPictureRestoreCoordinator.shared.restoreHandler = { video in
                 await restoreVideoPlaybackUIForPictureInPicture(video)
@@ -84,9 +85,16 @@ struct RootTabView: View {
         .onChange(of: libraryStore.appIconPreference) { _, preference in
             AppIconController.apply(preference)
         }
+        .onChange(of: rootNavigationPath.count) { _, _ in
+            restoreRootOrientationsIfNeeded()
+        }
+        .onChange(of: bottomMode) { _, _ in
+            restoreRootOrientationsIfNeeded()
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                restoreRootOrientationsIfNeeded()
                 Task {
                     await refreshHomeMessageUnreadIfNeeded()
                 }
@@ -193,6 +201,11 @@ struct RootTabView: View {
         Task {
             await VideoPreloadCenter.shared.cancelMediaWarmups(clearCache: false)
         }
+    }
+
+    private func restoreRootOrientationsIfNeeded() {
+        guard bottomMode == .root, rootNavigationPath.isEmpty else { return }
+        AppOrientationLock.restoreRootOrientations()
     }
 
     @ViewBuilder

@@ -194,7 +194,7 @@ final class LiveRoomShellViewController: UIViewController {
         resumeDeferredLiveRenderUpdates()
         playerSurfaceController.cancelRotationChromePrewarm()
         rotationFrameProbe.cancel()
-        AppOrientationLock.restorePortrait(in: view.window?.windowScene)
+        AppOrientationLock.restoreRootOrientations(in: view.window?.windowScene)
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -204,7 +204,7 @@ final class LiveRoomShellViewController: UIViewController {
         cancelActiveRotationPresentationIfNeeded()
         resumeDeferredLiveRenderUpdates()
         playerSurfaceController.cancelRotationChromePrewarm()
-        AppOrientationLock.restorePortrait(in: view.window?.windowScene)
+        AppOrientationLock.restoreRootOrientations(in: view.window?.windowScene)
     }
 
     override func viewDidLayoutSubviews() {

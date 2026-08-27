@@ -260,8 +260,8 @@ final class VideoDetailShellViewController: UIViewController {
         cancelPendingRotationCompletionRecovery()
         playerSurfaceController.cancelRotationChromePrewarm()
         rotationFrameProbe.cancel()
-        // 离开页面恢复竖屏锁定，避免横屏解锁残留影响其它页面（首页/动态/直播/我的）。
-        AppOrientationLock.restorePortrait(in: view.window?.windowScene)
+        // 离开播放页恢复根界面支持的方向；首页会依据实际宽高切换影院布局。
+        AppOrientationLock.restoreRootOrientations(in: view.window?.windowScene)
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -271,7 +271,7 @@ final class VideoDetailShellViewController: UIViewController {
         cancelPendingRotationCompletionRecovery()
         playerSurfaceController.cancelRotationChromePrewarm()
         // 双保险：tab 切换等场景 viewWillDisappear 可能不触发，这里再兜一次。
-        AppOrientationLock.restorePortrait(in: view.window?.windowScene)
+        AppOrientationLock.restoreRootOrientations(in: view.window?.windowScene)
         if isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
             tearDownPlayerSurfaceIfNeeded()
         }

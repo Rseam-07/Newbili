@@ -353,7 +353,7 @@ extension RootTabView {
         closeVideoFallbackTask?.cancel()
         closeVideoFallbackTask = nil
         ActivePlaybackCoordinator.shared.stopActivePlayback()
-        AppOrientationLock.restorePortrait()
+        AppOrientationLock.restoreRootOrientations()
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -378,7 +378,7 @@ extension RootTabView {
         closeVideoFallbackTask?.cancel()
         closeVideoFallbackTask = nil
         ActivePlaybackCoordinator.shared.stopActivePlayback()
-        AppOrientationLock.restorePortrait()
+        AppOrientationLock.restoreRootOrientations()
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {

@@ -40,7 +40,7 @@ Android 端位于 [`android/`](android/)，当前已落地 Compose 响应式导�
 
 ## iOS 27 分层图标
 
-主图标使用 Apple Icon Composer 制作，只保留 TV 与 Face 两层，并启用 Design Generation 27。Xcode 直接编译 `Newbili/Newbili.icon`，由系统生成 Default、Dark 与 Mono 外观；启动页使用真正透明的矢量标记，不再出现矩形底色。
+主图标使用 Apple Icon Composer 制作，恢复经典小电视的 Atmosphere、TV Shell、Screen 与 Signal 四层结构，并启用 Design Generation 27。Xcode 直接编译 `Newbili/Newbili.icon`，由系统生成 Default、Dark 与 Mono 外观；启动页复用同款小电视的透明矢量标记，不含矩形底色。
 
 - 可编辑 Icon Composer 工程：`Brand/NewbiliIcon/Newbili.icon`
 - 分层 SVG 和备用 PNG：`Brand/NewbiliIcon/`
