@@ -20,6 +20,7 @@ final class DynamicViewModel: ObservableObject {
     @Published private(set) var topUploaderStripRevision = 0
 
     private let lifecycleCoordinator: DynamicFeedLifecycleCoordinator
+    private let likeControllers: DynamicLikeControllerRegistry
     private var filterCancellable: AnyCancellable?
 
     var hasMoreItems: Bool {
@@ -27,6 +28,11 @@ final class DynamicViewModel: ObservableObject {
     }
 
     init(api: BiliAPIClient, libraryStore: LibraryStore, sessionStore: SessionStore) {
+        likeControllers = DynamicLikeControllerRegistry(
+            api: api,
+            sessionStore: sessionStore,
+            libraryStore: libraryStore
+        )
         let contentFilter = DynamicFeedContentFilter(libraryStore: libraryStore)
         let resourcePrefetchCoordinator = DynamicFeedResourcePrefetchCoordinator(
             api: api,
@@ -61,8 +67,12 @@ final class DynamicViewModel: ObservableObject {
         }
         state = .loading
         isTopUploaderStripLoading = true
+        let likeBaseline = likeControllers.reconciliationBaseline()
         do {
-            items = try await lifecycleCoordinator.loadInitialPage()
+            replaceItems(
+                try await lifecycleCoordinator.loadInitialPage(),
+                likeBaseline: likeBaseline
+            )
             refreshTopUploaderStrip()
             state = .loaded
         } catch {
@@ -84,8 +94,10 @@ final class DynamicViewModel: ObservableObject {
         }
         state = .loading
         isTopUploaderStripLoading = true
+        let likeBaseline = likeControllers.reconciliationBaseline()
         do {
-            items = try await lifecycleCoordinator.refreshPage()
+            let refreshedItems = try await lifecycleCoordinator.refreshPage()
+            replaceItems(refreshedItems, likeBaseline: likeBaseline)
             refreshTopUploaderStrip()
             state = .loaded
         } catch {
@@ -106,16 +118,25 @@ final class DynamicViewModel: ObservableObject {
         }
         guard lifecycleCoordinator.hasMoreItems, !state.isLoading else { return }
         state = .loading
+        let likeBaseline = likeControllers.reconciliationBaseline()
         do {
-            items = try await lifecycleCoordinator.loadMorePage()
+            replaceItems(
+                try await lifecycleCoordinator.loadMorePage(),
+                likeBaseline: likeBaseline
+            )
             state = .loaded
         } catch {
             state = .failed(error.localizedDescription)
         }
     }
 
+    func likeController(for item: DynamicFeedItem) -> DynamicLikeController {
+        likeControllers.controller(for: item)
+    }
+
     private func prepareLoggedOutState() {
         lifecycleCoordinator.prepareLoggedOutState()
+        likeControllers.hardReset(keepingCapacity: false)
         items = []
         topUploaderStripItems = []
         isTopUploaderStripLoading = false
@@ -123,7 +144,21 @@ final class DynamicViewModel: ObservableObject {
     }
 
     private func applyCurrentFilter() {
-        items = lifecycleCoordinator.filteredCurrentItems()
+        let filteredItems = lifecycleCoordinator.filteredCurrentItems()
+        likeControllers.prune(keepingDynamicIDs: Set(filteredItems.map(\.id)))
+        items = filteredItems
+    }
+
+    private func replaceItems(
+        _ newItems: [DynamicFeedItem],
+        likeBaseline: DynamicLikeControllerRegistry.ReconciliationBaseline
+    ) {
+        likeControllers.reconcile(
+            items: newItems,
+            baseline: likeBaseline,
+            pruningMissingItems: true
+        )
+        items = newItems
     }
 
     private func refreshTopUploaderStrip() {

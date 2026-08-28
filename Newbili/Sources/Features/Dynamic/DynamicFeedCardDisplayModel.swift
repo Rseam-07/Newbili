@@ -21,9 +21,7 @@ struct DynamicFeedCardDisplayModel {
     let usesHomeVideoCardStyle: Bool
     let usesSeparatedDynamicLayout: Bool
     let showsExpandButton: Bool
-    let initialLikeCount: Int
     let commentTitle: String
-    let repostTitle: String
     let shareURL: URL?
     let shareTitle: String
     let shareMessage: String
@@ -72,9 +70,7 @@ struct DynamicFeedCardDisplayModel {
             || (!imageItems.isEmpty && video == nil)
             || isPureTextDynamic
         self.showsExpandButton = Self.shouldShowExpandButton(for: topLevelDisplayText ?? "")
-        self.initialLikeCount = item.likeCount ?? 0
         self.commentTitle = Self.statTitle(count: item.replyCount, fallback: "评论")
-        self.repostTitle = Self.statTitle(count: item.repostCount, fallback: "转发")
         self.shareURL = Self.shareURL(item: item, video: video, live: live, paidContent: paidContent)
         self.shareTitle = Self.shareTitle(authorName: authorName, text: topLevelDisplayText, video: video, live: live, paidContent: paidContent)
         self.shareMessage = "\(authorName)：\(self.shareTitle)"

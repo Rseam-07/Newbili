@@ -1,18 +1,46 @@
 import Combine
 import SwiftUI
 
+nonisolated struct UploaderAccountContext: Equatable, Sendable {
+    let mainCredentialVersion: Int
+    let dynamicFeedCredentialVersion: Int
+    let interactionCredentialVersion: Int
+    let multiAccountExperimentEnabled: Bool
+
+    @MainActor
+    init(sessionStore: SessionStore, libraryStore: LibraryStore) {
+        mainCredentialVersion = sessionStore.playbackCredentialVersion
+        dynamicFeedCredentialVersion = sessionStore.dynamicFeedAccountCredentialVersion
+        interactionCredentialVersion = sessionStore.interactionAccountCredentialVersion
+        multiAccountExperimentEnabled = libraryStore.multiAccountExperimentEnabled
+    }
+}
+
 @MainActor
 final class UploaderViewModelHolder: ObservableObject {
     @Published var viewModel: UploaderViewModel?
     private var cancellable: AnyCancellable?
     private var lastSnapshot: UploaderRenderSnapshot?
+    private var accountContext: UploaderAccountContext?
 
-    func configure(owner: VideoOwner, api: BiliAPIClient) {
-        guard viewModel?.seedOwner.mid != owner.mid else { return }
-        let viewModel = UploaderViewModel(seedOwner: owner, api: api)
+    func configure(
+        owner: VideoOwner,
+        api: BiliAPIClient,
+        sessionStore: SessionStore,
+        libraryStore: LibraryStore,
+        accountContext: UploaderAccountContext
+    ) {
+        guard viewModel?.seedOwner.mid != owner.mid || self.accountContext != accountContext else { return }
+        let viewModel = UploaderViewModel(
+            seedOwner: owner,
+            api: api,
+            sessionStore: sessionStore,
+            libraryStore: libraryStore
+        )
+        self.accountContext = accountContext
         self.viewModel = viewModel
         lastSnapshot = UploaderRenderSnapshot(viewModel)
-        cancellable = viewModel.objectWillChange.sink { [weak self] _ in
+        cancellable = viewModel.objectWillChange.sink { [weak self, weak viewModel] _ in
             Task { @MainActor [weak self, weak viewModel] in
                 guard let self, let viewModel else { return }
                 let snapshot = UploaderRenderSnapshot(viewModel)

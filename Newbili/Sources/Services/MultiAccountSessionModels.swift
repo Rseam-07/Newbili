@@ -9,6 +9,26 @@ nonisolated enum BiliAccountPurpose: String, Codable, CaseIterable, Sendable {
     case historyWrite
 }
 
+nonisolated enum BiliCommentAccountPolicy {
+    static let submission: BiliAccountPurpose = .main
+    static let reaction: BiliAccountPurpose = .interaction
+}
+
+nonisolated enum BiliDynamicLikeAccountPolicy {
+    static let statusRead: BiliAccountPurpose = .interaction
+    static let mutation: BiliAccountPurpose = .interaction
+
+    static func shouldInvalidateDynamicFeedSnapshot(
+        dynamicFeedAccountMID: Int?,
+        interactionAccountMID: Int?
+    ) -> Bool {
+        guard let dynamicFeedAccountMID,
+              let interactionAccountMID
+        else { return false }
+        return dynamicFeedAccountMID == interactionAccountMID
+    }
+}
+
 nonisolated enum WatchHistoryAccountPolicy: String, Codable, CaseIterable, Identifiable, Sendable {
     case main
     case playback
@@ -43,6 +63,7 @@ nonisolated struct BiliAccountSummary: Codable, Hashable, Identifiable, Sendable
     let mid: Int
     var name: String?
     var face: String?
+    var levelInfo: NavLevelInfo?
     var credentialKind: LoginCredentialKind
 
     var id: Int { mid }

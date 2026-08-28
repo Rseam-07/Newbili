@@ -94,11 +94,13 @@ struct FavoriteFolderContentPage: View {
     }
 
     private func loadIfNeeded() async {
-        guard sessionStore.isLoggedIn, items.isEmpty, !state.isLoading else { return }
-        await reload()
+        await viewModel.loadAccountLibrary(.favoriteFolder(id: folder.id))
     }
 
     private func reload() async {
-        await viewModel.refreshFavoriteFolder(folder)
+        await viewModel.loadAccountLibrary(
+            .favoriteFolder(id: folder.id),
+            policy: .reload
+        )
     }
 }

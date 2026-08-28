@@ -20,15 +20,14 @@ struct DynamicFeedCardTextSection: View {
 }
 
 struct DynamicFeedCardActionSection: View {
-    let item: DynamicFeedItem
     let display: DynamicFeedCardDisplayModel
+    let likeController: DynamicLikeController
     let onShowComments: () -> Void
 
     var body: some View {
         DynamicFeedActionBar(
             display: display,
-            initialIsLiked: item.isLiked,
-            initialLikeCount: display.initialLikeCount,
+            likeController: likeController,
             onShowComments: onShowComments
         )
     }

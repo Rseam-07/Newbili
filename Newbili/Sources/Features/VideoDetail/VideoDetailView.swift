@@ -82,7 +82,7 @@ struct VideoDetailView: View {
                    AudioMiniPlayerCoordinator.shared.shouldKeepAlive(viewModel) {
                     viewModel.persistVideoListenPlaybackSession()
                 } else {
-                    holder.viewModel?.stopPlaybackForNavigation()
+                    holder.viewModel?.suspendPlaybackForCoveredNavigation()
                 }
                 guard playbackOptions == .performanceTest else { return }
                 clearPerformanceTestCache(

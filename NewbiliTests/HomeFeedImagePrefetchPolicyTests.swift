@@ -168,4 +168,111 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
             []
         )
     }
+
+    func testFeaturedMixKeepsStableOrderDeduplicatesAndAddsOnePopularItem() {
+        let selections = HomeFeaturedMixPolicy.selections(
+            currentFeedIDs: ["r1", "r2", "r2", "r3", "r4", "r5"],
+            popularIDs: ["r1", "p1", "p2"],
+            includesPopular: true
+        )
+
+        XCTAssertEqual(selections.map(\.id), ["r1", "r2", "p1", "r3", "r4"])
+        XCTAssertEqual(
+            selections.map(\.source),
+            [.currentFeed, .currentFeed, .popular, .currentFeed, .currentFeed]
+        )
+    }
+
+    func testFeaturedMixFallsBackToFiveCurrentItemsWhenPopularIsUnavailable() {
+        let selections = HomeFeaturedMixPolicy.selections(
+            currentFeedIDs: ["r1", "r2", "r3", "r4", "r5", "r6"],
+            popularIDs: [],
+            includesPopular: true
+        )
+
+        XCTAssertEqual(selections.map(\.id), ["r1", "r2", "r3", "r4", "r5"])
+        XCTAssertTrue(selections.allSatisfy { $0.source == .currentFeed })
+    }
+
+    func testFeaturedCarouselNavigationWrapsInBothDirections() {
+        let ids = ["one", "two", "three"]
+
+        XCTAssertEqual(HomeFeaturedMixPolicy.nextID(in: ids, after: "three"), "one")
+        XCTAssertEqual(HomeFeaturedMixPolicy.previousID(in: ids, before: "one"), "three")
+        XCTAssertEqual(HomeFeaturedMixPolicy.nextID(in: ids, after: "missing"), "one")
+    }
+
+    func testFeaturedAutoplayPausesForAccessibilityBackgroundAndInteraction() {
+        XCTAssertTrue(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: true,
+                isUserInteracting: false,
+                reduceMotion: false,
+                voiceOverEnabled: false
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: true,
+                isUserInteracting: false,
+                reduceMotion: true,
+                voiceOverEnabled: false
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: true,
+                isUserInteracting: false,
+                reduceMotion: false,
+                voiceOverEnabled: true
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: false,
+                isUserInteracting: false,
+                reduceMotion: false,
+                voiceOverEnabled: false
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: true,
+                isUserInteracting: true,
+                reduceMotion: false,
+                voiceOverEnabled: false
+            )
+        )
+    }
+
+    func testFeaturedPopularCacheRefreshPolicyUsesFifteenMinuteLifetime() {
+        let now = Date(timeIntervalSince1970: 10_000)
+
+        XCTAssertTrue(
+            HomeFeaturedMixPolicy.shouldRefreshSupplement(
+                hasCachedItems: false,
+                lastRefreshDate: now,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldRefreshSupplement(
+                hasCachedItems: true,
+                lastRefreshDate: now.addingTimeInterval(-899),
+                now: now
+            )
+        )
+        XCTAssertTrue(
+            HomeFeaturedMixPolicy.shouldRefreshSupplement(
+                hasCachedItems: true,
+                lastRefreshDate: now.addingTimeInterval(-900),
+                now: now
+            )
+        )
+    }
 }

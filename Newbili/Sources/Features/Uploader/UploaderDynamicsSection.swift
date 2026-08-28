@@ -29,6 +29,7 @@ struct UploaderDynamicsSection: View {
                         DynamicFeedCard(
                             item: item,
                             api: api,
+                            likeController: viewModel.dynamicLikeController(for: item),
                             contentWidth: cardWidth
                         )
                         .frame(maxWidth: .infinity)

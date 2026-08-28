@@ -19,14 +19,24 @@ struct DynamicCommentsSheet: View {
 
     var body: some View {
         CommentOwnerProfileNavigationContainer {
-            ScrollView {
-                DynamicCommentsSheetContent(item: item, viewModel: viewModel) { comment in
-                    replySheetComment = comment
+            VStack(spacing: 0) {
+                ScrollView {
+                    DynamicCommentsSheetContent(item: item, viewModel: viewModel) { comment in
+                        replySheetComment = comment
+                    }
                 }
+                .defersRemoteImageLoadsDuringFastScroll()
+                .hiddenInlineNavigationTitle()
+                .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
+
+                Divider()
+
+                CommentComposerBar(
+                    placeholder: "发表评论",
+                    submissionState: viewModel.submissionState,
+                    submit: viewModel.submitComment
+                )
             }
-            .defersRemoteImageLoadsDuringFastScroll()
-            .hiddenInlineNavigationTitle()
-            .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
             .task {
                 runtimeSettings.bind(dependencies.libraryStore)
                 viewModel.setBlocksGoodsComments(runtimeSettings.blocksGoodsComments)

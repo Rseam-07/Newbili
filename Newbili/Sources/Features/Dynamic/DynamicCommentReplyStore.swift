@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class DynamicCommentReplyStore: ObservableObject {
     @Published private var snapshot = DynamicCommentReplyStoreSnapshot()
+    @Published private(set) var submissionState: LoadingState = .idle
     private var replyItemCache: [Int: DynamicCommentReplyItemCacheEntry] = [:]
     private var dialogItemCache: [String: DynamicCommentDialogItemCacheEntry] = [:]
 
@@ -162,6 +163,45 @@ final class DynamicCommentReplyStore: ObservableObject {
         updateSnapshot { $0.dialogThreads[key] = nil }
         dialogItemCache[key] = nil
         await loadDialogPage(for: root, reply: reply)
+    }
+
+    func submitReply(
+        _ message: String,
+        to root: Comment,
+        parent: Comment? = nil
+    ) async -> Bool {
+        guard !submissionState.isLoading else { return false }
+        guard let oid = commentOID, let type = commentType else {
+            submissionState = .failed("这条动态没有返回评论入口")
+            return false
+        }
+
+        let parentID = parent?.rpid ?? root.rpid
+        guard root.rpid > 0, parentID > 0 else {
+            submissionState = .failed("回复目标无效")
+            return false
+        }
+
+        submissionState = .loading
+        do {
+            try await api.submitComment(
+                oid: oid,
+                type: type,
+                message: message,
+                root: root.rpid,
+                parent: parentID
+            )
+            if let parent {
+                await reloadDialog(for: root, reply: parent)
+            } else {
+                await reloadReplies(for: root)
+            }
+            submissionState = .loaded
+            return true
+        } catch {
+            submissionState = .failed(error.localizedDescription)
+            return false
+        }
     }
 
     private var commentOID: String? {

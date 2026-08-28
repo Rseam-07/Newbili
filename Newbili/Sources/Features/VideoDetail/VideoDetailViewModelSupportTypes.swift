@@ -4,6 +4,7 @@ nonisolated enum VideoDetailInteractionMutationKind: Equatable, Sendable {
     case like
     case coin
     case favorite
+    case triple
     case follow
 }
 
@@ -25,6 +26,10 @@ nonisolated struct VideoDetailInteractionMutationConfirmation: Equatable, Sendab
         case .coin:
             reconciledState.coinCount = max(refreshedState.coinCount, state.coinCount)
         case .favorite:
+            reconciledState.isFavorited = state.isFavorited
+        case .triple:
+            reconciledState.isLiked = state.isLiked
+            reconciledState.coinCount = max(refreshedState.coinCount, state.coinCount)
             reconciledState.isFavorited = state.isFavorited
         case .follow:
             reconciledState.isFollowing = state.isFollowing

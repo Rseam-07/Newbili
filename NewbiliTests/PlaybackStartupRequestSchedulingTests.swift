@@ -278,6 +278,45 @@ final class PlaybackStartupRequestSchedulingTests: XCTestCase {
         XCTAssertFalse(StartupPlayURLRequestSource.preload.recordsSchedulerFeedback)
     }
 
+    func testDetailStartupRequestIdentitySeparatesCredentialAndPlaybackContext() {
+        let baseline = VideoDetailStartupPlayURLRequestIdentity(
+            bvid: "BV1Identity",
+            cid: 11,
+            page: 2,
+            preferredQuality: 80,
+            streamSourcePlatform: "web",
+            playbackCredentialIdentity: "playback|mid-1|credential-3"
+        )
+        let sameContext = VideoDetailStartupPlayURLRequestIdentity(
+            bvid: "bv1identity",
+            cid: 11,
+            page: 2,
+            preferredQuality: 80,
+            streamSourcePlatform: "web",
+            playbackCredentialIdentity: "playback|mid-1|credential-3"
+        )
+        let switchedCredential = VideoDetailStartupPlayURLRequestIdentity(
+            bvid: "BV1Identity",
+            cid: 11,
+            page: 2,
+            preferredQuality: 80,
+            streamSourcePlatform: "web",
+            playbackCredentialIdentity: "playback|mid-2|credential-4"
+        )
+        let switchedPage = VideoDetailStartupPlayURLRequestIdentity(
+            bvid: "BV1Identity",
+            cid: 22,
+            page: 3,
+            preferredQuality: 80,
+            streamSourcePlatform: "web",
+            playbackCredentialIdentity: "playback|mid-1|credential-3"
+        )
+
+        XCTAssertEqual(baseline.key, sameContext.key)
+        XCTAssertNotEqual(baseline.key, switchedCredential.key)
+        XCTAssertNotEqual(baseline.key, switchedPage.key)
+    }
+
     func testSharedTaskWaiterCancelsWithoutCancellingUnderlyingRequest() async throws {
         let underlying = Task<Int, Error> {
             try await Task.sleep(for: .milliseconds(80))

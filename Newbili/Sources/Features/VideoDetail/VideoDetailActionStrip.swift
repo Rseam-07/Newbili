@@ -3,7 +3,7 @@ import SwiftUI
 struct VideoDetailActionStrip: View, Equatable {
     enum Metrics {
         static let columnSpacing: CGFloat = 7
-        static let rowHeight: CGFloat = 32
+        static let rowHeight: CGFloat = 44
         static let actionLabelSide: CGFloat = 28
         static let avatarImageSide: CGFloat = 34
         static let avatarSide: CGFloat = avatarImageSide
@@ -15,6 +15,7 @@ struct VideoDetailActionStrip: View, Equatable {
     let model: VideoDetailActionStripModel
     let onFollow: () -> Void
     let onLike: () -> Void
+    let onTriple: () -> Void
     let onCoin: () -> Void
     let onFavorite: () -> Void
     let onWatchLater: () -> Void
@@ -33,6 +34,7 @@ struct VideoDetailActionStrip: View, Equatable {
                 layout: layout,
                 onFollow: onFollow,
                 onLike: onLike,
+                onTriple: onTriple,
                 onCoin: onCoin,
                 onFavorite: onFavorite,
                 onWatchLater: onWatchLater,

@@ -148,7 +148,13 @@ struct WatchLaterListPage: View {
                     }
             }
 
-            if viewModel.watchLaterLoadMoreState.isLoading {
+            if viewModel.watchLaterState.isLoading {
+                LibraryLoadingRow(title: "正在刷新稍后再看")
+            } else if case .failed(let message) = viewModel.watchLaterState {
+                LibraryErrorRow(title: "稍后再看刷新失败", message: message) {
+                    Task { await reload() }
+                }
+            } else if viewModel.watchLaterLoadMoreState.isLoading {
                 LibraryLoadingRow(title: "正在加载更多稍后再看")
             } else if case .failed(let message) = viewModel.watchLaterLoadMoreState {
                 LibraryErrorRow(title: "更多内容加载失败", message: message) {
@@ -290,15 +296,15 @@ struct WatchLaterListPage: View {
     }
 
     private func loadIfNeeded() async {
-        guard sessionStore.isLoggedIn,
-              viewModel.watchLaterEntries.isEmpty,
-              !viewModel.watchLaterState.isLoading
-        else { return }
-        await reload()
+        await viewModel.loadAccountLibrary(loadRequest)
     }
 
     private func reload() async {
-        await viewModel.refreshWatchLater(
+        await viewModel.loadAccountLibrary(loadRequest, policy: .reload)
+    }
+
+    private var loadRequest: AccountLibraryLoadRequest {
+        .watchLater(
             filter: filter,
             keyword: appliedSearchText,
             sortOrder: sortOrder

@@ -31,7 +31,7 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
     private var pendingDetailOpenKey: String?
     private var refreshTask: Task<Void, Never>?
 
-    private init() {}
+    init() {}
 
     func adopt(_ viewModel: VideoDetailViewModel) {
         guard viewModel.isVideoListenModeEnabled else { return }
@@ -78,11 +78,43 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
     func stopUnlessPreparedForDetailOpen(_ video: VideoItem) {
         let key = VideoListenPlaybackSessionStore.contentKey(for: video)
         if key != nil, key == pendingDetailOpenKey {
-            pendingDetailOpenKey = nil
             return
         }
         pendingDetailOpenKey = nil
         close()
+    }
+
+    /// Hands the already-playing listen-mode detail back to the page that opened
+    /// from the mini player. The exact dependency and playback-option checks keep
+    /// a stale session from crossing account or test-runtime boundaries.
+    func takePreparedDetailViewModel(
+        for video: VideoItem,
+        api: BiliAPIClient,
+        libraryStore: LibraryStore,
+        sessionStore: SessionStore,
+        sponsorBlockService: SponsorBlockService,
+        playbackOptions: VideoDetailPlaybackOptions
+    ) -> VideoDetailViewModel? {
+        let key = VideoListenPlaybackSessionStore.contentKey(for: video)
+        guard key != nil, key == pendingDetailOpenKey else {
+            pendingDetailOpenKey = nil
+            return nil
+        }
+        guard let viewModel = retainedViewModel,
+              VideoListenPlaybackSessionStore.contentKey(for: viewModel.detail) == key,
+              viewModel.api === api,
+              viewModel.libraryStore === libraryStore,
+              viewModel.sessionStore === sessionStore,
+              viewModel.sponsorBlockService === sponsorBlockService,
+              viewModel.playbackOptions == playbackOptions,
+              viewModel.hasReusablePlaybackSessionForCurrentContext
+        else {
+            pendingDetailOpenKey = nil
+            close()
+            return nil
+        }
+        pendingDetailOpenKey = nil
+        return viewModel
     }
 
     func close() {

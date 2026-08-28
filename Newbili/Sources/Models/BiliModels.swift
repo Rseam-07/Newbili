@@ -3673,6 +3673,31 @@ nonisolated struct VideoInteractionState: Hashable, Sendable {
     }
 }
 
+nonisolated struct VideoTripleMutationResult: Decodable, Equatable, Sendable {
+    let isLiked: Bool?
+    let isCoined: Bool?
+    let isFavorited: Bool?
+    let coinCount: Int?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isLiked = container.decodeLossyBoolIfPresent(forKey: .like)
+        isCoined = container.decodeLossyBoolIfPresent(forKey: .coin)
+        isFavorited = container.decodeLossyBoolIfPresent(forKey: .favorite)
+            ?? container.decodeLossyBoolIfPresent(forKey: .favoriteAlt)
+        coinCount = container.decodeLossyIntIfPresent(forKey: .coinCount)
+            ?? container.decodeLossyIntIfPresent(forKey: .coinCountAlt)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case like, coin
+        case favorite
+        case favoriteAlt = "fav"
+        case coinCount = "coin_number"
+        case coinCountAlt = "multiply"
+    }
+}
+
 nonisolated struct VideoArchiveRelationState: Decodable, Hashable {
     let isLiked: Bool
     let coinCount: Int
@@ -7988,7 +8013,7 @@ nonisolated struct NavUserInfo: Decodable {
     }
 }
 
-nonisolated struct NavLevelInfo: Decodable, Hashable, Sendable {
+nonisolated struct NavLevelInfo: Codable, Hashable, Sendable {
     let currentLevel: Int?
     let currentMinimumExperience: Int?
     let currentExperience: Int?
@@ -8001,6 +8026,18 @@ nonisolated struct NavLevelInfo: Decodable, Hashable, Sendable {
         case nextLevelExperience = "next_exp"
     }
 
+    init(
+        currentLevel: Int?,
+        currentMinimumExperience: Int?,
+        currentExperience: Int?,
+        nextLevelExperience: Int?
+    ) {
+        self.currentLevel = currentLevel
+        self.currentMinimumExperience = currentMinimumExperience
+        self.currentExperience = currentExperience
+        self.nextLevelExperience = nextLevelExperience
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         currentLevel = container.decodeLossyIntIfPresent(forKey: .currentLevel)
@@ -8009,10 +8046,23 @@ nonisolated struct NavLevelInfo: Decodable, Hashable, Sendable {
         nextLevelExperience = container.decodeLossyIntIfPresent(forKey: .nextLevelExperience)
     }
 
+    /// The upstream client treats LV6 as complete even though the API commonly
+    /// returns `"--"` for `next_exp`. Keeping that normalization here gives
+    /// persistence, UI and tests one shared source of truth.
+    var effectiveNextLevelExperience: Int? {
+        if currentLevel == 6 {
+            return currentExperience
+        }
+        return nextLevelExperience
+    }
+
     var progress: Double? {
+        if currentLevel == 6, currentExperience != nil {
+            return 1
+        }
         guard let currentMinimumExperience,
               let currentExperience,
-              let nextLevelExperience,
+              let nextLevelExperience = effectiveNextLevelExperience,
               nextLevelExperience > currentMinimumExperience
         else { return nil }
         return min(

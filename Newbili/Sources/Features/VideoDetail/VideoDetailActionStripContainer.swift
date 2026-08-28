@@ -6,6 +6,7 @@ struct VideoDetailActionStripContainer: View {
     let contentWidth: CGFloat
     let onFollow: () -> Void
     let onLike: () -> Void
+    let onTriple: () -> Void
     let onCoin: () -> Void
     let onFavorite: () -> Void
     let onWatchLater: () -> Void
@@ -16,6 +17,7 @@ struct VideoDetailActionStripContainer: View {
             model: model,
             onFollow: onFollow,
             onLike: onLike,
+            onTriple: onTriple,
             onCoin: onCoin,
             onFavorite: onFavorite,
             onWatchLater: onWatchLater,

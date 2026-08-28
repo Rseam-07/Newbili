@@ -21,7 +21,7 @@ struct VideoDetailActionStripShareButton: View {
             .buttonBorderShape(.circle)
             .controlSize(.mini)
             .biliGlassButtonStyle()
-            .contentShape(Circle())
+            .biliMinimumInteractiveTarget()
             .simultaneousGesture(TapGesture().onEnded { _ in onShareTap() })
             .accessibilityLabel("分享视频")
         } else {

@@ -49,7 +49,7 @@ struct CommentDialogRow: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Rectangle())
+                    .biliMinimumInteractiveTarget(alignment: .trailing)
                     .accessibilityLabel(display.isLiked ? "取消点赞" : "点赞")
                 }
 

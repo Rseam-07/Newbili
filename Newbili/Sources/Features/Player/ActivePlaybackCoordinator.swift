@@ -6,7 +6,9 @@ final class ActivePlaybackCoordinator {
 
     private weak var activePlayer: PlayerStateViewModel?
     private var registeredPlayers: [ObjectIdentifier: WeakPlayerReference] = [:]
+    private var visualPlaybackActivationOrder: [ObjectIdentifier] = []
     private var activeGeneration = UUID()
+    private let maximumRetainedVisualPlayers = 2
 
     private init() {}
 
@@ -16,7 +18,9 @@ final class ActivePlaybackCoordinator {
     }
 
     func unregister(_ player: PlayerStateViewModel) {
-        registeredPlayers[ObjectIdentifier(player)] = nil
+        let playerID = ObjectIdentifier(player)
+        registeredPlayers[playerID] = nil
+        visualPlaybackActivationOrder.removeAll { $0 == playerID }
         if activePlayer === player {
             activePlayer = nil
             activeGeneration = UUID()
@@ -32,6 +36,8 @@ final class ActivePlaybackCoordinator {
         }
         activePlayer = player
         activeGeneration = UUID()
+        recordVisualPlaybackActivation(player)
+        enforceVisualPlaybackRetentionBudget()
         return activeGeneration
     }
 
@@ -50,7 +56,9 @@ final class ActivePlaybackCoordinator {
     }
 
     func pauseActivePlaybackForNavigation() {
-        registeredPlayersIncludingActive().forEach { $0.pauseForNavigation() }
+        for player in registeredPlayersIncludingActive() where !player.isPictureInPictureActive {
+            player.pauseForNavigation()
+        }
     }
 
     @discardableResult
@@ -83,6 +91,37 @@ final class ActivePlaybackCoordinator {
 
     private func cleanupRegisteredPlayers() {
         registeredPlayers = registeredPlayers.filter { $0.value.player != nil }
+        let registeredPlayerIDs = Set(registeredPlayers.keys)
+        visualPlaybackActivationOrder.removeAll { playerID in
+            guard registeredPlayerIDs.contains(playerID),
+                  let player = registeredPlayers[playerID]?.player
+            else { return true }
+            return player.isTerminated
+        }
+    }
+
+    private func recordVisualPlaybackActivation(_ player: PlayerStateViewModel) {
+        guard player.participatesInVisualPlaybackRetentionBudget else { return }
+        let playerID = ObjectIdentifier(player)
+        visualPlaybackActivationOrder.removeAll { $0 == playerID }
+        visualPlaybackActivationOrder.append(playerID)
+    }
+
+    private func enforceVisualPlaybackRetentionBudget() {
+        cleanupRegisteredPlayers()
+        let retainedPlayers = visualPlaybackActivationOrder.compactMap { playerID in
+            registeredPlayers[playerID]?.player
+        }
+        .filter(\.participatesInVisualPlaybackRetentionBudget)
+        let overflowCount = retainedPlayers.count - maximumRetainedVisualPlayers
+        guard overflowCount > 0 else { return }
+
+        // The activation order is oldest-first. Terminating the overflow leaves
+        // the current detail and the immediately covered detail warm, while the
+        // owning view models keep their navigation resume state for rebuilding.
+        for player in retainedPlayers.prefix(overflowCount) where player !== activePlayer {
+            player.stop(reason: .navigationRetentionBudgetExceeded)
+        }
     }
 }
 
@@ -96,6 +135,7 @@ private struct WeakPlayerReference {
 
 enum PlayerStopReason {
     case navigation
+    case navigationRetentionBudgetExceeded
     case replacedByAnotherPlayer
     case deallocated
 }

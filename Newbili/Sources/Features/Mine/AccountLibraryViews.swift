@@ -1,4 +1,52 @@
+import Foundation
 import SwiftUI
+
+nonisolated enum AccountLibraryLoadRequest: Equatable, Sendable {
+    case history
+    case favorites
+    case watchLater(
+        filter: WatchLaterFilter,
+        keyword: String,
+        sortOrder: WatchLaterSortOrder
+    )
+    case favoriteFolder(id: Int)
+}
+
+nonisolated struct WatchLaterQuery: Equatable, Sendable {
+    let filter: WatchLaterFilter
+    let keyword: String
+    let sortOrder: WatchLaterSortOrder
+
+    init(
+        filter: WatchLaterFilter,
+        keyword: String,
+        sortOrder: WatchLaterSortOrder
+    ) {
+        self.filter = filter
+        self.keyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.sortOrder = sortOrder
+    }
+
+    static let defaultQuery = WatchLaterQuery(
+        filter: .all,
+        keyword: "",
+        sortOrder: .newest
+    )
+}
+
+nonisolated extension AccountLibraryLoadRequest {
+    var watchLaterQuery: WatchLaterQuery? {
+        guard case .watchLater(let filter, let keyword, let sortOrder) = self else {
+            return nil
+        }
+        return WatchLaterQuery(filter: filter, keyword: keyword, sortOrder: sortOrder)
+    }
+}
+
+nonisolated enum AccountLibraryLoadPolicy: Sendable {
+    case ifNeeded
+    case reload
+}
 
 enum AccountLibraryKind: Hashable, Identifiable {
     case history

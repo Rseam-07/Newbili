@@ -94,25 +94,29 @@ struct MineView: View {
             loadedMultiAccountExperimentEnabled = libraryStore.multiAccountExperimentEnabled
 
             if mainAccountChanged {
+                viewModel.invalidateAccountLibraries([
+                    .history,
+                    .favorites,
+                    .watchLater(filter: .all, keyword: "", sortOrder: .newest)
+                ])
+            } else {
+                var invalidatedLibraries: [AccountLibraryLoadRequest] = []
+                if historyAccountChanged || experimentModeChanged {
+                    invalidatedLibraries.append(.history)
+                }
+                if interactionAccountChanged || experimentModeChanged {
+                    invalidatedLibraries.append(.favorites)
+                    invalidatedLibraries.append(
+                        .watchLater(filter: .all, keyword: "", sortOrder: .newest)
+                    )
+                }
+                viewModel.invalidateAccountLibraries(invalidatedLibraries)
+            }
+
+            if mainAccountChanged {
                 async let userRefresh: Void = viewModel.refreshUser()
                 async let unreadRefresh: Void = accountMessageViewModel.refreshUnread()
                 _ = await (userRefresh, unreadRefresh)
-                return
-            }
-
-            let historyNeedsRefresh = historyAccountChanged || experimentModeChanged
-            let favoritesNeedRefresh = interactionAccountChanged || experimentModeChanged
-            switch (historyNeedsRefresh, favoritesNeedRefresh) {
-            case (true, true):
-                async let historyRefresh: Void = viewModel.refreshHistory()
-                async let favoritesRefresh: Void = viewModel.refreshFavorites()
-                _ = await (historyRefresh, favoritesRefresh)
-            case (true, false):
-                await viewModel.refreshHistory()
-            case (false, true):
-                await viewModel.refreshFavorites()
-            case (false, false):
-                break
             }
         }
     }
@@ -149,7 +153,7 @@ final class MineViewModelHolder: ObservableObject {
             let viewModel = MineViewModel(api: api, sessionStore: sessionStore)
             self.viewModel = viewModel
             lastSnapshot = MineRenderSnapshot(viewModel)
-            cancellable = viewModel.objectWillChange.sink { [weak self] _ in
+            cancellable = viewModel.objectWillChange.sink { [weak self, weak viewModel] _ in
                 Task { @MainActor [weak self, weak viewModel] in
                     guard let self, let viewModel else { return }
                     let snapshot = MineRenderSnapshot(viewModel)
@@ -172,16 +176,10 @@ private struct MineRenderSnapshot: Equatable {
     let state: LoadingState
     let loginMessage: String
     let qrLoginState: QRCodeLoginState
-    let historyState: LoadingState
-    let favoriteState: LoadingState
-    let accountLibraryRevision: Int
 
     init(_ viewModel: MineViewModel) {
         state = viewModel.state
         loginMessage = viewModel.loginMessage
         qrLoginState = viewModel.qrLoginState
-        historyState = viewModel.historyState
-        favoriteState = viewModel.favoriteState
-        accountLibraryRevision = viewModel.accountLibraryRevision
     }
 }

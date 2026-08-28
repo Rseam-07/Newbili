@@ -15,6 +15,17 @@ final class VideoDetailViewModelHolder: ObservableObject {
         playbackOptions: VideoDetailPlaybackOptions = VideoDetailPlaybackOptions()
     ) {
         guard viewModel == nil else { return }
+        if let preparedViewModel = AudioMiniPlayerCoordinator.shared.takePreparedDetailViewModel(
+            for: seedVideo,
+            api: api,
+            libraryStore: libraryStore,
+            sessionStore: sessionStore,
+            sponsorBlockService: sponsorBlockService,
+            playbackOptions: playbackOptions
+        ) {
+            installViewModel(preparedViewModel)
+            return
+        }
         installViewModel(
             makeViewModel(
                 seedVideo: seedVideo,

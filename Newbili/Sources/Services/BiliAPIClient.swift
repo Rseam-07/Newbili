@@ -121,6 +121,20 @@ nonisolated struct AccountVideoEntryPage {
     let nextHistoryCursor: AccountHistoryCursor?
 }
 
+nonisolated struct DynamicLikeStateSnapshot: Equatable, Sendable {
+    let isLiked: Bool
+    let likeCount: Int
+
+    init(isLiked: Bool, likeCount: Int) {
+        self.isLiked = isLiked
+        self.likeCount = max(0, likeCount)
+    }
+}
+
+nonisolated private struct DynamicDetailPayload: Decodable {
+    let item: DynamicFeedItem?
+}
+
 nonisolated enum WatchLaterFilter: Int, CaseIterable, Identifiable, Sendable {
     case all = 0
     case unfinished = 2
@@ -1978,6 +1992,66 @@ nonisolated final class BiliAPIClient {
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
     }
 
+    func tripleVideo(
+        aid: Int,
+        bvid: String,
+        pgcEpisodeID: Int? = nil,
+        pgcSeasonID: Int? = nil
+    ) async throws -> VideoTripleMutationResult {
+        guard aid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的视频 AV 号")
+        }
+        let normalizedBVID = bvid.trimmingCharacters(in: .whitespacesAndNewlines)
+        let context = try await requireCSRFContext(for: .interaction)
+        let response: BiliResponse<VideoTripleMutationResult>
+
+        if let pgcEpisodeID, pgcEpisodeID > 0 {
+            let refererID: String
+            if let pgcSeasonID, pgcSeasonID > 0 {
+                refererID = "ss\(pgcSeasonID)"
+            } else {
+                refererID = "ep\(pgcEpisodeID)"
+            }
+            response = try await postForm(
+                base: baseURL,
+                path: "/pgc/season/episode/like/triple",
+                body: [
+                    "ep_id": String(pgcEpisodeID),
+                    "csrf": context.csrf
+                ],
+                referer: "https://www.bilibili.com/bangumi/play/\(refererID)",
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+        } else {
+            response = try await postForm(
+                base: baseURL,
+                path: "/x/web-interface/archive/like/triple",
+                body: [
+                    "aid": String(aid),
+                    "eab_x": "2",
+                    "ramval": "0",
+                    "source": "web_normal",
+                    "ga": "1",
+                    "csrf": context.csrf,
+                    "spmid": "333.788.0.0",
+                    "statistics": #"{"appId":100,"platform":5}"#
+                ],
+                referer: normalizedBVID.isEmpty
+                    ? "https://www.bilibili.com"
+                    : "https://www.bilibili.com/video/\(normalizedBVID)",
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+        }
+
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        guard let result = response.payload else { throw BiliAPIError.missingPayload }
+        return result
+    }
+
     func postDanmaku(
         bvid: String,
         cid: Int,
@@ -2020,7 +2094,8 @@ nonisolated final class BiliAPIClient {
                 "csrf_token": context.csrf
             ],
             referer: "https://www.bilibili.com/video/\(normalizedBVID)",
-            cookieHeader: context.snapshot.cookieHeader
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .nonIdempotentMutation
         )
         guard response.code == 0 else {
             throw BiliAPIError.api(code: response.code, message: response.displayMessage)
@@ -2091,7 +2166,8 @@ nonisolated final class BiliAPIClient {
             base: baseURL,
             path: "/x/dm/report/add",
             body: body,
-            cookieHeader: context.snapshot.cookieHeader
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .nonIdempotentMutation
         )
         guard response.code == 0 else {
             throw BiliAPIError.api(code: response.code, message: response.displayMessage)
@@ -2115,7 +2191,8 @@ nonisolated final class BiliAPIClient {
                 "source": "web_normal",
                 "ga": "1"
             ],
-            cookieHeader: context.snapshot.cookieHeader
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .nonIdempotentMutation
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
     }
@@ -2150,7 +2227,8 @@ nonisolated final class BiliAPIClient {
                 "gaia_source": "web_normal",
                 "ga": "1"
             ],
-            cookieHeader: context.snapshot.cookieHeader
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .nonIdempotentMutation
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
     }
@@ -2357,49 +2435,6 @@ nonisolated final class BiliAPIClient {
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
         guard let progress = response.payload else { throw BiliAPIError.missingPayload }
         return progress
-    }
-
-    func fetchAccountFavorites(page: Int = 1, pageSize: Int = 20) async throws -> [AccountVideoEntry] {
-        let snapshot = await requestSnapshot(purpose: .interaction)
-        guard snapshot.isLoggedIn else { throw BiliAPIError.missingSESSDATA }
-        let folders = try await favoriteFolderSummaries(snapshot: snapshot)
-        var entries = [AccountVideoEntry]()
-        var seen = Set<String>()
-        var lastError: Error?
-
-        for folder in folders where folder.id > 0 && entries.count < pageSize {
-            do {
-                let response: BiliResponse<DynamicJSONValue> = try await get(
-                    base: baseURL,
-                    path: "/x/v3/fav/resource/list",
-                    query: [
-                        "media_id": String(folder.id),
-                        "pn": String(page),
-                        "ps": String(pageSize),
-                        "keyword": "",
-                        "order": "mtime",
-                        "type": "0",
-                        "tid": "0",
-                        "platform": "web"
-                    ],
-                    cookieHeader: snapshot.cookieHeader
-                )
-                guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
-                for entry in response.payload?.accountVideoEntries ?? [] where seen.insert(entry.id).inserted {
-                    entries.append(entry)
-                    if entries.count >= pageSize {
-                        break
-                    }
-                }
-            } catch {
-                lastError = error
-            }
-        }
-
-        if entries.isEmpty, let lastError {
-            throw lastError
-        }
-        return entries
     }
 
     func fetchFavoriteFolderVideos(folderID: Int, page: Int = 1, pageSize: Int = 20) async throws -> [AccountVideoEntry] {
@@ -6598,6 +6633,70 @@ nonisolated final class BiliAPIClient {
         return data
     }
 
+    func fetchDynamicLikeState(dynamicID: String) async throws -> DynamicLikeStateSnapshot {
+        let normalizedID = dynamicID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedID.isEmpty else {
+            throw BiliAPIError.api(code: -1, message: "动态 ID 无效")
+        }
+
+        let snapshot = await requestSnapshot(purpose: BiliDynamicLikeAccountPolicy.statusRead)
+        guard snapshot.isLoggedIn else { throw BiliAPIError.missingSESSDATA }
+        let response: BiliResponse<DynamicDetailPayload> = try await get(
+            base: baseURL,
+            path: "/x/polymer/web-dynamic/v1/detail",
+            query: [
+                "id": normalizedID,
+                "features": "itemOpusStyle,onlyfansVote,forwardListHidden",
+                "web_location": "333.1365"
+            ],
+            cookieHeader: snapshot.cookieHeader,
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        guard let item = response.payload?.item else { throw BiliAPIError.missingPayload }
+        return DynamicLikeStateSnapshot(
+            isLiked: item.isLiked,
+            likeCount: item.likeCount ?? 0
+        )
+    }
+
+    func setDynamicLiked(dynamicID: String, liked: Bool) async throws {
+        let normalizedID = dynamicID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedID.isEmpty else {
+            throw BiliAPIError.api(code: -1, message: "动态 ID 无效")
+        }
+
+        let context = try await requireCSRFContext(for: BiliDynamicLikeAccountPolicy.mutation)
+        let dynamicFeedSnapshot = await requestSnapshot(purpose: .dynamicFeed)
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL,
+            path: "/x/dynamic/feed/dyn/thumb",
+            query: ["csrf": context.csrf],
+            body: [
+                "dyn_id_str": normalizedID,
+                "up": liked ? "1" : "2",
+                "spmid": "333.1365.0.0"
+            ],
+            referer: "https://t.bilibili.com/",
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .idempotentMutation
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+
+        if BiliDynamicLikeAccountPolicy.shouldInvalidateDynamicFeedSnapshot(
+            dynamicFeedAccountMID: dynamicFeedSnapshot.currentUserMID,
+            interactionAccountMID: context.snapshot.currentUserMID
+        ), let identity = DynamicFeedDiskSnapshotStore.accountIdentity(
+            for: dynamicFeedSnapshot.currentUserMID
+        ) {
+            await DynamicFeedDiskSnapshotStore.shared.removeData(for: identity)
+        }
+    }
+
     func fetchUploaderDynamicFeed(mid: Int, offset: String? = nil) async throws -> DynamicFeedData {
         guard mid > 0 else { throw BiliAPIError.api(code: -1, message: "UP 主 UID 无效") }
         let snapshot = await requestSnapshot(purpose: .dynamicFeed)
@@ -6967,12 +7066,73 @@ nonisolated final class BiliAPIClient {
         return response.payload ?? CommentPage(replies: [], topReplies: [], cursor: nil)
     }
 
+    func submitComment(
+        oid: String,
+        type: Int,
+        message: String,
+        root: Int? = nil,
+        parent: Int? = nil
+    ) async throws {
+        let normalizedOID = oid.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedMessage = try Self.validatedCommentMessage(message)
+        guard !normalizedOID.isEmpty, type > 0 else {
+            throw BiliAPIError.api(code: -1, message: "评论参数无效")
+        }
+        if let root, root <= 0 {
+            throw BiliAPIError.api(code: -1, message: "根评论参数无效")
+        }
+        if let parent, parent <= 0 {
+            throw BiliAPIError.api(code: -1, message: "回复目标参数无效")
+        }
+        if parent != nil, root == nil {
+            throw BiliAPIError.api(code: -1, message: "回复缺少根评论参数")
+        }
+
+        let context = try await requireCSRFContext(for: BiliCommentAccountPolicy.submission)
+        var body = [
+            "oid": normalizedOID,
+            "type": String(type),
+            "message": normalizedMessage,
+            "plat": "1",
+            "csrf": context.csrf,
+            "csrf_token": context.csrf
+        ]
+        if let root {
+            body["root"] = String(root)
+        }
+        if let parent {
+            body["parent"] = String(parent)
+        }
+
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL,
+            path: "/x/v2/reply/add",
+            body: body,
+            cookieHeader: context.snapshot.cookieHeader,
+            retryPolicy: .nonIdempotentMutation
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+    }
+
+    nonisolated static func validatedCommentMessage(_ message: String) throws -> String {
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw BiliAPIError.api(code: -1, message: "评论内容不能为空")
+        }
+        guard normalized.count <= 1_000 else {
+            throw BiliAPIError.api(code: -1, message: "评论最多 1000 个字符")
+        }
+        return normalized
+    }
+
     func setCommentLike(oid: String, type: Int, rpid: Int, liked: Bool) async throws {
         let normalizedOID = oid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedOID.isEmpty, type > 0, rpid > 0 else {
             throw BiliAPIError.api(code: -1, message: "评论参数无效")
         }
-        let context = try await requireCSRFContext(for: .interaction)
+        let context = try await requireCSRFContext(for: BiliCommentAccountPolicy.reaction)
         let response: BiliResponse<EmptyBiliPayload> = try await postForm(
             base: baseURL,
             path: "/x/v2/reply/action",
@@ -7326,13 +7486,11 @@ nonisolated final class BiliAPIClient {
         if let cookieHeader, !cookieHeader.isEmpty {
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         }
-        let data: Data
-        if let transportSession {
-            data = try await transportSession.data(for: request).0
-        } else {
-            data = try await session.data(for: request).0
-        }
-        guard !data.isEmpty else { throw BiliAPIError.emptyData }
+        let data = try await validatedRawData(
+            for: request,
+            using: transportSession,
+            priority: .utility
+        )
         let response: BiliResponse<LiveDanmakuConnectionInfoData> = try await Self.decode(data, priority: .utility)
         guard response.code == 0 else {
             throw BiliAPIError.api(code: response.code, message: response.displayMessage)
@@ -7364,17 +7522,7 @@ nonisolated final class BiliAPIClient {
         if !cookieHeader.isEmpty {
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         }
-        let (data, urlResponse) = try await URLSession.shared.data(for: request)
-        guard let response = urlResponse as? HTTPURLResponse else {
-            throw BiliAPIError.emptyData
-        }
-        guard (200...299).contains(response.statusCode) else {
-            throw BiliAPIError.api(
-                code: response.statusCode,
-                message: HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
-            )
-        }
-        guard !data.isEmpty else { throw BiliAPIError.emptyData }
+        let data = try await validatedRawData(for: request, priority: .utility)
 
         let decoded: BiliResponse<LiveDanmakuHistoryData> = try await Self.decode(data, priority: .utility)
         guard decoded.code == 0 else {
@@ -7611,6 +7759,7 @@ nonisolated final class BiliAPIClient {
     private func postForm<T: Decodable>(
         base: URL,
         path: String,
+        query: [String: String] = [:],
         body: [String: String],
         referer: String = "https://www.bilibili.com",
         userAgent: String? = nil,
@@ -7620,7 +7769,7 @@ nonisolated final class BiliAPIClient {
         var request = try await makeRequest(
             base: base,
             path: path,
-            query: [:],
+            query: query,
             referer: referer,
             userAgent: userAgent,
             cookieHeader: cookieHeader
@@ -7748,14 +7897,37 @@ nonisolated final class BiliAPIClient {
     ) async throws -> (Data, URLResponse) {
         var request = request
         request.networkServiceType = priority >= URLSessionTask.highPriority ? .responsiveData : .default
-        let response = try await BiliNetworkRetry.data(
+        let (data, response) = try await BiliNetworkRetry.data(
             session: session,
             request: request,
             priority: priority,
             policy: retryPolicy
         )
+        _ = try Self.validatedHTTPData(data, response: response)
         ResourceCacheAutoTrim.schedule()
-        return response
+        return (data, response)
+    }
+
+    private func validatedRawData(
+        for request: URLRequest,
+        using sessionOverride: URLSession? = nil,
+        priority: Float = URLSessionTask.defaultPriority
+    ) async throws -> Data {
+        guard let sessionOverride else {
+            return try await readData(for: request, priority: priority)
+        }
+
+        var request = request
+        request.networkServiceType = priority >= URLSessionTask.highPriority ? .responsiveData : .default
+        let (data, response) = try await BiliNetworkRetry.data(
+            session: sessionOverride,
+            request: request,
+            priority: priority,
+            policy: .api
+        )
+        let validatedData = try Self.validatedHTTPData(data, response: response)
+        ResourceCacheAutoTrim.schedule()
+        return validatedData
     }
 
     private func readData(
@@ -7765,7 +7937,11 @@ nonisolated final class BiliAPIClient {
         guard ResourceLoadingExperiment.isFeatureEnabled(.readRequestCoalescing),
               let key = Self.readRequestCoalescingKey(for: request, priority: priority)
         else {
-            return try await data(for: request, priority: priority).0
+            return try await Self.performReadRequest(
+                session: session,
+                request: request,
+                priority: priority
+            )
         }
 
         return try await BiliReadRequestCoalescer.shared.data(for: key) { [session] in
@@ -7784,13 +7960,31 @@ nonisolated final class BiliAPIClient {
     ) async throws -> Data {
         var request = request
         request.networkServiceType = priority >= URLSessionTask.highPriority ? .responsiveData : .default
-        let (data, _) = try await BiliNetworkRetry.data(
+        let (data, response) = try await BiliNetworkRetry.data(
             session: session,
             request: request,
             priority: priority,
             policy: .api
         )
+        let validatedData = try validatedHTTPData(data, response: response)
         ResourceCacheAutoTrim.schedule()
+        return validatedData
+    }
+
+    nonisolated static func validatedHTTPData(
+        _ data: Data,
+        response: URLResponse
+    ) throws -> Data {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BiliAPIError.emptyData
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw BiliAPIError.api(
+                code: httpResponse.statusCode,
+                message: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+            )
+        }
+        guard !data.isEmpty else { throw BiliAPIError.emptyData }
         return data
     }
 

@@ -24,13 +24,10 @@ struct HomeFeedNavigationChrome: ViewModifier {
         } else if isModeSwitcherExperimentEnabled {
             content
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    HomeNavigationModeControl(
+                    HomeCollapsibleNavigationModeBar(
                         selection: $primarySection,
-                        onSelect: onSelectSection,
-                        isCinematic: false
+                        onSelect: onSelectSection
                     )
-                    .padding(.vertical, 7)
-                    .background(HomeProgressiveNavigationBlur())
                 }
                 .rootNavigationTitle("首页") {
                     accountMessageButton(isCinematic: false)
@@ -128,24 +125,53 @@ private struct HomeCinematicNavigationScrim: View {
     }
 }
 
-private struct HomeProgressiveNavigationBlur: View {
+private struct HomeCollapsibleNavigationModeBar: View {
+    @Environment(\.rootNavigationTitleHidden) private var rootNavigationTitleHidden
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Binding var selection: HomePrimarySection
+    let onSelect: (HomePrimarySection) -> Void
+
     var body: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .mask {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black.opacity(0.92), location: 0.58),
-                        .init(color: .black.opacity(0.42), location: 0.82),
-                        .init(color: .clear, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
+        Group {
+            if !rootNavigationTitleHidden.wrappedValue {
+                HomeNavigationModeControl(
+                    selection: $selection,
+                    onSelect: onSelect,
+                    isCinematic: false
+                )
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background {
+                    if reduceTransparency {
+                        Capsule()
+                            .fill(Color(.systemBackground))
+                    } else {
+                        Capsule()
+                            .fill(.thinMaterial)
+                    }
+                }
+                .overlay {
+                    Capsule()
+                        .strokeBorder(
+                            Color.primary.opacity(colorSchemeContrast == .increased ? 0.38 : 0.08),
+                            lineWidth: colorSchemeContrast == .increased ? 1.25 : 0.5
+                        )
+                }
+                .shadow(color: .black.opacity(reduceTransparency ? 0.10 : 0.06), radius: 9, y: 3)
+                .padding(.horizontal, 14)
+                .padding(.top, 2)
+                .padding(.bottom, 7)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .move(edge: .top).combined(with: .opacity)
                 )
             }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.clear)
     }
 }
 
@@ -187,14 +213,15 @@ private struct HomeNavigationModeControl: View {
                             .font(.subheadline.weight(selection == section ? .bold : .medium))
                             .foregroundStyle(foregroundStyle(for: section))
                             .padding(.horizontal, 11)
-                            .frame(height: isCinematic ? 34 : 30)
+                            .frame(height: 38)
                             .background {
                                 if selection == section {
                                     Capsule()
-                                        .fill(isCinematic ? .white.opacity(0.16) : .primary.opacity(0.10))
-                                        .biliPlayerClearGlass(interactive: true, in: Capsule())
+                                        .fill(isCinematic ? .white.opacity(0.16) : .primary.opacity(0.11))
                                 }
                             }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .id(section)

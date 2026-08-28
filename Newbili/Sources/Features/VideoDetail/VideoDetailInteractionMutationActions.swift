@@ -83,6 +83,22 @@ extension VideoDetailViewModel {
         return true
     }
 
+    func recoverAmbiguousTripleMutationIfNeeded(
+        _ error: Error,
+        aid: Int,
+        bvid: String
+    ) async -> Bool {
+        guard let verifiedState = await verifiedInteractionStateAfterAmbiguousMutation(
+            error,
+            aid: aid,
+            bvid: bvid,
+            matches: { $0.isLiked && $0.isCoined && $0.isFavorited }
+        ) else { return false }
+        interactionState = verifiedState
+        interactionMessage = nil
+        return true
+    }
+
     private func verifiedInteractionStateAfterAmbiguousMutation(
         _ error: Error,
         aid: Int,

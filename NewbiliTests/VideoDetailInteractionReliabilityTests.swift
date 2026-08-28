@@ -48,6 +48,31 @@ final class VideoDetailInteractionReliabilityTests: XCTestCase {
         )
     }
 
+    func testTripleConfirmationKeepsAllThreeConfirmedStatesAcrossStaleRefresh() {
+        let confirmation = VideoDetailInteractionMutationConfirmation(
+            kind: .triple,
+            state: VideoInteractionState(
+                isLiked: true,
+                coinCount: 2,
+                isFavorited: true
+            )
+        )
+
+        let reconciled = confirmation.reconciling(
+            VideoInteractionState(
+                isLiked: false,
+                coinCount: 0,
+                isFavorited: false,
+                isFollowing: true
+            )
+        )
+
+        XCTAssertTrue(reconciled.isLiked)
+        XCTAssertEqual(reconciled.coinCount, 2)
+        XCTAssertTrue(reconciled.isFavorited)
+        XCTAssertTrue(reconciled.isFollowing)
+    }
+
     func testOnlyAmbiguousMutationFailuresTriggerStateVerification() {
         XCTAssertTrue(
             VideoDetailInteractionReliabilityPolicy.shouldVerifyAmbiguousMutationResult(
@@ -79,5 +104,76 @@ final class VideoDetailInteractionReliabilityTests: XCTestCase {
         XCTAssertTrue(BiliNetworkRetryPolicy.idempotentMutation.canRetry(request))
         XCTAssertEqual(BiliNetworkRetryPolicy.idempotentMutation.attempts, 2)
         XCTAssertFalse(BiliNetworkRetryPolicy.api.canRetry(request))
+    }
+
+    func testNonIdempotentMutationPolicyNeverReplaysPost() throws {
+        let url = try XCTUnwrap(URL(string: "https://api.bilibili.com/x/web-interface/archive/like/triple"))
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        XCTAssertEqual(BiliNetworkRetryPolicy.nonIdempotentMutation.attempts, 1)
+        XCTAssertFalse(BiliNetworkRetryPolicy.nonIdempotentMutation.canRetry(request))
+    }
+
+    func testHoldProgressTrackerDeliversMilestonesAndCommitOnlyOnce() {
+        var tracker = HoldProgressTracker()
+
+        XCTAssertEqual(tracker.advance(to: 0.34), [.milestone(1)])
+        XCTAssertEqual(tracker.advance(to: 0.72), [.milestone(2)])
+        XCTAssertEqual(tracker.advance(to: 1), [.committed])
+        XCTAssertTrue(tracker.advance(to: 1).isEmpty)
+        XCTAssertTrue(tracker.isCommitted)
+        XCTAssertTrue(tracker.suppressesTapOnRelease)
+
+        tracker.reset()
+        XCTAssertEqual(tracker.progress, 0)
+        XCTAssertFalse(tracker.isCommitted)
+    }
+
+    func testHoldProgressCancelsBeforeASlowScrollCanCommit() {
+        XCTAssertTrue(
+            HoldProgressMovementPolicy.shouldCancel(
+                translation: CGSize(width: 0, height: 15),
+                location: CGPoint(x: 22, y: 37),
+                interactiveSize: CGSize(width: 44, height: 44)
+            )
+        )
+        XCTAssertFalse(
+            HoldProgressMovementPolicy.shouldCancel(
+                translation: CGSize(width: 1.5, height: 2),
+                location: CGPoint(x: 22, y: 22),
+                interactiveSize: CGSize(width: 44, height: 44)
+            )
+        )
+    }
+
+    func testHoldProgressCancelsWhenTouchLeavesTheInteractiveTarget() {
+        XCTAssertTrue(
+            HoldProgressMovementPolicy.shouldCancel(
+                translation: CGSize(width: 4, height: 0),
+                location: CGPoint(x: 45, y: 22),
+                interactiveSize: CGSize(width: 44, height: 44)
+            )
+        )
+    }
+
+    func testTripleResultDecodesUGCAndPGCResponseShapes() throws {
+        let ugc = try JSONDecoder().decode(
+            VideoTripleMutationResult.self,
+            from: Data(#"{"like":true,"coin":true,"fav":true,"multiply":2}"#.utf8)
+        )
+        XCTAssertEqual(ugc.isLiked, true)
+        XCTAssertEqual(ugc.isCoined, true)
+        XCTAssertEqual(ugc.isFavorited, true)
+        XCTAssertEqual(ugc.coinCount, 2)
+
+        let pgc = try JSONDecoder().decode(
+            VideoTripleMutationResult.self,
+            from: Data(#"{"like":1,"coin":1,"favorite":1,"coin_number":2}"#.utf8)
+        )
+        XCTAssertEqual(pgc.isLiked, true)
+        XCTAssertEqual(pgc.isCoined, true)
+        XCTAssertEqual(pgc.isFavorited, true)
+        XCTAssertEqual(pgc.coinCount, 2)
     }
 }

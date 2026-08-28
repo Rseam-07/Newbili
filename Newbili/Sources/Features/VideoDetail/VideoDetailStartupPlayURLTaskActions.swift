@@ -1,5 +1,25 @@
 import Foundation
 
+nonisolated struct VideoDetailStartupPlayURLRequestIdentity: Equatable, Sendable {
+    let bvid: String
+    let cid: Int
+    let page: Int?
+    let preferredQuality: Int?
+    let streamSourcePlatform: String
+    let playbackCredentialIdentity: String
+
+    var key: String {
+        [
+            bvid.lowercased(),
+            String(cid),
+            page.map(String.init) ?? "-",
+            "q\(preferredQuality ?? 0)",
+            streamSourcePlatform,
+            playbackCredentialIdentity
+        ].joined(separator: "|")
+    }
+}
+
 extension VideoDetailViewModel {
     func cancelStartupPlayURLTask() {
         startupPlayURLRequestLease?.invalidate()
@@ -17,13 +37,18 @@ extension VideoDetailViewModel {
     ) async throws -> PlayURLData {
         let adaptiveQuality = adaptiveStartupPreferredQuality
         let streamSource = libraryStore.playbackStreamSourcePreference
-        let key = [
-            bvid,
-            String(cid),
-            page.map(String.init) ?? "-",
-            "q\(adaptiveQuality ?? 0)",
-            streamSource.cachePlatform
-        ].joined(separator: "|")
+        let requestIdentity = VideoDetailStartupPlayURLRequestIdentity(
+            bvid: bvid,
+            cid: cid,
+            page: page,
+            preferredQuality: adaptiveQuality,
+            streamSourcePlatform: streamSource.cachePlatform,
+            playbackCredentialIdentity: sessionStore.accountCacheIdentityKey(
+                for: .playback,
+                multiAccountEnabled: libraryStore.multiAccountExperimentEnabled
+            )
+        )
+        let key = requestIdentity.key
         if startupPlayURLTaskKey == key, let startupPlayURLTask {
             let data = try await waitForStartupPlayURLTask(
                 startupPlayURLTask,
@@ -61,8 +86,9 @@ extension VideoDetailViewModel {
         startupPlayURLTask = task
         startupPlayURLTaskKey = key
         startupPlayURLRequestLease = requestLease
-        defer {
-            clearStartupPlayURLTaskIfCurrent(key: key, generation: startupGeneration)
+        Task { @MainActor [weak self, task] in
+            _ = await task.result
+            self?.clearStartupPlayURLTaskIfCurrent(key: key, generation: startupGeneration)
         }
 
         let data = try await waitForStartupPlayURLTask(task, requestLease: requestLease)
@@ -77,11 +103,10 @@ extension VideoDetailViewModel {
         _ task: Task<PlayURLData, Error>,
         requestLease: StartupPlayURLRequestLease?
     ) async throws -> PlayURLData {
-        try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            requestLease?.invalidate()
-            task.cancel()
+        let data = try await BiliAPIClient.awaitSharedTask(task)
+        guard StartupPlayURLFeedbackEligibility.allows(requestLease) else {
+            throw CancellationError()
         }
+        return data
     }
 }

@@ -155,6 +155,61 @@ final class HLSBridgeRemoteFailureTests: XCTestCase {
 }
 
 final class HLSRemoteRangeResponseValidatorTests: XCTestCase {
+    func testAllowsFullResponseForExactZeroBasedRange() throws {
+        let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Length": "1024"]
+        ))
+
+        XCTAssertNoThrow(try HLSRemoteRangeResponseValidator.validate(
+            response,
+            requestedRange: HTTPByteRange(start: 0, endInclusive: 1023),
+            url: url
+        ))
+    }
+
+    func testRejectsFullResponseThatExceedsZeroBasedRange() throws {
+        let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Length": "4096"]
+        ))
+
+        XCTAssertThrowsError(try HLSRemoteRangeResponseValidator.validate(
+            response,
+            requestedRange: HTTPByteRange(start: 0, endInclusive: 1023),
+            url: url
+        )) { error in
+            guard let failure = error as? HLSBridgeRemoteFailure else {
+                return XCTFail("Expected HLSBridgeRemoteFailure, got \(error)")
+            }
+            XCTAssertEqual(failure.category, .rangeUnsupported)
+            XCTAssertEqual(failure.statusCode, 200)
+            XCTAssertEqual(failure.reason.rangeDescription, "0-1023")
+        }
+    }
+
+    func testRejectsFullResponseWithoutProvableZeroBasedRangeLength() throws {
+        let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        ))
+
+        XCTAssertThrowsError(try HLSRemoteRangeResponseValidator.validate(
+            response,
+            requestedRange: HTTPByteRange(start: 0, endInclusive: 1023),
+            url: url
+        ))
+    }
+
     func testRejectsCDNResponseThatIgnoresNonZeroRange() throws {
         let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
         let response = try XCTUnwrap(HTTPURLResponse(
@@ -237,6 +292,41 @@ final class HLSRemoteRangeResponseValidatorTests: XCTestCase {
             XCTAssertEqual(failure.statusCode, 206)
             XCTAssertEqual(failure.reason.rangeDescription, "1024-2047")
         }
+    }
+
+    func testRejectsPartialContentWithMismatchedContentLength() throws {
+        let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: url,
+            statusCode: 206,
+            httpVersion: nil,
+            headerFields: [
+                "Content-Range": "bytes 1024-2047/4096",
+                "Content-Length": "4096"
+            ]
+        ))
+
+        XCTAssertThrowsError(try HLSRemoteRangeResponseValidator.validate(
+            response,
+            requestedRange: HTTPByteRange(start: 1024, endInclusive: 2047),
+            url: url
+        ))
+    }
+
+    func testRejectsOtherSuccessfulStatusForRangeRequest() throws {
+        let url = try XCTUnwrap(URL(string: "https://upos.example.test/video.m4s"))
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: url,
+            statusCode: 204,
+            httpVersion: nil,
+            headerFields: nil
+        ))
+
+        XCTAssertThrowsError(try HLSRemoteRangeResponseValidator.validate(
+            response,
+            requestedRange: HTTPByteRange(start: 0, endInclusive: 1023),
+            url: url
+        ))
     }
 }
 

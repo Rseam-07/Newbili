@@ -2,26 +2,19 @@ import SwiftUI
 
 struct DynamicFeedActionBar: View {
     let display: DynamicFeedCardDisplayModel
-    let initialIsLiked: Bool
-    let initialLikeCount: Int
+    @ObservedObject var likeController: DynamicLikeController
     let onShowComments: () -> Void
-    @State private var isLiked: Bool
-    @State private var likeCount: Int
     @State private var actionMessage: String?
     @State private var actionMessageTask: Task<Void, Never>?
 
     init(
         display: DynamicFeedCardDisplayModel,
-        initialIsLiked: Bool,
-        initialLikeCount: Int,
+        likeController: DynamicLikeController,
         onShowComments: @escaping () -> Void
     ) {
         self.display = display
-        self.initialIsLiked = initialIsLiked
-        self.initialLikeCount = initialLikeCount
+        self.likeController = likeController
         self.onShowComments = onShowComments
-        _isLiked = State(initialValue: initialIsLiked)
-        _likeCount = State(initialValue: initialLikeCount)
     }
 
     var body: some View {
@@ -41,12 +34,13 @@ struct DynamicFeedActionBar: View {
                 .frame(maxWidth: .infinity)
 
                 DynamicActionPill(
-                    title: DynamicFeedCardDisplayModel.statTitle(count: likeCount, fallback: "点赞"),
-                    systemImage: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
-                    isSelected: isLiked
+                    title: likeActionTitle,
+                    systemImage: likeController.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
+                    isSelected: likeController.isLiked
                 ) {
-                    toggleLocalLike()
+                    performLikeAction()
                 }
+                .disabled(likeController.isLoading || likeController.isHydrating || likeController.isMutating)
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
@@ -66,6 +60,25 @@ struct DynamicFeedActionBar: View {
             actionMessageTask?.cancel()
             actionMessageTask = nil
         }
+        .task(id: likeController.dynamicID) {
+            await likeController.hydrateIfNeeded()
+        }
+    }
+
+    private var likeActionTitle: String {
+        switch likeController.status {
+        case .loading:
+            return "加载中"
+        case .failed:
+            return "重试"
+        case .ready:
+            return likeController.isMutating
+                ? "提交中"
+                : DynamicFeedCardDisplayModel.statTitle(
+                    count: likeController.likeCount,
+                    fallback: "点赞"
+                )
+        }
     }
 
     @ViewBuilder
@@ -77,7 +90,7 @@ struct DynamicFeedActionBar: View {
                 message: Text(display.shareMessage)
             ) {
                 DynamicActionPillLabel(
-                    title: display.repostTitle,
+                    title: "分享",
                     systemImage: "arrowshape.turn.up.right"
                 )
             }
@@ -89,7 +102,7 @@ struct DynamicFeedActionBar: View {
             .accessibilityLabel("分享动态")
         } else {
             DynamicActionPill(
-                title: display.repostTitle,
+                title: "分享",
                 systemImage: "arrowshape.turn.up.right",
                 isSelected: false
             ) {
@@ -99,14 +112,26 @@ struct DynamicFeedActionBar: View {
         }
     }
 
-    private func toggleLocalLike() {
+    private func performLikeAction() {
         playActionFeedback()
-        let nextIsLiked = !isLiked
-        withAnimation(.snappy(duration: 0.2)) {
-            isLiked = nextIsLiked
-            likeCount = max(0, likeCount + (nextIsLiked ? 1 : -1))
+        Task {
+            if likeController.hydrationFailureMessage != nil {
+                await likeController.hydrateIfNeeded(retryingFailure: true)
+                if let message = likeController.hydrationFailureMessage {
+                    showActionMessage("状态加载失败：\(message)", playsFeedback: false)
+                }
+                return
+            }
+            let outcome = await likeController.toggle()
+            switch outcome {
+            case .updated(let isLiked):
+                showActionMessage(isLiked ? "点赞成功" : "已取消点赞", playsFeedback: false)
+            case .failed(let message):
+                showActionMessage("操作失败：\(message)", playsFeedback: false)
+            case .ignored:
+                break
+            }
         }
-        showActionMessage(nextIsLiked ? "已点赞" : "已取消点赞", playsFeedback: false)
     }
 
     private func playActionFeedback() {

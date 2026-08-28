@@ -9,137 +9,256 @@ final class MineViewModel: ObservableObject {
     @Published var historyState: LoadingState = .idle
     @Published var favoriteState: LoadingState = .idle
     @Published var watchLaterState: LoadingState = .idle
-    @Published private(set) var watchLaterLoadMoreState: LoadingState = .idle {
-        didSet { accountLibraryRevision &+= 1 }
-    }
+    @Published private(set) var watchLaterLoadMoreState: LoadingState = .idle
     @Published private(set) var watchLaterMutationState: LoadingState = .idle
-    @Published private(set) var watchLaterHasMore = false {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published private(set) var watchLaterTotalCount = 0 {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published var watchLaterEntries: [AccountVideoEntry] = [] {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published private(set) var historyLoadMoreState: LoadingState = .idle {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published private(set) var historyHasMore = false {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published var accountHistory: [AccountVideoEntry] = [] {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published var accountFavorites: [AccountVideoEntry] = [] {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published var favoriteFolders: [FavoriteFolder] = [] {
-        didSet { accountLibraryRevision &+= 1 }
-    }
-    @Published var favoriteFolderEntries: [Int: [AccountVideoEntry]] = [:] {
-        didSet { favoriteFolderRevision &+= 1 }
-    }
-    @Published var favoriteFolderEntryStates: [Int: LoadingState] = [:] {
-        didSet { favoriteFolderRevision &+= 1 }
-    }
-    @Published private(set) var favoriteFolderLoadMoreStates: [Int: LoadingState] = [:] {
-        didSet { favoriteFolderRevision &+= 1 }
-    }
-    @Published private(set) var favoriteFolderHasMore: [Int: Bool] = [:] {
-        didSet { favoriteFolderRevision &+= 1 }
-    }
-    @Published private(set) var accountLibraryRevision = 0
-    @Published private(set) var favoriteFolderRevision = 0
+    @Published private(set) var watchLaterHasMore = false
+    @Published private(set) var watchLaterTotalCount = 0
+    @Published var watchLaterEntries: [AccountVideoEntry] = []
+    @Published private(set) var historyLoadMoreState: LoadingState = .idle
+    @Published private(set) var historyHasMore = false
+    @Published var accountHistory: [AccountVideoEntry] = []
+    @Published var favoriteFolders: [FavoriteFolder] = []
+    @Published var favoriteFolderEntries: [Int: [AccountVideoEntry]] = [:]
+    @Published var favoriteFolderEntryStates: [Int: LoadingState] = [:]
+    @Published private(set) var favoriteFolderLoadMoreStates: [Int: LoadingState] = [:]
+    @Published private(set) var favoriteFolderHasMore: [Int: Bool] = [:]
 
     private let api: BiliAPIClient
     private let sessionStore: SessionStore
+    private let navUserLoader: () async throws -> NavUserInfo
     private var qrLoginTask: Task<Void, Never>?
+    private var refreshingUserMID: Int?
+    private var userRefreshGeneration = 0
     private let accountLibraryPageSize = 20
+    private var historyRequestGeneration = 0
+    private var favoriteRequestGeneration = 0
+    private var favoriteFolderRequestGenerations: [Int: Int] = [:]
     private var historyCursor: AccountHistoryCursor?
     private var favoriteFolderPages: [Int: Int] = [:]
     private var watchLaterPage = 1
-    private var watchLaterFilter: WatchLaterFilter = .all
-    private var watchLaterKeyword = ""
-    private var watchLaterSortOrder: WatchLaterSortOrder = .newest
+    private var watchLaterActiveQuery = WatchLaterQuery.defaultQuery
+    private var watchLaterLoadedQuery: WatchLaterQuery?
     private var watchLaterRequestGeneration = 0
 
-    init(api: BiliAPIClient, sessionStore: SessionStore) {
+    init(
+        api: BiliAPIClient,
+        sessionStore: SessionStore,
+        navUserLoader: (() async throws -> NavUserInfo)? = nil
+    ) {
         self.api = api
         self.sessionStore = sessionStore
+        self.navUserLoader = navUserLoader ?? { try await api.fetchNavUser() }
     }
 
     func refreshUser() async {
-        guard sessionStore.isLoggedIn else { return }
+        guard sessionStore.isLoggedIn,
+              let requestedMID = sessionStore.mainAccountMID
+        else {
+            state = .idle
+            return
+        }
+        // Login completion and Mine's credential-version task can arrive in the
+        // same run-loop turn. Coalesce work for one account, but let a newly
+        // selected main account supersede an older request immediately.
+        if refreshingUserMID == requestedMID {
+            return
+        }
+        userRefreshGeneration &+= 1
+        let generation = userRefreshGeneration
+        refreshingUserMID = requestedMID
+        state = .loading
+        defer {
+            if userRefreshGeneration == generation {
+                refreshingUserMID = nil
+                if state.isLoading {
+                    state = sessionStore.user == nil ? .idle : .loaded
+                }
+            }
+        }
         do {
-            let user = try await api.fetchNavUser()
+            let user = try await navUserLoader()
+            guard !Task.isCancelled,
+                  userRefreshGeneration == generation,
+                  sessionStore.mainAccountMID == requestedMID
+            else { return }
             if user.isLogin == true {
-                sessionStore.updateUser(user)
-                await refreshAccountLibrary()
+                if let responseMID = user.mid, responseMID != requestedMID {
+                    state = .failed("账号资料与当前主账号不一致，请重试")
+                    return
+                }
+                sessionStore.updateAccountUser(mid: requestedMID, user: user)
+                state = .loaded
             } else {
                 try? sessionStore.logout()
+                resetAccountLibraryState()
+                state = .idle
                 loginMessage = "登录已失效，请重新登录"
             }
         } catch {
-            sessionStore.updateUser(nil)
+            guard userRefreshGeneration == generation,
+                  sessionStore.mainAccountMID == requestedMID
+            else { return }
+            if Task.isCancelled {
+                state = sessionStore.user == nil ? .idle : .loaded
+            } else {
+                // Keep the last successful profile (including level/experience)
+                // visible and expose an explicit retry instead of replacing it
+                // with an empty "UID 0" shell after a transient network error.
+                state = .failed(error.localizedDescription)
+            }
         }
     }
 
-    func refreshAccountLibrary() async {
-        guard sessionStore.isLoggedIn else {
-            resetAccountLibraryState()
+    func loadAccountLibrary(
+        _ request: AccountLibraryLoadRequest,
+        policy: AccountLibraryLoadPolicy = .ifNeeded
+    ) async {
+        guard sessionStore.isLoggedIn else { return }
+
+        if let query = request.watchLaterQuery {
+            switch policy {
+            case .ifNeeded:
+                guard shouldLoadWatchLater(query) else { return }
+            case .reload:
+                guard !watchLaterState.isLoading || watchLaterActiveQuery != query else { return }
+            }
+            await refreshWatchLater(query)
             return
         }
 
-        async let history: Void = refreshHistory()
-        async let favorites: Void = refreshFavorites()
-        async let watchLater: Void = refreshWatchLater()
-        _ = await (history, favorites, watchLater)
+        let currentState = accountLibraryState(for: request)
+        switch policy {
+        case .ifNeeded:
+            guard currentState == .idle else { return }
+        case .reload:
+            guard !currentState.isLoading else { return }
+        }
+
+        switch request {
+        case .history:
+            await refreshHistory()
+        case .favorites:
+            await refreshFavorites()
+        case .watchLater:
+            assertionFailure("Watch Later requests are handled before generic libraries")
+        case .favoriteFolder(let id):
+            await refreshFavoriteFolder(id: id)
+        }
     }
 
-    func refreshHistory() async {
+    func invalidateAccountLibraries(_ requests: [AccountLibraryLoadRequest]) {
+        for request in requests {
+            switch request {
+            case .history:
+                historyRequestGeneration &+= 1
+                accountHistory = []
+                historyState = .idle
+                historyLoadMoreState = .idle
+                historyHasMore = false
+                historyCursor = nil
+            case .favorites:
+                favoriteRequestGeneration &+= 1
+                favoriteFolders = []
+                favoriteState = .idle
+                let folderIDs = Set(favoriteFolderRequestGenerations.keys)
+                    .union(favoriteFolderEntryStates.keys)
+                    .union(favoriteFolderEntries.keys)
+                for id in folderIDs {
+                    favoriteFolderRequestGenerations[id, default: 0] &+= 1
+                }
+                favoriteFolderEntries = [:]
+                favoriteFolderEntryStates = [:]
+                favoriteFolderLoadMoreStates = [:]
+                favoriteFolderHasMore = [:]
+                favoriteFolderPages = [:]
+            case .watchLater:
+                watchLaterRequestGeneration &+= 1
+                watchLaterEntries = []
+                watchLaterState = .idle
+                watchLaterLoadMoreState = .idle
+                watchLaterMutationState = .idle
+                watchLaterHasMore = false
+                watchLaterTotalCount = 0
+                watchLaterPage = 1
+                watchLaterActiveQuery = .defaultQuery
+                watchLaterLoadedQuery = nil
+            case .favoriteFolder(let id):
+                favoriteFolderRequestGenerations[id, default: 0] &+= 1
+                favoriteFolderEntries[id] = nil
+                favoriteFolderEntryStates[id] = nil
+                favoriteFolderLoadMoreStates[id] = nil
+                favoriteFolderHasMore[id] = nil
+                favoriteFolderPages[id] = nil
+            }
+        }
+    }
+
+    private func accountLibraryState(for request: AccountLibraryLoadRequest) -> LoadingState {
+        switch request {
+        case .history:
+            return historyState
+        case .favorites:
+            return favoriteState
+        case .watchLater:
+            return watchLaterState
+        case .favoriteFolder(let id):
+            return favoriteFolderEntryStates[id] ?? .idle
+        }
+    }
+
+    private func shouldLoadWatchLater(_ query: WatchLaterQuery) -> Bool {
+        if watchLaterState.isLoading, watchLaterActiveQuery == query {
+            return false
+        }
+        return watchLaterState != .loaded || watchLaterLoadedQuery != query
+    }
+
+    private func refreshHistory() async {
         guard sessionStore.isLoggedIn else { return }
+        historyRequestGeneration &+= 1
+        let generation = historyRequestGeneration
         historyState = .loading
         historyLoadMoreState = .idle
         historyCursor = nil
         historyHasMore = false
         do {
             let page = try await api.fetchAccountHistoryPage(pageSize: accountLibraryPageSize)
+            guard generation == historyRequestGeneration else { return }
             accountHistory = Self.uniqued(page.entries)
             historyCursor = page.nextHistoryCursor
             historyHasMore = page.hasMore
             historyState = .loaded
         } catch {
+            guard generation == historyRequestGeneration else { return }
             historyState = .failed(error.localizedDescription)
         }
     }
 
-    func refreshFavorites() async {
+    private func refreshFavorites() async {
         guard sessionStore.isLoggedIn else { return }
+        favoriteRequestGeneration &+= 1
+        let generation = favoriteRequestGeneration
         favoriteState = .loading
         do {
-            favoriteFolders = try await api.fetchFavoriteFolders()
-            accountFavorites = try await api.fetchAccountFavorites()
+            let folders = try await api.fetchFavoriteFolders()
+            guard generation == favoriteRequestGeneration else { return }
+            favoriteFolders = folders
             favoriteState = .loaded
         } catch {
+            guard generation == favoriteRequestGeneration else { return }
             favoriteState = .failed(error.localizedDescription)
         }
     }
 
-    func refreshWatchLater(
-        filter: WatchLaterFilter? = nil,
-        keyword: String? = nil,
-        sortOrder: WatchLaterSortOrder? = nil
-    ) async {
+    private func refreshWatchLater(_ requestedQuery: WatchLaterQuery? = nil) async {
         guard sessionStore.isLoggedIn else { return }
-        if let filter {
-            watchLaterFilter = filter
-        }
-        if let keyword {
-            watchLaterKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let sortOrder {
-            watchLaterSortOrder = sortOrder
+        let query = requestedQuery ?? watchLaterActiveQuery
+        let queryChanged = query != watchLaterActiveQuery
+        watchLaterActiveQuery = query
+        if queryChanged {
+            watchLaterEntries = []
+            watchLaterTotalCount = 0
+            watchLaterLoadedQuery = nil
         }
         watchLaterRequestGeneration &+= 1
         let generation = watchLaterRequestGeneration
@@ -151,14 +270,15 @@ final class MineViewModel: ObservableObject {
             let page = try await api.fetchWatchLaterPage(
                 page: 1,
                 pageSize: accountLibraryPageSize,
-                filter: watchLaterFilter,
-                keyword: watchLaterKeyword,
-                sortOrder: watchLaterSortOrder
+                filter: query.filter,
+                keyword: query.keyword,
+                sortOrder: query.sortOrder
             )
             guard generation == watchLaterRequestGeneration else { return }
             watchLaterEntries = Self.uniqued(page.entries)
             watchLaterTotalCount = page.totalCount
             watchLaterHasMore = page.hasMore
+            watchLaterLoadedQuery = query
             watchLaterState = .loaded
         } catch {
             guard generation == watchLaterRequestGeneration else { return }
@@ -179,16 +299,19 @@ final class MineViewModel: ObservableObject {
         else { return }
         let nextPage = watchLaterPage + 1
         let generation = watchLaterRequestGeneration
+        let query = watchLaterActiveQuery
         watchLaterLoadMoreState = .loading
         do {
             let page = try await api.fetchWatchLaterPage(
                 page: nextPage,
                 pageSize: accountLibraryPageSize,
-                filter: watchLaterFilter,
-                keyword: watchLaterKeyword,
-                sortOrder: watchLaterSortOrder
+                filter: query.filter,
+                keyword: query.keyword,
+                sortOrder: query.sortOrder
             )
-            guard generation == watchLaterRequestGeneration else { return }
+            guard generation == watchLaterRequestGeneration,
+                  query == watchLaterActiveQuery
+            else { return }
             let previousCount = watchLaterEntries.count
             watchLaterEntries = Self.appendingUnique(page.entries, to: watchLaterEntries)
             watchLaterPage = nextPage
@@ -254,23 +377,27 @@ final class MineViewModel: ObservableObject {
         }
     }
 
-    func refreshFavoriteFolder(_ folder: FavoriteFolder) async {
+    private func refreshFavoriteFolder(id: Int) async {
         guard sessionStore.isLoggedIn else { return }
-        favoriteFolderEntryStates[folder.id] = .loading
-        favoriteFolderLoadMoreStates[folder.id] = .idle
-        favoriteFolderPages[folder.id] = 1
-        favoriteFolderHasMore[folder.id] = false
+        let generation = (favoriteFolderRequestGenerations[id] ?? 0) &+ 1
+        favoriteFolderRequestGenerations[id] = generation
+        favoriteFolderEntryStates[id] = .loading
+        favoriteFolderLoadMoreStates[id] = .idle
+        favoriteFolderPages[id] = 1
+        favoriteFolderHasMore[id] = false
         do {
             let page = try await api.fetchFavoriteFolderVideoPage(
-                folderID: folder.id,
+                folderID: id,
                 page: 1,
                 pageSize: accountLibraryPageSize
             )
-            favoriteFolderEntries[folder.id] = Self.uniqued(page.entries)
-            favoriteFolderHasMore[folder.id] = page.hasMore
-            favoriteFolderEntryStates[folder.id] = .loaded
+            guard favoriteFolderRequestGenerations[id] == generation else { return }
+            favoriteFolderEntries[id] = Self.uniqued(page.entries)
+            favoriteFolderHasMore[id] = page.hasMore
+            favoriteFolderEntryStates[id] = .loaded
         } catch {
-            favoriteFolderEntryStates[folder.id] = .failed(error.localizedDescription)
+            guard favoriteFolderRequestGenerations[id] == generation else { return }
+            favoriteFolderEntryStates[id] = .failed(error.localizedDescription)
         }
     }
 
@@ -285,18 +412,21 @@ final class MineViewModel: ObservableObject {
               !historyState.isLoading,
               !historyLoadMoreState.isLoading
         else { return }
+        let generation = historyRequestGeneration
         historyLoadMoreState = .loading
         do {
             let page = try await api.fetchAccountHistoryPage(
                 cursor: historyCursor,
                 pageSize: accountLibraryPageSize
             )
+            guard generation == historyRequestGeneration else { return }
             let previousCount = accountHistory.count
             accountHistory = Self.appendingUnique(page.entries, to: accountHistory)
             historyCursor = page.nextHistoryCursor
             historyHasMore = page.hasMore && accountHistory.count > previousCount
             historyLoadMoreState = .idle
         } catch {
+            guard generation == historyRequestGeneration else { return }
             historyLoadMoreState = .failed(error.localizedDescription)
         }
     }
@@ -312,6 +442,7 @@ final class MineViewModel: ObservableObject {
               !(favoriteFolderEntryStates[folder.id]?.isLoading ?? false),
               !(favoriteFolderLoadMoreStates[folder.id]?.isLoading ?? false)
         else { return }
+        let generation = favoriteFolderRequestGenerations[folder.id] ?? 0
         let nextPage = (favoriteFolderPages[folder.id] ?? 1) + 1
         favoriteFolderLoadMoreStates[folder.id] = .loading
         do {
@@ -320,6 +451,7 @@ final class MineViewModel: ObservableObject {
                 page: nextPage,
                 pageSize: accountLibraryPageSize
             )
+            guard favoriteFolderRequestGenerations[folder.id] == generation else { return }
             let previousCount = favoriteFolderEntries[folder.id]?.count ?? 0
             favoriteFolderEntries[folder.id] = Self.appendingUnique(
                 page.entries,
@@ -330,6 +462,7 @@ final class MineViewModel: ObservableObject {
                 && (favoriteFolderEntries[folder.id]?.count ?? 0) > previousCount
             favoriteFolderLoadMoreStates[folder.id] = .idle
         } catch {
+            guard favoriteFolderRequestGenerations[folder.id] == generation else { return }
             favoriteFolderLoadMoreStates[folder.id] = .failed(error.localizedDescription)
         }
     }
@@ -347,31 +480,14 @@ final class MineViewModel: ObservableObject {
 
     func logout() {
         cancelQRCodeLogin()
+        userRefreshGeneration &+= 1
+        refreshingUserMID = nil
         try? sessionStore.logout()
         BiliWebCookieStore.clearLoginCookies()
-        accountHistory = []
-        accountFavorites = []
-        watchLaterEntries = []
-        favoriteFolders = []
-        favoriteFolderEntries = [:]
-        favoriteFolderEntryStates = [:]
-        historyLoadMoreState = .idle
-        historyHasMore = false
-        historyCursor = nil
-        favoriteFolderLoadMoreStates = [:]
-        favoriteFolderHasMore = [:]
-        favoriteFolderPages = [:]
-        historyState = .idle
-        favoriteState = .idle
-        watchLaterState = .idle
-        watchLaterLoadMoreState = .idle
-        watchLaterMutationState = .idle
-        watchLaterHasMore = false
-        watchLaterTotalCount = 0
-        watchLaterPage = 1
-        watchLaterRequestGeneration &+= 1
+        resetAccountLibraryState()
         loginMessage = ""
         qrLoginState = .idle
+        state = .idle
     }
 
     func startQRCodeLogin() async {
@@ -530,27 +646,11 @@ final class MineViewModel: ObservableObject {
     }
 
     private func resetAccountLibraryState() {
-        accountHistory = []
-        accountFavorites = []
-        watchLaterEntries = []
-        favoriteFolders = []
-        favoriteFolderEntries = [:]
-        favoriteFolderEntryStates = [:]
-        historyLoadMoreState = .idle
-        historyHasMore = false
-        historyCursor = nil
-        favoriteFolderLoadMoreStates = [:]
-        favoriteFolderHasMore = [:]
-        favoriteFolderPages = [:]
-        historyState = .idle
-        favoriteState = .idle
-        watchLaterState = .idle
-        watchLaterLoadMoreState = .idle
-        watchLaterMutationState = .idle
-        watchLaterHasMore = false
-        watchLaterTotalCount = 0
-        watchLaterPage = 1
-        watchLaterRequestGeneration &+= 1
+        invalidateAccountLibraries([
+            .history,
+            .favorites,
+            .watchLater(filter: .all, keyword: "", sortOrder: .newest)
+        ])
     }
 
     private nonisolated static func uniqued(_ entries: [AccountVideoEntry]) -> [AccountVideoEntry] {

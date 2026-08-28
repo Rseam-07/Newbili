@@ -5,7 +5,33 @@ extension VideoDetailViewModel {
         let audioIdentity = playbackContentMode == .audioOnly
             ? (resolvedVideoListenAudioVariant?.id ?? "audio-missing")
             : "video-audio"
-        return "\(selectedCID ?? 0)-\(variant.id)-\(playbackContentMode.rawValue)-\(audioIdentity)"
+        let credentialIdentity = sessionStore.accountCacheIdentityKey(
+            for: .playback,
+            multiAccountEnabled: libraryStore.multiAccountExperimentEnabled
+        )
+        return [
+            detail.bvid.lowercased(),
+            String(selectedCID ?? 0),
+            variant.id,
+            playbackContentMode.rawValue,
+            audioIdentity,
+            credentialIdentity
+        ].joined(separator: "|")
+    }
+
+    var hasReusablePlaybackSessionForCurrentContext: Bool {
+        guard let player = stablePlayerViewModel,
+              !player.isTerminated,
+              hasStablePlaybackIdentityForCurrentContext
+        else { return false }
+        return true
+    }
+
+    var hasStablePlaybackIdentityForCurrentContext: Bool {
+        guard let variant = selectedPlayVariant,
+              variant.isPlayable
+        else { return false }
+        return stablePlayerIdentity == playerIdentity(for: variant)
     }
 
     var selectedPageNumber: Int? {

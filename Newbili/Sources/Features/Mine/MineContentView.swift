@@ -13,17 +13,27 @@ struct MineContentView: View {
     var body: some View {
         Form {
             MineAccountSection(
-                viewModel: viewModel,
-                sessionStore: sessionStore,
-                libraryStore: libraryStore,
+                display: MineAccountProfileDisplayModel(
+                    user: sessionStore.user,
+                    fallbackAccount: sessionStore.mainAccount
+                ),
+                profileState: viewModel.state,
+                loginMessage: viewModel.loginMessage,
+                isLoggedIn: sessionStore.isLoggedIn,
+                multiAccountExperimentEnabled: libraryStore.multiAccountExperimentEnabled,
                 onQRCodeLogin: onQRCodeLogin,
                 onSMSLogin: onSMSLogin,
                 onWebLogin: onWebLogin,
-                onOpenRoute: onOpenRoute
+                onOpenRoute: onOpenRoute,
+                onRefreshProfile: {
+                    Task {
+                        await viewModel.refreshUser()
+                    }
+                },
+                onLogout: viewModel.logout
             )
 
             MineAccountLibrarySection(
-                viewModel: viewModel,
                 accountMessageViewModel: accountMessageViewModel,
                 isLoggedIn: sessionStore.isLoggedIn,
                 onOpenRoute: onOpenRoute

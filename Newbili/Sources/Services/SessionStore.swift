@@ -85,6 +85,7 @@ final class SessionStore: ObservableObject {
                     mid: legacyMID,
                     name: nil,
                     face: nil,
+                    levelInfo: nil,
                     credentialKind: legacyKind
                 )
             ]
@@ -115,7 +116,7 @@ final class SessionStore: ObservableObject {
         self.sessdata = Self.cookieValue(named: "SESSDATA", in: mainCredentials?.cookieHeader)
         self.accessKey = mainCredentials?.accessKey
         self.loginCredentialKind = mainCredentials?.credentialKind ?? .unknown
-        self.user = mainSummary.map(Self.navUserInfo)
+        self.user = mainSummary.map { Self.navUserInfo(from: $0) }
 
         if didMigrateLegacyAccount, let resolvedMainMID, let credentials = loadedCredentials[resolvedMainMID] {
             try? persistAccountCredentials(credentials, for: resolvedMainMID)
@@ -287,7 +288,7 @@ final class SessionStore: ObservableObject {
         )
     }
 
-    func updateUser(_ user: NavUserInfo?) {
+    func updateUser(_ user: NavUserInfo) {
         guard let mainAccountMID else {
             self.user = user
             return
@@ -295,15 +296,26 @@ final class SessionStore: ObservableObject {
         updateAccountUser(mid: mainAccountMID, user: user)
     }
 
-    func updateAccountUser(mid: Int, user: NavUserInfo?) {
+    func updateAccountUser(mid: Int, user: NavUserInfo) {
         guard let index = accounts.firstIndex(where: { $0.mid == mid }) else { return }
-        if let user {
-            accounts[index].name = user.uname
-            accounts[index].face = user.face
+        let previousSummary = accounts[index]
+        if let name = Self.nonEmpty(user.uname) {
+            accounts[index].name = name
+        }
+        if let face = Self.nonEmpty(user.face) {
+            accounts[index].face = face
+        }
+        if let levelInfo = user.levelInfo {
+            accounts[index].levelInfo = levelInfo
         }
         if mainAccountMID == mid {
-            self.user = user ?? Self.navUserInfo(from: accounts[index])
+            self.user = Self.navUserInfo(
+                from: accounts[index],
+                wbiImg: user.wbiImg,
+                isLogin: user.isLogin
+            )
         }
+        guard accounts[index] != previousSummary else { return }
         accountConfigurationVersion &+= 1
         try? persistRegistry()
     }
@@ -490,6 +502,7 @@ final class SessionStore: ObservableObject {
                     mid: mid,
                     name: nil,
                     face: nil,
+                    levelInfo: nil,
                     credentialKind: credentialKind
                 )
             )
@@ -638,7 +651,7 @@ final class SessionStore: ObservableObject {
         sessdata = Self.cookieValue(named: "SESSDATA", in: credentials.cookieHeader)
         accessKey = credentials.accessKey
         loginCredentialKind = credentials.credentialKind
-        user = accountSummary(mid: mainAccountMID).map(Self.navUserInfo)
+        user = accountSummary(mid: mainAccountMID).map { Self.navUserInfo(from: $0) }
     }
 
     private func persistRegistry() throws {
@@ -737,13 +750,18 @@ final class SessionStore: ObservableObject {
         "MULTI_ACCOUNT_\(mid)_CREDENTIAL_KIND"
     }
 
-    private static func navUserInfo(from summary: BiliAccountSummary) -> NavUserInfo {
+    private static func navUserInfo(
+        from summary: BiliAccountSummary,
+        wbiImg: WBIImage? = nil,
+        isLogin: Bool? = true
+    ) -> NavUserInfo {
         NavUserInfo(
-            isLogin: true,
+            isLogin: isLogin,
             face: summary.face,
             uname: summary.name,
             mid: summary.mid,
-            wbiImg: nil
+            wbiImg: wbiImg,
+            levelInfo: summary.levelInfo
         )
     }
 

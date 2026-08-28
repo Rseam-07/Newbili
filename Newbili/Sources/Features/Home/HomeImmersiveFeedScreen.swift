@@ -48,6 +48,8 @@ struct HomeImmersiveFeedScreen: View {
                     if usesCinematicWideLayout {
                         HomeCinematicWideFeed(
                             cells: viewModel.videoCells,
+                            featuredItems: viewModel.featuredItems,
+                            currentFeedStartIndex: viewModel.featuredCurrentFeedItemCount,
                             mode: viewModel.mode,
                             containerWidth: viewportState.feedContainerWidth,
                             viewportHeight: viewportState.viewportHeight,
@@ -55,7 +57,7 @@ struct HomeImmersiveFeedScreen: View {
                             onSelectPrimarySection: onSelectPrimarySection,
                             accountMessageViewModel: accountMessageViewModel,
                             onOpenAccountMessages: onOpenAccountMessages,
-                            lastSeenMarkerCellIndex: adjustedLastSeenMarkerIndex,
+                            lastSeenMarkerCellIndex: viewModel.lastSeenMarkerIndex,
                             isLoadingMore: viewModel.state.isLoading
                                 && !viewModel.isRefreshing
                                 && !viewModel.isUserRefreshing,
@@ -63,10 +65,11 @@ struct HomeImmersiveFeedScreen: View {
                         )
                     } else {
                         VStack(spacing: 0) {
-                            if let featured = viewModel.videoCells.first {
-                                HomeImmersiveHeroCard(
-                                    cell: featured,
+                            if !viewModel.featuredItems.isEmpty {
+                                HomeFeaturedCarousel(
+                                    items: viewModel.featuredItems,
                                     mode: viewModel.mode,
+                                    style: .compact,
                                     actions: contentActions
                                 )
                                 .padding(.horizontal, 16)
@@ -74,14 +77,14 @@ struct HomeImmersiveFeedScreen: View {
                                 .padding(.bottom, 22)
                             }
 
-                            if viewModel.videoCells.count > 1 {
+                            if viewModel.videoCells.count > viewModel.featuredCurrentFeedItemCount {
                                 HomeImmersiveFeedHeading(mode: viewModel.mode)
 
                                 HomeFeedContentSection(
                                     metrics: metrics,
                                     cells: viewModel.videoCells,
-                                    cellStartIndex: 1,
-                                    lastSeenMarkerIndex: adjustedLastSeenMarkerIndex,
+                                    cellStartIndex: viewModel.featuredCurrentFeedItemCount,
+                                    lastSeenMarkerIndex: viewModel.lastSeenMarkerIndex,
                                     isLoadingMore: viewModel.state.isLoading
                                         && !viewModel.isRefreshing
                                         && !viewModel.isUserRefreshing,
@@ -101,6 +104,9 @@ struct HomeImmersiveFeedScreen: View {
         .task(id: imagePrefetchProfile.cacheIdentity) {
             viewModel.updateImagePrefetchProfile(imagePrefetchProfile)
         }
+        .task(id: viewModel.mode) {
+            await viewModel.loadFeaturedSupplementaryContentIfNeeded()
+        }
         .homeFeedScreenLifecycle(
             viewModel: viewModel,
             runtimeSettings: runtimeSettings,
@@ -116,11 +122,6 @@ struct HomeImmersiveFeedScreen: View {
             containerWidth: viewportState.feedContainerWidth,
             usesAccessibilitySize: dynamicTypeSize.isAccessibilitySize
         )
-    }
-
-    private var adjustedLastSeenMarkerIndex: Int? {
-        guard let index = viewModel.lastSeenMarkerIndex, index > 1 else { return nil }
-        return index - 1
     }
 
     private var lifecycleConfiguration: HomeFeedScreenLifecycleConfiguration {
@@ -201,6 +202,8 @@ nonisolated enum HomeImmersiveAdaptiveLayoutPolicy {
 
 private struct HomeCinematicWideFeed: View {
     let cells: [HomeVideoCellModel]
+    let featuredItems: [HomeFeaturedItem]
+    let currentFeedStartIndex: Int
     let mode: HomeFeedMode
     let containerWidth: CGFloat
     let viewportHeight: CGFloat
@@ -213,6 +216,10 @@ private struct HomeCinematicWideFeed: View {
     let actions: HomeFeedContentActions
 
     var body: some View {
+        let shelfRanges = HomeCinematicShelfPlan.itemRanges(
+            totalItemCount: max(cells.count - currentFeedStartIndex, 0)
+        )
+
         LazyVStack(alignment: .leading, spacing: 0) {
             HomeCinematicNavigationHeader(
                 selection: $primarySection,
@@ -221,17 +228,23 @@ private struct HomeCinematicWideFeed: View {
                 onOpenAccountMessages: onOpenAccountMessages
             )
 
-            if let featured = cells.first {
-                HomeCinematicHero(
-                    cell: featured,
+            if !featuredItems.isEmpty {
+                HomeFeaturedCarousel(
+                    items: featuredItems,
                     mode: mode,
-                    containerWidth: containerWidth,
-                    viewportHeight: viewportHeight,
+                    style: .cinematic(
+                        containerWidth: containerWidth,
+                        viewportHeight: viewportHeight
+                    ),
                     actions: actions
                 )
             }
 
-            ForEach(Array(shelves.enumerated()), id: \.offset) { shelfIndex, shelfCells in
+            ForEach(shelfRanges.indices, id: \.self) { shelfIndex in
+                let range = shelfRanges[shelfIndex]
+                let shelfCells = cells[
+                    (range.lowerBound + currentFeedStartIndex)..<(range.upperBound + currentFeedStartIndex)
+                ]
                 HomeCinematicShelf(
                     title: shelfTitle(at: shelfIndex),
                     cells: shelfCells,
@@ -258,13 +271,6 @@ private struct HomeCinematicWideFeed: View {
             }
         }
         .padding(.bottom, 42)
-    }
-
-    private var shelves: [[HomeVideoCellModel]] {
-        let visibleCells = Array(cells.dropFirst())
-        return HomeCinematicShelfPlan.itemRanges(totalItemCount: visibleCells.count).map { range in
-            Array(visibleCells[range])
-        }
     }
 
     private var horizontalPadding: CGFloat {
@@ -302,187 +308,10 @@ private struct HomeCinematicWideFeed: View {
 
 }
 
-private struct HomeCinematicHero: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    let cell: HomeVideoCellModel
-    let mode: HomeFeedMode
-    let containerWidth: CGFloat
-    let viewportHeight: CGFloat
-    let actions: HomeFeedContentActions
-
-    var body: some View {
-        heroButton
-        .onAppear {
-            actions.onCardAppear(cell.video, cell.index)
-        }
-        .onDisappear {
-            actions.onCardDisappear(cell.video)
-        }
-    }
-
-    private var heroButton: some View {
-        Button(action: open) {
-            ZStack(alignment: .bottomLeading) {
-                GeometryReader { geometry in
-                    CachedRemoteImage(
-                        url: cell.display.largeThumbnailURL(
-                            fitting: geometry.size,
-                            scale: 2,
-                            maximumPixelLength: 1_920
-                        ),
-                        targetPixelSize: cell.display.coverTargetPixelSize(
-                            fitting: geometry.size,
-                            scale: 2,
-                            maximumPixelLength: 1_920
-                        ),
-                        animatesAppearance: false
-                    ) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        LinearGradient(
-                            colors: [.pink.opacity(0.72), .indigo.opacity(0.58), .black],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
-                }
-
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.34),
-                        .init(color: .black.opacity(0.18), location: 0.58),
-                        .init(color: .black.opacity(0.94), location: 0.92),
-                        .init(color: .black, location: 1)
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0.10),
-                    endPoint: .bottom
-                )
-
-                LinearGradient(
-                    colors: [.black.opacity(0.86), .black.opacity(0.32), .clear],
-                    startPoint: .leading,
-                    endPoint: UnitPoint(x: 0.76, y: 0.5)
-                )
-
-                LinearGradient(
-                    colors: [.black.opacity(0.58), .clear],
-                    startPoint: .top,
-                    endPoint: UnitPoint(x: 0.5, y: 0.24)
-                )
-
-                VStack(alignment: .leading, spacing: usesCompactCinemaHeight ? 7 : 12) {
-                    Text(mode == .popular ? "全站焦点" : "NEWBILI 精选")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.4)
-                        .foregroundStyle(.white.opacity(0.72))
-
-                    Text(cell.display.title)
-                        .font(.system(size: heroTitleSize, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(usesCompactCinemaHeight ? 1 : 2)
-                        .minimumScaleFactor(0.72)
-                        .frame(maxWidth: min(containerWidth * 0.58, 680), alignment: .leading)
-
-                    Text(heroMetadata)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.76))
-                        .lineLimit(1)
-                        .frame(maxWidth: min(containerWidth * 0.54, 600), alignment: .leading)
-
-                    HStack(spacing: 12) {
-                        Label("播放", systemImage: "play.fill")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, usesCompactCinemaHeight ? 17 : 21)
-                            .frame(height: usesCompactCinemaHeight ? 40 : 46)
-                            .background(.white, in: Capsule())
-
-                        Label("详情", systemImage: "info.circle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, usesCompactCinemaHeight ? 15 : 18)
-                            .frame(height: usesCompactCinemaHeight ? 40 : 46)
-                            .background(
-                                reduceTransparency ? .black.opacity(0.76) : .black.opacity(0.34),
-                                in: Capsule()
-                            )
-                            .biliPlayerClearGlass(interactive: false, in: Capsule())
-                    }
-                    .padding(.top, usesCompactCinemaHeight ? 1 : 5)
-                }
-                .padding(.horizontal, heroHorizontalPadding)
-                .padding(.bottom, heroBottomPadding)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: heroHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .buttonStyle(
-            PressPreloadButtonStyle(
-                pressedScale: 0.992,
-                pressedOpacity: 0.96,
-                pressAnimation: .spring(duration: 0.28, bounce: 0.18)
-            ) {
-                actions.onVideoPress(cell.video)
-            }
-        )
-        .accessibilityLabel("焦点视频，\(cell.display.title)，\(cell.display.metadataSummaryText)")
-    }
-
-    private var heroHeight: CGFloat {
-        HomeCinematicWideLayoutPolicy.heroHeight(
-            containerWidth: containerWidth,
-            viewportHeight: viewportHeight
-        )
-    }
-
-    private var heroTitleSize: CGFloat {
-        if usesCompactCinemaHeight {
-            return min(max(containerWidth * 0.031, 26), 34)
-        }
-        return min(max(containerWidth * 0.038, 31), 52)
-    }
-
-    private var heroHorizontalPadding: CGFloat {
-        if usesCompactCinemaHeight {
-            return min(max(containerWidth * 0.045, 28), 44)
-        }
-        return min(max(containerWidth * 0.050, 38), 72)
-    }
-
-    private var heroBottomPadding: CGFloat {
-        usesCompactCinemaHeight ? 38 : min(max(heroHeight * 0.14, 62), 94)
-    }
-
-    private var heroMetadata: String {
-        [
-            cell.display.authorName,
-            cell.display.viewText.isEmpty ? nil : cell.display.viewText + "次观看",
-            cell.display.publishTimeText
-        ]
-        .compactMap { $0 }
-        .joined(separator: "  ·  ")
-    }
-
-    private var usesCompactCinemaHeight: Bool {
-        HomeCinematicWideLayoutPolicy.usesCompactCinemaHeight(viewportHeight: viewportHeight)
-    }
-
-    private func open() {
-        if let onVideoSelect = actions.onVideoSelect {
-            onVideoSelect(cell.video)
-        } else {
-            actions.onVideoTap(cell.video)
-        }
-    }
-}
 
 private struct HomeCinematicShelf: View {
     let title: String
-    let cells: [HomeVideoCellModel]
+    let cells: ArraySlice<HomeVideoCellModel>
     let mode: HomeFeedMode
     let cardWidth: CGFloat
     let horizontalPadding: CGFloat
@@ -674,92 +503,6 @@ private struct HomeCinematicLastSeenMarker: View {
     }
 }
 
-private struct HomeImmersiveHeroCard: View {
-    let cell: HomeVideoCellModel
-    let mode: HomeFeedMode
-    let actions: HomeFeedContentActions
-
-    var body: some View {
-        Button(action: open) {
-            ZStack(alignment: .bottomLeading) {
-                GeometryReader { geometry in
-                    CachedRemoteImage(
-                        url: cell.display.largeThumbnailURL(
-                            fitting: geometry.size,
-                            scale: 2,
-                            maximumPixelLength: 1_280
-                        ),
-                        targetPixelSize: 1_280,
-                        animatesAppearance: false
-                    ) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        LinearGradient(
-                            colors: [.pink.opacity(0.52), .purple.opacity(0.32), .blue.opacity(0.26)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
-                }
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.20), .black.opacity(0.88)],
-                    startPoint: UnitPoint(x: 0.5, y: 0.28),
-                    endPoint: .bottom
-                )
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(
-                        mode == .popular ? "正在流行" : "今日精选",
-                        systemImage: mode == .popular ? "chart.line.uptrend.xyaxis" : "sparkles"
-                    )
-                    .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(0.88))
-
-                    Text(cell.display.title)
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-
-                    Text(cell.display.metadataSummaryText)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.76))
-                        .lineLimit(2)
-                }
-                .padding(18)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 246)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(.white.opacity(0.16), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
-        }
-        .buttonStyle(.plain)
-        .buttonStyle(PressPreloadButtonStyle {
-            actions.onVideoPress(cell.video)
-        })
-        .onAppear {
-            actions.onCardAppear(cell.video, cell.index)
-        }
-        .onDisappear {
-            actions.onCardDisappear(cell.video)
-        }
-        .accessibilityLabel("精选视频，\(cell.display.title)，\(cell.display.metadataSummaryText)")
-    }
-
-    private func open() {
-        if let onVideoSelect = actions.onVideoSelect {
-            onVideoSelect(cell.video)
-        } else {
-            actions.onVideoTap(cell.video)
-        }
-    }
-}
 
 private struct HomeImmersiveFeedHeading: View {
     let mode: HomeFeedMode

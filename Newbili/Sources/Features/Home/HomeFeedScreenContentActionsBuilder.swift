@@ -15,6 +15,9 @@ struct HomeFeedScreenContentActionsBuilder {
             onVideoPress: beginPressedPreload,
             onCardAppear: recordExposure,
             onCardDisappear: recordCardDisappearance,
+            onFeaturedVideoTap: openFeaturedVideo,
+            onFeaturedCardAppear: recordFeaturedExposure,
+            onFeaturedCardDisappear: recordFeaturedDisappearance,
             onLoadMore: loadMoreIfNeeded,
             onRefreshFromLastSeenMarker: refreshFromLastSeenMarker
         )
@@ -39,6 +42,19 @@ struct HomeFeedScreenContentActionsBuilder {
         )
     }
 
+    private func openFeaturedVideo(_ item: HomeFeaturedItem) {
+        beginPressedPreload(item.cell.video)
+        if item.source == .currentFeed {
+            viewModel.recordRecommendClick(item.cell.video)
+        }
+        actionStore.card.openVideo(
+            item.cell.video,
+            onVideoSelect: launchConfiguration.onVideoSelect,
+            detailOpenActions: actionStore.detailOpen,
+            appendDetailPath: appendDetailPath
+        )
+    }
+
     private func recordExposure(_ video: VideoItem, index: Int) {
         viewModel.recordRecommendExposure(video, index: index)
         viewModel.scheduleImageLookahead(visibleIndex: index)
@@ -51,6 +67,22 @@ struct HomeFeedScreenContentActionsBuilder {
 
     private func recordCardDisappearance(_ video: VideoItem) {
         actionStore.preload.recordCardDisappearance(video)
+    }
+
+    private func recordFeaturedExposure(_ item: HomeFeaturedItem) {
+        if item.source == .currentFeed {
+            recordExposure(item.cell.video, index: item.cell.index)
+        } else {
+            actionStore.preload.recordVisibleCard(
+                item.cell.video,
+                index: 2,
+                context: preloadContext
+            )
+        }
+    }
+
+    private func recordFeaturedDisappearance(_ item: HomeFeaturedItem) {
+        recordCardDisappearance(item.cell.video)
     }
 
     private func loadMoreIfNeeded(_ video: VideoItem) async {

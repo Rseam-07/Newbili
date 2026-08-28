@@ -903,6 +903,18 @@ nonisolated struct BiliNetworkRetryPolicy: Sendable {
         retriesEmptyData: true
     )
 
+    /// Mutations such as coin, comment, danmaku and triple may have committed
+    /// even when their response is lost. Never replay them automatically; the
+    /// feature layer must reconcile the resulting state instead.
+    static let nonIdempotentMutation = BiliNetworkRetryPolicy(
+        label: "nonIdempotentMutation",
+        attempts: 1,
+        baseDelayNanoseconds: 0,
+        maxDelayNanoseconds: 0,
+        jitterNanoseconds: 0,
+        retryMethods: []
+    )
+
     static let image = BiliNetworkRetryPolicy(
         label: "image",
         attempts: 2,

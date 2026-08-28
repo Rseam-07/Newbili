@@ -208,9 +208,13 @@ final class SponsorBlockService: @unchecked Sendable {
         applyClientHeaders(to: &request)
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await BiliNetworkRetry.data(
+            session: session,
+            request: request,
+            policy: .api
+        )
         guard let httpResponse = response as? HTTPURLResponse else {
-            return []
+            throw BiliAPIError.api(code: -1, message: "Invalid HTTP response")
         }
         if httpResponse.statusCode == 404 {
             return []

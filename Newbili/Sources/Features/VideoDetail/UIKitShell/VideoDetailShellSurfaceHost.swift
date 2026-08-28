@@ -1620,6 +1620,13 @@ private struct SurfaceOnlyMoreControlsNavigationContent: View {
                 }
 
                 Toggle(isOn: Binding(
+                    get: { libraryStore.sponsorBlockEnabled },
+                    set: { libraryStore.setSponsorBlockEnabled($0) }
+                )) {
+                    Label("空降助手", systemImage: "forward.end")
+                }
+
+                Toggle(isOn: Binding(
                     get: { libraryStore.playerPerformanceOverlayEnabled },
                     set: { libraryStore.setPlayerPerformanceOverlayEnabled($0) }
                 )) {
@@ -2125,6 +2132,18 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
 
                         Divider().padding(.leading, 44)
                     }
+
+                    SurfaceOnlyLandscapeToggleRow(
+                        title: "空降助手",
+                        systemImage: "forward.end",
+                        accessory: libraryStore.sponsorBlockEnabled ? "已开启" : "已关闭",
+                        isOn: Binding(
+                            get: { libraryStore.sponsorBlockEnabled },
+                            set: { libraryStore.setSponsorBlockEnabled($0) }
+                        )
+                    )
+
+                    Divider().padding(.leading, 44)
 
                     SurfaceOnlyLandscapeToggleRow(
                         title: "播放性能诊断",

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -30,10 +31,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,19 +46,22 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.rseam07.newbili.account.AccountController
+import com.rseam07.newbili.account.AccountPanel
+import com.rseam07.newbili.ui.GlassRenderMode
+import com.rseam07.newbili.ui.GlassSurface
+import com.rseam07.newbili.ui.captureForGlass
+import com.rseam07.newbili.ui.currentGlassRenderMode
 
 private val Accent = Color(0xFFFF4B8B)
 private val DarkBackground = Color(0xFF0C0B12)
@@ -75,9 +81,27 @@ fun NewbiliAndroidApp() {
     val isDark = isSystemInDarkTheme()
     val background = if (isDark) DarkBackground else LightBackground
     val foreground = if (isDark) Color.White else Color(0xFF201A2A)
-    val backdrop = rememberLayerBackdrop()
+    val context = LocalContext.current.applicationContext
+    val accountScope = rememberCoroutineScope()
+    val accountController = remember(context, accountScope) {
+        AccountController(context = context, scope = accountScope)
+    }
+    DisposableEffect(accountController) {
+        accountController.initialize()
+        onDispose(accountController::dispose)
+    }
+
+    val interfacePreferences = remember(context) {
+        context.getSharedPreferences("newbili_android_interface", android.content.Context.MODE_PRIVATE)
+    }
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var dynamicTwoColumns by rememberSaveable { mutableStateOf(false) }
+    var glassEnabled by rememberSaveable {
+        mutableStateOf(interfacePreferences.getBoolean("liquid_glass_enabled", true))
+    }
+    val glassRenderMode = currentGlassRenderMode(glassEnabled)
+    val navigationBackdrop = rememberLayerBackdrop()
+    val cardBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(Modifier.fillMaxSize().background(background)) {
         val expanded = maxWidth >= 720.dp
@@ -85,20 +109,34 @@ fun NewbiliAndroidApp() {
         Box(
             Modifier
                 .fillMaxSize()
-                .layerBackdrop(backdrop)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(Accent.copy(alpha = 0.22f), Color.Transparent),
-                        center = Offset(120f, 180f),
-                        radius = 900f
-                    )
-                )
+                .captureForGlass(navigationBackdrop, glassRenderMode)
         ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .captureForGlass(cardBackdrop, glassRenderMode)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(Accent.copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(120f, 180f),
+                            radius = 900f
+                        )
+                    )
+            )
             RootContent(
                 selectedIndex = selectedIndex,
                 expanded = expanded,
                 dynamicTwoColumns = dynamicTwoColumns,
                 onDynamicLayoutChange = { dynamicTwoColumns = it },
+                glassEnabled = glassEnabled,
+                onGlassEnabledChange = { enabled ->
+                    glassEnabled = enabled
+                    interfacePreferences.edit().putBoolean("liquid_glass_enabled", enabled).apply()
+                },
+                glassRenderMode = glassRenderMode,
+                cardBackdrop = cardBackdrop,
+                accountController = accountController,
+                isDark = isDark,
                 foreground = foreground,
                 modifier = Modifier
                     .fillMaxSize()
@@ -110,7 +148,9 @@ fun NewbiliAndroidApp() {
 
         if (expanded) {
             GlassSideRail(
-                backdrop = backdrop,
+                backdrop = navigationBackdrop,
+                renderMode = glassRenderMode,
+                isDark = isDark,
                 selectedIndex = selectedIndex,
                 onSelected = { selectedIndex = it },
                 foreground = foreground,
@@ -122,7 +162,9 @@ fun NewbiliAndroidApp() {
             )
         } else {
             GlassBottomBar(
-                backdrop = backdrop,
+                backdrop = navigationBackdrop,
+                renderMode = glassRenderMode,
+                isDark = isDark,
                 selectedIndex = selectedIndex,
                 onSelected = { selectedIndex = it },
                 foreground = foreground,
@@ -143,13 +185,30 @@ private fun RootContent(
     expanded: Boolean,
     dynamicTwoColumns: Boolean,
     onDynamicLayoutChange: (Boolean) -> Unit,
+    glassEnabled: Boolean,
+    onGlassEnabledChange: (Boolean) -> Unit,
+    glassRenderMode: GlassRenderMode,
+    cardBackdrop: Backdrop,
+    accountController: AccountController,
+    isDark: Boolean,
     foreground: Color,
     modifier: Modifier
 ) {
     when (selectedIndex) {
         0 -> HomeScreen(expanded, foreground, modifier)
         1 -> DynamicScreen(expanded || dynamicTwoColumns, foreground, modifier)
-        2 -> SettingsScreen(dynamicTwoColumns, onDynamicLayoutChange, foreground, modifier)
+        2 -> SettingsScreen(
+            dynamicTwoColumns = dynamicTwoColumns,
+            onDynamicLayoutChange = onDynamicLayoutChange,
+            glassEnabled = glassEnabled,
+            onGlassEnabledChange = onGlassEnabledChange,
+            glassRenderMode = glassRenderMode,
+            cardBackdrop = cardBackdrop,
+            accountController = accountController,
+            isDark = isDark,
+            foreground = foreground,
+            modifier = modifier
+        )
         else -> SearchScreen(foreground, modifier)
     }
 }
@@ -203,33 +262,106 @@ private fun DynamicScreen(twoColumns: Boolean, foreground: Color, modifier: Modi
 private fun SettingsScreen(
     dynamicTwoColumns: Boolean,
     onDynamicLayoutChange: (Boolean) -> Unit,
+    glassEnabled: Boolean,
+    onGlassEnabledChange: (Boolean) -> Unit,
+    glassRenderMode: GlassRenderMode,
+    cardBackdrop: Backdrop,
+    accountController: AccountController,
+    isDark: Boolean,
     foreground: Color,
     modifier: Modifier
 ) {
     Column(modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {
-        Header("我的", "Android 适配设置", foreground)
-        Spacer(Modifier.height(24.dp))
-        Row(
-            Modifier
+        Header("我的", "账号与显示", foreground)
+        Spacer(Modifier.height(18.dp))
+        LazyColumn(
+            modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
-                .clickable { onDynamicLayoutChange(!dynamicTwoColumns) }
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(bottom = 28.dp)
         ) {
-            Column(Modifier.weight(1f)) {
-                LabelText("动态强制双栏", foreground, 16.sp, FontWeight.SemiBold)
-                LabelText("宽屏默认双栏；这里可让窄屏也使用双栏。", foreground.copy(alpha = 0.62f), 13.sp)
+            item(key = "account") {
+                AccountPanel(
+                    controller = accountController,
+                    backdrop = cardBackdrop,
+                    glassRenderMode = glassRenderMode,
+                    isDarkTheme = isDark,
+                    foreground = foreground,
+                    accent = Accent
+                )
             }
-            Box(
-                Modifier
-                    .size(width = 50.dp, height = 30.dp)
-                    .background(if (dynamicTwoColumns) Accent else foreground.copy(alpha = 0.18f), CircleShape)
-                    .padding(4.dp),
-                contentAlignment = if (dynamicTwoColumns) Alignment.CenterEnd else Alignment.CenterStart
-            ) {
-                Box(Modifier.size(22.dp).background(Color.White, CircleShape))
+            item(key = "display-settings") {
+                GlassSurface(
+                    backdrop = cardBackdrop,
+                    renderMode = glassRenderMode,
+                    isDarkTheme = isDark,
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+                    blurRadius = 6.dp,
+                    lensRadius = 12.dp
+                ) {
+                    Column {
+                        SettingsToggleRow(
+                            title = "液态玻璃效果",
+                            subtitle = when (glassRenderMode) {
+                                GlassRenderMode.Backdrop -> "Backdrop 已启用；Android 12 使用模糊玻璃，13 及以上增加折射。"
+                                GlassRenderMode.Translucent -> "当前使用透明兼容模式，保证低性能设备清晰可用。"
+                            },
+                            checked = glassEnabled,
+                            foreground = foreground,
+                            onClick = { onGlassEnabledChange(!glassEnabled) }
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(foreground.copy(alpha = 0.08f))
+                        )
+                        SettingsToggleRow(
+                            title = "动态强制双栏",
+                            subtitle = "宽屏默认双栏；这里可让窄屏也使用双栏。",
+                            checked = dynamicTwoColumns,
+                            foreground = foreground,
+                            onClick = { onDynamicLayoutChange(!dynamicTwoColumns) }
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    foreground: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            LabelText(title, foreground, 16.sp, FontWeight.SemiBold)
+            Spacer(Modifier.height(3.dp))
+            LabelText(subtitle, foreground.copy(alpha = 0.62f), 12.sp, maxLines = 2)
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(
+            Modifier
+                .size(width = 50.dp, height = 30.dp)
+                .background(if (checked) Accent else foreground.copy(alpha = 0.18f), CircleShape)
+                .padding(4.dp),
+            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+        ) {
+            Box(Modifier.size(22.dp).background(Color.White, CircleShape))
         }
     }
 }
@@ -313,22 +445,30 @@ private fun DynamicCard(title: String, foreground: Color) {
 @Composable
 private fun GlassBottomBar(
     backdrop: Backdrop,
+    renderMode: GlassRenderMode,
+    isDark: Boolean,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
     foreground: Color,
     modifier: Modifier
 ) {
-    Row(
-        modifier.drawBackdrop(
-            backdrop = backdrop,
-            shape = { Capsule() },
-            effects = { vibrancy(); blur(8.dp.toPx()); lens(20.dp.toPx(), 24.dp.toPx()) },
-            onDrawSurface = { drawRect(Color(0x6614131A)) }
-        ).padding(5.dp),
-        verticalAlignment = Alignment.CenterVertically
+    GlassSurface(
+        backdrop = backdrop,
+        renderMode = renderMode,
+        isDarkTheme = isDark,
+        shape = Capsule(),
+        modifier = modifier,
+        contentPadding = PaddingValues(5.dp),
+        blurRadius = 8.dp,
+        lensRadius = 20.dp
     ) {
-        RootDestinations.forEachIndexed { index, destination ->
-            NavigationButton(destination.shortTitle, index == selectedIndex, foreground) { onSelected(index) }
+        Row(
+            Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RootDestinations.forEachIndexed { index, destination ->
+                NavigationButton(destination.shortTitle, index == selectedIndex, foreground) { onSelected(index) }
+            }
         }
     }
 }
@@ -336,26 +476,34 @@ private fun GlassBottomBar(
 @Composable
 private fun GlassSideRail(
     backdrop: Backdrop,
+    renderMode: GlassRenderMode,
+    isDark: Boolean,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
     foreground: Color,
     modifier: Modifier
 ) {
-    Column(
-        modifier.drawBackdrop(
-            backdrop = backdrop,
-            shape = { Capsule() },
-            effects = { vibrancy(); blur(10.dp.toPx()); lens(24.dp.toPx(), 30.dp.toPx()) },
-            onDrawSurface = { drawRect(Color(0x6614131A)) }
-        ).padding(vertical = 12.dp, horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    GlassSurface(
+        backdrop = backdrop,
+        renderMode = renderMode,
+        isDarkTheme = isDark,
+        shape = Capsule(),
+        modifier = modifier,
+        contentPadding = PaddingValues(vertical = 12.dp, horizontal = 6.dp),
+        blurRadius = 10.dp,
+        lensRadius = 24.dp
     ) {
-        NewbiliMark(Modifier.size(42.dp))
-        Spacer(Modifier.height(20.dp))
-        RootDestinations.forEachIndexed { index, destination ->
-            RailButton(destination.shortTitle, index == selectedIndex, foreground) { onSelected(index) }
-            Spacer(Modifier.height(8.dp))
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            NewbiliMark(Modifier.size(42.dp))
+            Spacer(Modifier.height(20.dp))
+            RootDestinations.forEachIndexed { index, destination ->
+                RailButton(destination.shortTitle, index == selectedIndex, foreground) { onSelected(index) }
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -415,16 +563,22 @@ private fun NewbiliMark(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LabelText(
+internal fun LabelText(
     text: String,
     color: Color,
     size: androidx.compose.ui.unit.TextUnit,
     weight: FontWeight = FontWeight.Normal,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    textAlign: TextAlign = TextAlign.Start
 ) {
     BasicText(
         text = text,
-        style = TextStyle(color = color, fontSize = size, fontWeight = weight),
+        style = TextStyle(
+            color = color,
+            fontSize = size,
+            fontWeight = weight,
+            textAlign = textAlign
+        ),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis
     )

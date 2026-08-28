@@ -3,6 +3,11 @@ import XCTest
 @testable import bili
 
 final class SponsorBlockServiceTests: XCTestCase {
+    override func tearDown() {
+        SponsorBlockRetryURLProtocol.reset()
+        super.tearDown()
+    }
+
     func testDecodesAndSortsOnlySkippableSegments() throws {
         let data = try XCTUnwrap(
             """
@@ -66,6 +71,40 @@ final class SponsorBlockServiceTests: XCTestCase {
         XCTAssertNil(SponsorBlockPreferences(customServerURL: "not a url").serverURL)
     }
 
+    func testSegmentGETRetriesTransientHTTPFailureAndKeeps404Empty() async throws {
+        let session = makeRetrySession()
+        let service = SponsorBlockService(
+            baseURL: try XCTUnwrap(URL(string: "https://sponsor-block.test")),
+            session: session
+        )
+        SponsorBlockRetryURLProtocol.configure(statusCodes: [503, 200])
+
+        let segments = try await service.fetchSkipSegments(bvid: "BV-retry", cid: 11)
+
+        XCTAssertEqual(segments.map(\.id), ["retry-segment"])
+        XCTAssertEqual(SponsorBlockRetryURLProtocol.requestCount, 2)
+
+        SponsorBlockRetryURLProtocol.configure(statusCodes: [404])
+        let missingSegments = try await service.fetchSkipSegments(bvid: "BV-missing", cid: 22)
+
+        XCTAssertTrue(missingSegments.isEmpty)
+        XCTAssertEqual(SponsorBlockRetryURLProtocol.requestCount, 1)
+    }
+
+    func testViewedPOSTIsNotAutomaticallyReplayed() async throws {
+        let session = makeRetrySession()
+        let service = SponsorBlockService(
+            baseURL: try XCTUnwrap(URL(string: "https://sponsor-block.test")),
+            session: session
+        )
+        SponsorBlockRetryURLProtocol.configure(statusCodes: [503, 200])
+
+        await service.reportViewed(uuid: "one-shot")
+
+        XCTAssertEqual(SponsorBlockRetryURLProtocol.requestCount, 1)
+        XCTAssertEqual(SponsorBlockRetryURLProtocol.requestMethods, ["POST"])
+    }
+
     @MainActor
     func testLibraryStorePersistsSponsorBlockPreferencesAndAnimeMarks() throws {
         let suiteName = "SponsorBlockServiceTests.\(UUID().uuidString)"
@@ -89,5 +128,94 @@ final class SponsorBlockServiceTests: XCTestCase {
 
         restored.setVideoMarkedAsAnime("bv1pj411h7jl", isMarked: false)
         XCTAssertFalse(LibraryStore(userDefaults: defaults).isVideoMarkedAsAnime("BV1PJ411H7JL"))
+    }
+
+    private func makeRetrySession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SponsorBlockRetryURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+}
+
+private nonisolated final class SponsorBlockRetryURLProtocol: URLProtocol, @unchecked Sendable {
+    private static let state = SponsorBlockRetryURLProtocolState()
+
+    static var requestCount: Int { state.requestCount }
+    static var requestMethods: [String] { state.requestMethods }
+
+    static func configure(statusCodes: [Int]) {
+        state.configure(statusCodes: statusCodes)
+    }
+
+    static func reset() {
+        state.configure(statusCodes: [])
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "sponsor-block.test"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        let statusCode = Self.state.beginRequest(method: request.httpMethod ?? "GET")
+        let data: Data
+        if statusCode == 200, request.httpMethod != "POST" {
+            data = Data(
+                "[{\"cid\":\"11\",\"category\":\"sponsor\",\"segment\":[2,8],\"UUID\":\"retry-segment\"}]".utf8
+            )
+        } else {
+            data = Data("temporary".utf8)
+        }
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private nonisolated final class SponsorBlockRetryURLProtocolState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var statusCodes = [Int]()
+    private var recordedRequestMethods = [String]()
+
+    var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedRequestMethods.count
+    }
+
+    var requestMethods: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedRequestMethods
+    }
+
+    func configure(statusCodes: [Int]) {
+        lock.lock()
+        self.statusCodes = statusCodes
+        recordedRequestMethods = []
+        lock.unlock()
+    }
+
+    func beginRequest(method: String) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        recordedRequestMethods.append(method)
+        guard !statusCodes.isEmpty else { return 500 }
+        return statusCodes.removeFirst()
     }
 }

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct MineAccountLibrarySection: View {
-    @ObservedObject var viewModel: MineViewModel
     @ObservedObject var accountMessageViewModel: AccountMessageCenterViewModel
     let isLoggedIn: Bool
     let onOpenRoute: (MineOverlayRoute) -> Void

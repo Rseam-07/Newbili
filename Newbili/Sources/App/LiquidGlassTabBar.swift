@@ -1,10 +1,10 @@
 import SwiftUI
 
-private struct RootNavigationTitleHiddenKey: EnvironmentKey {
+struct RootNavigationTitleHiddenKey: EnvironmentKey {
     static let defaultValue = Binding<Bool>.constant(false)
 }
 
-private extension EnvironmentValues {
+extension EnvironmentValues {
     var rootNavigationTitleHidden: Binding<Bool> {
         get { self[RootNavigationTitleHiddenKey.self] }
         set { self[RootNavigationTitleHiddenKey.self] = newValue }
@@ -156,6 +156,7 @@ extension View {
 
 private struct HomeProgressiveTopScrollEdgeEffect: ViewModifier {
     @Environment(\.rootNavigationTitleHidden) private var rootNavigationTitleHidden
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -166,8 +167,12 @@ private struct HomeProgressiveTopScrollEdgeEffect: ViewModifier {
                 geometry.contentOffset.y + geometry.contentInsets.top > 18
             } action: { _, isHidden in
                 guard rootNavigationTitleHidden.wrappedValue != isHidden else { return }
-                withAnimation(.smooth(duration: 0.22)) {
+                if reduceMotion {
                     rootNavigationTitleHidden.wrappedValue = isHidden
+                } else {
+                    withAnimation(.smooth(duration: 0.22)) {
+                        rootNavigationTitleHidden.wrappedValue = isHidden
+                    }
                 }
             }
     }

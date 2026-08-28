@@ -5,6 +5,7 @@ struct DynamicSeparatedFeedCardContent: View {
     let display: DynamicFeedCardDisplayModel
     let contentWidth: CGFloat?
     @Binding var isTextExpanded: Bool
+    let likeController: DynamicLikeController
     let onShowComments: () -> Void
 
     var body: some View {
@@ -50,8 +51,8 @@ struct DynamicSeparatedFeedCardContent: View {
             }
 
             DynamicFeedCardActionSection(
-                item: item,
                 display: display,
+                likeController: likeController,
                 onShowComments: onShowComments
             )
         }

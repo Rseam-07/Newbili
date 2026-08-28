@@ -1,14 +1,12 @@
 import SwiftUI
 
 struct MineLoggedInHeaderView: View {
-    let avatarURLString: String?
-    let username: String
-    let uidText: String
-    let level: Int?
+    let display: MineAccountProfileDisplayModel
+    let isRefreshing: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            AvatarRemoteImage(urlString: avatarURLString, pixelSize: 128) {
+        HStack(alignment: .top, spacing: 12) {
+            AvatarRemoteImage(urlString: display.avatarURLString, pixelSize: 128) {
                 Image(systemName: "person.crop.circle.fill")
                     .resizable()
                     .foregroundStyle(.secondary)
@@ -18,11 +16,12 @@ struct MineLoggedInHeaderView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(username)
+                    Text(display.username)
                         .font(.headline)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
 
-                    if let level {
+                    if let level = display.level {
                         Text("LV\(level)")
                             .font(.caption2.weight(.bold))
                             .monospacedDigit()
@@ -36,13 +35,55 @@ struct MineLoggedInHeaderView: View {
                             }
                             .accessibilityLabel("账号等级 \(level) 级")
                     }
+
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .accessibilityLabel("正在更新账号资料")
+                    }
                 }
-                Text(uidText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                metadata
+
+                if let progress = display.experienceProgress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .frame(maxWidth: 240)
+                        .accessibilityLabel("等级经验进度")
+                        .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var metadata: some View {
+        if let experienceText = display.experienceText {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    metadataText(display.uidText)
+                    metadataText(experienceText)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    metadataText(display.uidText)
+                    metadataText(experienceText)
+                }
+            }
+        } else {
+            metadataText(display.uidText)
+        }
+    }
+
+    private func metadataText(_ value: String) -> some View {
+        Text(value)
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func levelColor(_ level: Int) -> Color {

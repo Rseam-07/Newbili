@@ -657,6 +657,228 @@ final class VideoListenModeTests: XCTestCase {
     }
 
     @MainActor
+    func testCoveredDetailNavigationReusesTheSamePlayerSessionOnReturn() async {
+        let defaults = makeUserDefaults()
+        let libraryStore = LibraryStore(userDefaults: defaults)
+        let video = makeVideo(bvid: "BV-covered-session", pages: [])
+        let viewModel = makeViewModel(
+            video: video,
+            libraryStore: libraryStore,
+            playbackSessionStore: VideoListenPlaybackSessionStore()
+        )
+        let engine = PlayerLifecycleEngineSpy(isPlaying: true)
+        let player = PlayerStateViewModel(
+            videoURL: URL(string: "https://example.com/video.m4s"),
+            audioURL: URL(string: "https://example.com/audio.m4s"),
+            title: "路由遮盖复用测试",
+            referer: "https://www.bilibili.com",
+            engine: engine
+        )
+        let surface = VideoSurfaceContainerView()
+        player.attachSurface(surface, prefersNativePlaybackControls: false)
+        player.setPlaybackIntent(true)
+        let variant = reusableTestVariant()
+        viewModel.playVariants = [variant]
+        viewModel.selectedPlayVariant = variant
+        viewModel.stablePlayerViewModel = player
+        viewModel.stablePlayerIdentity = viewModel.playerIdentity(for: variant)
+        let playbackSession = viewModel.playbackSession
+        defer { player.stop() }
+
+        viewModel.suspendPlaybackForCoveredNavigation()
+
+        XCTAssertTrue(viewModel.stablePlayerViewModel === player)
+        XCTAssertTrue(playbackSession.activePlayer === player)
+        XCTAssertFalse(player.isTerminated)
+        XCTAssertNotNil(player.pendingNavigationResumeState())
+        XCTAssertTrue(viewModel.hasPendingNavigationInterruption)
+
+        await viewModel.resumePlaybackAfterCoveredNavigationIfNeeded()
+
+        XCTAssertTrue(viewModel.stablePlayerViewModel === player)
+        XCTAssertTrue(playbackSession.activePlayer === player)
+        XCTAssertFalse(player.isTerminated)
+        XCTAssertNil(player.pendingNavigationResumeState())
+        XCTAssertFalse(viewModel.hasPendingNavigationInterruption)
+        XCTAssertEqual(engine.temporaryAudioSuppressionValues.last, false)
+    }
+
+    @MainActor
+    func testEvictedCoveredDetailRebuildsPlayerAtSavedPosition() async throws {
+        let coordinator = ActivePlaybackCoordinator.shared
+        coordinator.stopActivePlayback()
+        let defaults = makeUserDefaults()
+        let libraryStore = LibraryStore(userDefaults: defaults)
+        libraryStore.setVideoDetailAutoplayEnabled(false)
+        let video = makeVideo(bvid: "BV-covered-evicted", pages: [])
+        let viewModel = makeViewModel(
+            video: video,
+            libraryStore: libraryStore,
+            playbackSessionStore: VideoListenPlaybackSessionStore()
+        )
+        let engine = PlayerLifecycleEngineSpy(isPlaying: true)
+        engine.snapshotTime = 47.25
+        let evictedPlayer = PlayerStateViewModel(
+            videoURL: URL(string: "https://example.com/video.m4s"),
+            audioURL: URL(string: "https://example.com/audio.m4s"),
+            title: "深层返回重建测试",
+            referer: "https://www.bilibili.com",
+            engine: engine
+        )
+        let surface = VideoSurfaceContainerView()
+        evictedPlayer.attachSurface(surface, prefersNativePlaybackControls: false)
+        evictedPlayer.setPlaybackIntent(true)
+        coordinator.activate(evictedPlayer)
+        let variant = reusableTestVariant()
+        viewModel.playVariants = [variant]
+        viewModel.selectedPlayVariant = variant
+        viewModel.stablePlayerViewModel = evictedPlayer
+        viewModel.stablePlayerIdentity = viewModel.playerIdentity(for: variant)
+        viewModel.state = .loaded
+        viewModel.suspendPlaybackForCoveredNavigation()
+
+        let coveringPlayers = (0..<2).map { index in
+            PlayerStateViewModel(
+                videoURL: nil,
+                audioURL: nil,
+                title: "覆盖层 \(index)",
+                referer: "https://www.bilibili.com/video/BV-cover-\(index)"
+            )
+        }
+        defer {
+            viewModel.stablePlayerViewModel?.stop()
+            coveringPlayers.forEach { $0.stop() }
+            coordinator.stopActivePlayback()
+        }
+        coveringPlayers.forEach { coordinator.activate($0) }
+
+        XCTAssertTrue(evictedPlayer.isTerminated)
+        XCTAssertTrue(viewModel.stablePlayerViewModel === evictedPlayer)
+        XCTAssertEqual(
+            try XCTUnwrap(viewModel.pendingNavigationResumeTime),
+            47.25,
+            accuracy: 0.001
+        )
+        XCTAssertTrue(viewModel.shouldResumePlaybackAfterCancelledNavigation)
+
+        await viewModel.resumePlaybackAfterCoveredNavigationIfNeeded()
+
+        let rebuiltPlayer = try XCTUnwrap(viewModel.stablePlayerViewModel)
+        XCTAssertFalse(rebuiltPlayer === evictedPlayer)
+        XCTAssertFalse(rebuiltPlayer.isTerminated)
+        XCTAssertEqual(
+            try XCTUnwrap(viewModel.resumeDiagnostics.targetTime),
+            47.25,
+            accuracy: 0.001
+        )
+        XCTAssertTrue(rebuiltPlayer.wantsAutoplay)
+        XCTAssertTrue(viewModel.hasReusablePlaybackSessionForCurrentContext)
+        XCTAssertNil(viewModel.pendingNavigationResumeTime)
+        XCTAssertFalse(viewModel.hasPendingNavigationInterruption)
+    }
+
+    @MainActor
+    func testCoveredNavigationDiscardsStablePlayerWhenPlaybackCredentialChanges() async throws {
+        let defaults = makeUserDefaults()
+        let libraryStore = LibraryStore(userDefaults: defaults)
+        let video = makeVideo(bvid: "BV-covered-account-change", pages: [])
+        let viewModel = makeViewModel(
+            video: video,
+            libraryStore: libraryStore,
+            playbackSessionStore: VideoListenPlaybackSessionStore()
+        )
+        try viewModel.sessionStore.saveLoginCookies([
+            "DedeUserID": "1001",
+            "SESSDATA": "first-session",
+            "bili_jct": "first-csrf",
+        ])
+
+        let variant = reusableTestVariant()
+        let player = PlayerStateViewModel(
+            videoURL: variant.videoURL,
+            audioURL: variant.audioURL,
+            title: "账号上下文恢复测试",
+            referer: "https://www.bilibili.com",
+            engine: PlayerLifecycleEngineSpy(isPlaying: true)
+        )
+        let surface = VideoSurfaceContainerView()
+        player.attachSurface(surface, prefersNativePlaybackControls: false)
+        player.setPlaybackIntent(true)
+        viewModel.playVariants = [variant]
+        viewModel.selectedPlayVariant = variant
+        viewModel.stablePlayerViewModel = player
+        viewModel.stablePlayerIdentity = viewModel.playerIdentity(for: variant)
+        viewModel.suspendPlaybackForCoveredNavigation()
+        viewModel.state = .loading
+
+        try viewModel.sessionStore.saveLoginCookies([
+            "DedeUserID": "1001",
+            "SESSDATA": "second-session",
+            "bili_jct": "second-csrf",
+        ])
+        XCTAssertFalse(viewModel.hasReusablePlaybackSessionForCurrentContext)
+
+        await viewModel.resumePlaybackAfterCoveredNavigationIfNeeded()
+
+        XCTAssertTrue(player.isTerminated)
+        XCTAssertNil(viewModel.stablePlayerViewModel)
+        XCTAssertNil(viewModel.stablePlayerIdentity)
+        XCTAssertTrue(viewModel.playVariants.isEmpty)
+        XCTAssertNil(viewModel.selectedPlayVariant)
+        guard case .failed = viewModel.playURLState else {
+            return XCTFail("账号上下文变化后应使用当前凭证重新请求播放地址")
+        }
+    }
+
+    @MainActor
+    func testMiniPlayerDetailOpenHandsBackTheExistingViewModel() throws {
+        let defaults = makeUserDefaults()
+        let libraryStore = LibraryStore(userDefaults: defaults)
+        let video = makeVideo(bvid: "BV-mini-session", pages: [])
+        let viewModel = makeViewModel(
+            video: video,
+            libraryStore: libraryStore,
+            playbackSessionStore: VideoListenPlaybackSessionStore()
+        )
+        let variant = reusableTestVariant()
+        let player = PlayerStateViewModel(
+            videoURL: variant.videoURL,
+            audioURL: variant.audioURL,
+            title: "听视频会话复用测试",
+            referer: "https://www.bilibili.com",
+            playbackContentMode: .audioOnly,
+            engine: PlayerLifecycleEngineSpy(isPlaying: true)
+        )
+        viewModel.playbackContentMode = .audioOnly
+        viewModel.playVariants = [variant]
+        viewModel.selectedPlayVariant = variant
+        viewModel.stablePlayerViewModel = player
+        viewModel.stablePlayerIdentity = viewModel.playerIdentity(for: variant)
+
+        let coordinator = AudioMiniPlayerCoordinator()
+        coordinator.adopt(viewModel)
+        defer {
+            coordinator.release(viewModel, stopsPlayback: false)
+            player.stop()
+        }
+
+        let routeVideo = try XCTUnwrap(coordinator.prepareForDetailOpen())
+        coordinator.stopUnlessPreparedForDetailOpen(routeVideo)
+        let restored = try XCTUnwrap(coordinator.takePreparedDetailViewModel(
+            for: routeVideo,
+            api: viewModel.api,
+            libraryStore: libraryStore,
+            sessionStore: viewModel.sessionStore,
+            sponsorBlockService: viewModel.sponsorBlockService,
+            playbackOptions: viewModel.playbackOptions
+        ))
+
+        XCTAssertTrue(restored === viewModel)
+        XCTAssertTrue(restored.stablePlayerViewModel === player)
+        XCTAssertTrue(restored.playbackSession === viewModel.playbackSession)
+    }
+
+    @MainActor
     func testUserPauseDuringInterruptionCancelsAutomaticResume() async {
         let engine = PlayerLifecycleEngineSpy(isPlaying: false)
         let player = PlayerStateViewModel(
@@ -877,6 +1099,23 @@ final class VideoListenModeTests: XCTestCase {
             cid: pages.first?.cid,
             pages: pages,
             dimension: nil
+        )
+    }
+
+    private func reusableTestVariant() -> PlayVariant {
+        PlayVariant(
+            quality: 80,
+            title: "1080P",
+            videoURL: URL(string: "https://example.com/video.m4s"),
+            audioURL: URL(string: "https://example.com/audio.m4s"),
+            videoStream: nil,
+            audioStream: nil,
+            codec: "AVC",
+            resolution: "1920x1080",
+            frameRate: "30",
+            bandwidth: 2_000_000,
+            isHDR: false,
+            badge: nil
         )
     }
 

@@ -529,7 +529,13 @@ final class DanmakuAnimationOverlayView: UIView {
             .filter { entry in
                 let layer = entry.label.layer.presentation() ?? entry.label.layer
                 guard layer.opacity > 0.05 else { return false }
-                return layer.frame.insetBy(dx: -8, dy: -6).contains(point)
+                let frame = layer.frame
+                let horizontalExpansion = max((44 - frame.width) / 2, 8)
+                let verticalExpansion = max((44 - frame.height) / 2, 6)
+                return frame.insetBy(
+                    dx: -horizontalExpansion,
+                    dy: -verticalExpansion
+                ).contains(point)
             }
             .max { lhs, rhs in lhs.createdAt < rhs.createdAt }
     }

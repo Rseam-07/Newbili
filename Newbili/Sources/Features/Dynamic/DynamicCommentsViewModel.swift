@@ -12,6 +12,7 @@ final class DynamicCommentsViewModel: ObservableObject {
     @Published var state: LoadingState = .idle
     @Published var loadMoreState: LoadingState = .idle
     @Published var selectedSort: CommentSort = .hot
+    @Published private(set) var submissionState: LoadingState = .idle
     let replyStore: DynamicCommentReplyStore
 
     private let item: DynamicFeedItem
@@ -64,6 +65,25 @@ final class DynamicCommentsViewModel: ObservableObject {
     func loadMore() async {
         guard !state.isLoading, !loadMoreState.isLoading, !commentsEnd else { return }
         await loadPage(presentsErrors: false, emptyPageSkipLimit: 2)
+    }
+
+    func submitComment(_ message: String) async -> Bool {
+        guard !submissionState.isLoading else { return false }
+        guard let oid = commentOID, let type = commentType else {
+            submissionState = .failed("这条动态没有返回评论入口")
+            return false
+        }
+
+        submissionState = .loading
+        do {
+            try await api.submitComment(oid: oid, type: type, message: message)
+            await reload()
+            submissionState = .loaded
+            return true
+        } catch {
+            submissionState = .failed(error.localizedDescription)
+            return false
+        }
     }
 
     private var commentOID: String? {

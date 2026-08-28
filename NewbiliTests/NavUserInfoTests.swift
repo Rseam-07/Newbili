@@ -25,7 +25,8 @@ final class NavUserInfoTests: XCTestCase {
         XCTAssertEqual(user.currentLevel, 6)
         XCTAssertEqual(user.levelInfo?.currentExperience, 40000)
         XCTAssertNil(user.levelInfo?.nextLevelExperience)
-        XCTAssertNil(user.levelInfo?.progress)
+        XCTAssertEqual(user.levelInfo?.effectiveNextLevelExperience, 40000)
+        XCTAssertEqual(user.levelInfo?.progress, 1)
     }
 
     func testNavUserAcceptsStringEncodedLoginUIDAndLevelFields() throws {

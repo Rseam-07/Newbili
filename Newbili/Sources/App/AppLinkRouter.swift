@@ -445,8 +445,18 @@ nonisolated enum AppLinkRouter {
         )
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            return response.url
+            let (_, response) = try await BiliNetworkRetry.data(
+                session: .shared,
+                request: request,
+                priority: URLSessionTask.highPriority,
+                policy: .api
+            )
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...399).contains(httpResponse.statusCode)
+            else {
+                return nil
+            }
+            return httpResponse.url
         } catch {
             return nil
         }

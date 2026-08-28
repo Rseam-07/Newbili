@@ -840,6 +840,16 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         playbackContentMode == .audioOnly
     }
 
+    /// Only ordinary recorded-video detail players participate in the warm
+    /// navigation budget. Listen-mode playback is owned by the audio mini
+    /// player, while live and PiP sessions have independent system lifetimes.
+    var participatesInVisualPlaybackRetentionBudget: Bool {
+        !isTerminated
+            && !isLiveStream
+            && !isAudioOnlyPlayback
+            && !isPictureInPictureActive
+    }
+
     fileprivate var isNowPlayingLiveStream: Bool {
         isLiveStream
     }
@@ -2805,6 +2815,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         ActivePlaybackCoordinator.shared.activate(self)
         engine.setVolume(navigationAudioSuspension.volume)
         engine.setMuted(navigationAudioSuspension.isMuted)
+        engine.setTemporaryAudioSuppressed(false)
         if navigationAudioSuspension.resumeTime > 0.25 {
             applyStartupResumeTime(navigationAudioSuspension.resumeTime, reason: "cancelledNavigation")
         }

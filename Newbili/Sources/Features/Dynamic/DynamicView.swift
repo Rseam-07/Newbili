@@ -48,6 +48,7 @@ private struct DynamicContentRoot: View {
         .onChange(of: DynamicFeedAccountContext(
             mainCredentialVersion: sessionStore.playbackCredentialVersion,
             dynamicFeedCredentialVersion: sessionStore.dynamicFeedAccountCredentialVersion,
+            interactionCredentialVersion: sessionStore.interactionAccountCredentialVersion,
             multiAccountExperimentEnabled: libraryStore.multiAccountExperimentEnabled
         )) { _, _ in
             holder.reconfigure(
@@ -62,6 +63,7 @@ private struct DynamicContentRoot: View {
 private struct DynamicFeedAccountContext: Equatable {
     let mainCredentialVersion: Int
     let dynamicFeedCredentialVersion: Int
+    let interactionCredentialVersion: Int
     let multiAccountExperimentEnabled: Bool
 }
 

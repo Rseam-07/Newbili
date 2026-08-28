@@ -129,7 +129,7 @@ struct MinePlaybackToolsSection: View {
             preferences.behavior(for: $0.rawValue) == .skipManually
         }.count
         if manualCount > 0 {
-            return "(manualCount) 类手动处理 · 其余分类可分别设置"
+            return "\(manualCount) 类手动处理 · 其余分类可分别设置"
         }
         return "11 类片段可分别设置跳过方式"
     }

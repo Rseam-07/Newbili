@@ -42,6 +42,15 @@ struct VideoDetailSummaryCardActions {
         }
     }
 
+    func triple() {
+        Task { [weak viewModel = viewModelBox.viewModel] in
+            guard let viewModel else { return }
+            if await viewModel.triple() {
+                Haptics.success()
+            }
+        }
+    }
+
     func favorite() {
         Haptics.light()
         showFavoriteFolders()

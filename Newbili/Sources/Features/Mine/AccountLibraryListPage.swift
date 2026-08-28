@@ -35,18 +35,25 @@ struct AccountLibraryListPage: View {
     private var content: some View {
         if !sessionStore.isLoggedIn {
             LibraryEmptyRow(title: kind.loggedOutTitle, systemImage: kind.systemImage)
-        } else if items.isEmpty && state.isLoading {
+        } else if kind == .favorites {
+            favoriteFolderContent
+        } else {
+            historyContent
+        }
+    }
+
+    @ViewBuilder
+    private var historyContent: some View {
+        if historyItems.isEmpty && state.isLoading {
             LibraryLoadingRow(title: kind.loadingTitle)
-        } else if items.isEmpty, case .failed(let message) = state {
+        } else if historyItems.isEmpty, case .failed(let message) = state {
             LibraryErrorRow(title: kind.errorTitle, message: message) {
                 Task { await reload() }
             }
-        } else if kind == .favorites {
-            favoriteFolderContent
-        } else if items.isEmpty {
+        } else if historyItems.isEmpty {
             LibraryEmptyRow(title: kind.emptyTitle, systemImage: kind.systemImage)
         } else {
-            ForEach(items) { item in
+            ForEach(historyItems) { item in
                 VideoRouteLink(item.videoItem) {
                     LibraryVideoRow(item: item, timestampTitle: kind.timestampTitle)
                 }
@@ -77,7 +84,13 @@ struct AccountLibraryListPage: View {
 
     @ViewBuilder
     private var favoriteFolderContent: some View {
-        if favoriteFolders.isEmpty {
+        if favoriteFolders.isEmpty && state.isLoading {
+            LibraryLoadingRow(title: kind.loadingTitle)
+        } else if favoriteFolders.isEmpty, case .failed(let message) = state {
+            LibraryErrorRow(title: kind.errorTitle, message: message) {
+                Task { await reload() }
+            }
+        } else if favoriteFolders.isEmpty {
             LibraryEmptyRow(title: kind.emptyTitle, systemImage: kind.systemImage)
         } else {
             ForEach(favoriteFolders) { folder in
@@ -87,16 +100,19 @@ struct AccountLibraryListPage: View {
                     FavoriteFolderRow(folder: folder)
                 }
             }
+
+            if state.isLoading {
+                LibraryLoadingRow(title: kind.loadingTitle)
+            } else if case .failed(let message) = state {
+                LibraryErrorRow(title: kind.errorTitle, message: message) {
+                    Task { await reload() }
+                }
+            }
         }
     }
 
-    private var items: [AccountVideoEntry] {
-        switch kind {
-        case .history:
-            return viewModel.accountHistory
-        case .favorites:
-            return viewModel.accountFavorites
-        }
+    private var historyItems: [AccountVideoEntry] {
+        viewModel.accountHistory
     }
 
     private var state: LoadingState {
@@ -131,17 +147,11 @@ struct AccountLibraryListPage: View {
     }
 
     private func loadIfNeeded() async {
-        guard sessionStore.isLoggedIn, items.isEmpty, !state.isLoading else { return }
-        await reload()
+        await viewModel.loadAccountLibrary(loadRequest)
     }
 
     private func reload() async {
-        switch kind {
-        case .history:
-            await viewModel.refreshHistory()
-        case .favorites:
-            await viewModel.refreshFavorites()
-        }
+        await viewModel.loadAccountLibrary(loadRequest, policy: .reload)
     }
 
     private func loadMoreIfNeeded(current item: AccountVideoEntry) async {
@@ -159,6 +169,15 @@ struct AccountLibraryListPage: View {
             await viewModel.loadMoreHistory()
         case .favorites:
             break
+        }
+    }
+
+    private var loadRequest: AccountLibraryLoadRequest {
+        switch kind {
+        case .history:
+            return .history
+        case .favorites:
+            return .favorites
         }
     }
 }

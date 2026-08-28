@@ -7,6 +7,7 @@ struct VideoDetailActionStripButtonRow: View {
     let layout: VideoDetailActionStripLayout
     let onFollow: () -> Void
     let onLike: () -> Void
+    let onTriple: () -> Void
     let onCoin: () -> Void
     let onFavorite: () -> Void
     let onWatchLater: () -> Void
@@ -25,12 +26,11 @@ struct VideoDetailActionStripButtonRow: View {
             )
                 .frame(width: layout.columnWidth, height: layout.rowHeight)
 
-            VideoDetailActionStripIconButton(
-                accessibilityTitle: "点赞",
-                systemImage: "hand.thumbsup.fill",
-                foregroundStyle: model.isLiked ? appTintColor : .primary,
+            VideoDetailTriplePressIconButton(
+                isLiked: model.isLiked,
                 isDisabled: model.isMutatingLike,
-                action: onLike
+                likeAction: onLike,
+                tripleAction: onTriple
             )
             .frame(width: layout.columnWidth, height: layout.rowHeight)
 

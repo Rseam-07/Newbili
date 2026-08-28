@@ -76,6 +76,12 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
         let label = try XCTUnwrap(view.subviews.compactMap { $0 as? UILabel }.first)
 
         XCTAssertTrue(view.point(inside: label.center, with: nil))
+        XCTAssertTrue(
+            view.point(
+                inside: CGPoint(x: label.center.x, y: label.frame.maxY + 4),
+                with: nil
+            )
+        )
         XCTAssertFalse(view.point(inside: CGPoint(x: 2, y: 178), with: nil))
     }
 }

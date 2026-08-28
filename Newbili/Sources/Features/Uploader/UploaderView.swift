@@ -31,6 +31,34 @@ struct UploaderView: View {
     }
 
     private var content: some View {
+        UploaderAccountAwareContent(
+            owner: owner,
+            allowsPullToRefresh: allowsPullToRefresh,
+            showsToolbarRefreshButton: showsToolbarRefreshButton,
+            api: dependencies.api,
+            sessionStore: dependencies.sessionStore,
+            libraryStore: dependencies.libraryStore,
+            holder: holder
+        )
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct UploaderAccountAwareContent: View {
+    let owner: VideoOwner
+    let allowsPullToRefresh: Bool
+    let showsToolbarRefreshButton: Bool
+    let api: BiliAPIClient
+    @ObservedObject var sessionStore: SessionStore
+    @ObservedObject var libraryStore: LibraryStore
+    @ObservedObject var holder: UploaderViewModelHolder
+
+    private var accountContext: UploaderAccountContext {
+        UploaderAccountContext(sessionStore: sessionStore, libraryStore: libraryStore)
+    }
+
+    var body: some View {
         Group {
             if let viewModel = holder.viewModel {
                 UploaderContentView(
@@ -43,12 +71,21 @@ struct UploaderView: View {
                 UploaderInitialLoadingView()
             }
         }
-        .task(id: owner.mid) {
-            holder.configure(owner: owner, api: dependencies.api)
+        .task(id: UploaderViewModelIdentity(ownerMID: owner.mid, accountContext: accountContext)) {
+            holder.configure(
+                owner: owner,
+                api: api,
+                sessionStore: sessionStore,
+                libraryStore: libraryStore,
+                accountContext: accountContext
+            )
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+private struct UploaderViewModelIdentity: Equatable {
+    let ownerMID: Int
+    let accountContext: UploaderAccountContext
 }
 
 private struct UploaderInitialLoadingView: View {

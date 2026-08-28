@@ -8,22 +8,33 @@ struct DynamicCommentRepliesSheet: View {
 
     var body: some View {
         CommentOwnerProfileNavigationContainer {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    DynamicCommentReplyRootView(comment: rootComment)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        DynamicCommentReplyRootView(comment: rootComment)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
 
-                    Divider()
+                        Divider()
 
-                    DynamicCommentRepliesContent(rootComment: rootComment, replyStore: replyStore) { reply in
-                        dialogReply = reply
+                        DynamicCommentRepliesContent(rootComment: rootComment, replyStore: replyStore) { reply in
+                            dialogReply = reply
+                        }
                     }
                 }
+                .defersRemoteImageLoadsDuringFastScroll()
+                .hiddenInlineNavigationTitle()
+                .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
+
+                Divider()
+
+                DynamicCommentReplyComposer(
+                    placeholder: "回复 @\(rootComment.member?.uname ?? "该用户")",
+                    rootComment: rootComment,
+                    parentComment: nil,
+                    replyStore: replyStore
+                )
             }
-            .defersRemoteImageLoadsDuringFastScroll()
-            .hiddenInlineNavigationTitle()
-            .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
             .task {
                 await replyStore.loadReplies(for: rootComment)
             }
@@ -44,25 +55,56 @@ private struct DynamicCommentDialogSheet: View {
 
     var body: some View {
         CommentOwnerProfileNavigationContainer {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    DynamicCommentReplyRootView(comment: rootComment)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        DynamicCommentReplyRootView(comment: rootComment)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
 
-                    Divider()
+                        Divider()
 
-                    DynamicCommentDialogContent(rootComment: rootComment, focusReply: focusReply, replyStore: replyStore)
+                        DynamicCommentDialogContent(rootComment: rootComment, focusReply: focusReply, replyStore: replyStore)
+                    }
                 }
+                .defersRemoteImageLoadsDuringFastScroll()
+                .hiddenInlineNavigationTitle()
+                .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
+
+                Divider()
+
+                DynamicCommentReplyComposer(
+                    placeholder: "回复 @\(focusReply.member?.uname ?? "该用户")",
+                    rootComment: rootComment,
+                    parentComment: focusReply,
+                    replyStore: replyStore
+                )
             }
-            .defersRemoteImageLoadsDuringFastScroll()
-            .hiddenInlineNavigationTitle()
-            .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
             .task {
                 await replyStore.loadDialog(for: rootComment, reply: focusReply)
             }
         }
         .presentationDetents([.fraction(0.7)])
         .presentationDragIndicator(.visible)
+    }
+}
+
+private struct DynamicCommentReplyComposer: View {
+    let placeholder: String
+    let rootComment: Comment
+    let parentComment: Comment?
+    @ObservedObject var replyStore: DynamicCommentReplyStore
+
+    var body: some View {
+        CommentComposerBar(
+            placeholder: placeholder,
+            submissionState: replyStore.submissionState
+        ) { message in
+            await replyStore.submitReply(
+                message,
+                to: rootComment,
+                parent: parentComment
+            )
+        }
     }
 }

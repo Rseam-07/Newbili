@@ -3946,6 +3946,7 @@ actor RemoteImageCache {
 
     private let cache = NSCache<NSURL, UIImage>()
     private struct InFlightImageLoad {
+        let completionOwnerID: UUID
         let task: Task<UIImage?, Never>
         let priorityHandle: BiliNetworkTaskPriorityHandle?
         var priority: RemoteImageLoadPriority
@@ -3969,8 +3970,8 @@ actor RemoteImageCache {
     private let failedLoadTTL: TimeInterval = 2
     private let diskTrimDelayNanoseconds: UInt64 = 1_500_000_000
 
-    private init() {
-        session = BiliURLSessionFactory.makeImageSession()
+    init(session: URLSession = BiliURLSessionFactory.makeImageSession()) {
+        self.session = session
         let initialBudget = RemoteImageAdaptiveBudget.current
         appliedBudget = initialBudget
         cache.countLimit = initialBudget.memoryEntryLimit
@@ -4261,9 +4262,7 @@ actor RemoteImageCache {
                 ResourceLoadingDiagnostics.shared.record(.visibleImagePromoted)
             }
             touchDiskRequest(key)
-            let image = await load.task.value
-            finish(key: key, image: image)
-            return image
+            return await load.task.value
         }
 
         let load = makeLoadTask(
@@ -4278,11 +4277,12 @@ actor RemoteImageCache {
         registerInFlightTask(key)
         inFlight[key] = load
         let image = await load.task.value
-        finish(key: key, image: image)
+        finish(key: key, completionOwnerID: load.completionOwnerID, image: image)
         return image
     }
 
-    private func finish(key: ImageCacheKey, image: UIImage?) {
+    private func finish(key: ImageCacheKey, completionOwnerID: UUID, image: UIImage?) {
+        guard inFlight[key]?.completionOwnerID == completionOwnerID else { return }
         unregisterInFlightTask(key)
         if let image {
             failedLoads[key] = nil
@@ -4396,6 +4396,7 @@ actor RemoteImageCache {
             }
         }
         return InFlightImageLoad(
+            completionOwnerID: UUID(),
             task: task,
             priorityHandle: priorityHandle,
             priority: priority

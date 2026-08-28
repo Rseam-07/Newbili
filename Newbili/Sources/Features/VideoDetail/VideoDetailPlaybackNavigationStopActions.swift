@@ -1,6 +1,30 @@
 import Foundation
 
 extension VideoDetailViewModel {
+    /// A covered detail page stays alive in the navigation stack. Suspend the
+    /// existing engine and keep its player/session identity so returning to the
+    /// page does not repeat detail, playurl, or AVPlayer construction work.
+    func suspendPlaybackForCoveredNavigation() {
+        guard !isPlaybackInvalidatedForNavigation,
+              !isPlaybackTerminatedForNavigation
+        else { return }
+        guard let player = stablePlayerViewModel, !player.isTerminated else {
+            // There is no established session to preserve. Use the existing
+            // cancellation path so an in-flight startup cannot begin playing
+            // behind the route that just covered this page.
+            stopPlaybackForNavigation()
+            return
+        }
+        // System PiP is already the active presentation surface. Hiding the
+        // detail page must not suspend the engine that is feeding PiP.
+        guard !player.isPictureInPictureActive else { return }
+        player.suspendForNavigation()
+        let suspendedState = player.pendingNavigationResumeState()
+        pendingNavigationResumeTime = suspendedState?.resumeTime
+        shouldResumePlaybackAfterCancelledNavigation = suspendedState?.shouldResumePlayback ?? false
+        hasPendingNavigationInterruption = suspendedState != nil
+    }
+
     func stopPlaybackForNavigation() {
         guard !isPlaybackInvalidatedForNavigation else { return }
         let resumeTime = currentPlaybackResumeTime()

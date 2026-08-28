@@ -44,6 +44,7 @@ struct VideoDetailSummaryCard: View {
                 contentWidth: contentWidth,
                 onFollow: renderPack.actions.follow,
                 onLike: renderPack.actions.like,
+                onTriple: renderPack.actions.triple,
                 onCoin: showCoinPicker,
                 onFavorite: renderPack.actions.favorite,
                 onWatchLater: renderPack.actions.watchLater,

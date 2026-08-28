@@ -3,7 +3,7 @@ import SwiftUI
 struct DynamicHomeVideoFeedCard: View {
     let video: VideoItem
     let display: DynamicFeedCardDisplayModel
-    let initialIsLiked: Bool
+    let likeController: DynamicLikeController
     let onShowComments: () -> Void
 
     var body: some View {
@@ -31,8 +31,7 @@ struct DynamicHomeVideoFeedCard: View {
 
             DynamicFeedActionBar(
                 display: display,
-                initialIsLiked: initialIsLiked,
-                initialLikeCount: display.initialLikeCount,
+                likeController: likeController,
                 onShowComments: onShowComments
             )
         }

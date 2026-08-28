@@ -3,6 +3,7 @@ import SwiftUI
 struct DynamicFeedCard: View {
     let item: DynamicFeedItem
     let api: BiliAPIClient
+    let likeController: DynamicLikeController
     let contentWidth: CGFloat?
     private let display: DynamicFeedCardDisplayModel
     @State private var commentsTarget: DynamicFeedItem?
@@ -11,10 +12,12 @@ struct DynamicFeedCard: View {
     init(
         item: DynamicFeedItem,
         api: BiliAPIClient,
+        likeController: DynamicLikeController,
         contentWidth: CGFloat? = nil
     ) {
         self.item = item
         self.api = api
+        self.likeController = likeController
         self.contentWidth = contentWidth
         let display = DynamicFeedCardDisplayModel(item: item)
         self.display = display
@@ -26,7 +29,7 @@ struct DynamicFeedCard: View {
                 DynamicHomeVideoFeedCard(
                     video: video,
                     display: display,
-                    initialIsLiked: item.isLiked,
+                    likeController: likeController,
                     onShowComments: showComments
                 )
             } else if display.usesSeparatedDynamicLayout {
@@ -35,6 +38,7 @@ struct DynamicFeedCard: View {
                     display: display,
                     contentWidth: contentWidth,
                     isTextExpanded: $isTextExpanded,
+                    likeController: likeController,
                     onShowComments: showComments
                 )
             } else {
@@ -43,6 +47,7 @@ struct DynamicFeedCard: View {
                     display: display,
                     contentWidth: contentWidth,
                     isTextExpanded: $isTextExpanded,
+                    likeController: likeController,
                     onShowComments: showComments
                 )
             }

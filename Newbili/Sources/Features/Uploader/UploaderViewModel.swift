@@ -52,6 +52,7 @@ final class UploaderViewModel: ObservableObject {
     let seedOwner: VideoOwner
 
     private let api: BiliAPIClient
+    private let dynamicLikeControllers: DynamicLikeControllerRegistry
     private let uploaderVideosTimeoutNanoseconds: UInt64 = 8_000_000_000
     private var page = 1
     private var videoCursor: UploaderVideoPageCursor?
@@ -60,9 +61,19 @@ final class UploaderViewModel: ObservableObject {
     private var seasonSeriesPage = 1
     private var seasonSeriesHasMore = true
 
-    init(seedOwner: VideoOwner, api: BiliAPIClient) {
+    init(
+        seedOwner: VideoOwner,
+        api: BiliAPIClient,
+        sessionStore: SessionStore,
+        libraryStore: LibraryStore
+    ) {
         self.seedOwner = seedOwner
         self.api = api
+        dynamicLikeControllers = DynamicLikeControllerRegistry(
+            api: api,
+            sessionStore: sessionStore,
+            libraryStore: libraryStore
+        )
     }
 
     func loadInitial() async {
@@ -143,9 +154,10 @@ final class UploaderViewModel: ObservableObject {
         dynamicState = .loading
         dynamicOffset = nil
         dynamicHasMore = true
+        let likeBaseline = dynamicLikeControllers.reconciliationBaseline()
         do {
             let page = try await api.fetchUploaderDynamicFeed(mid: seedOwner.mid)
-            applyDynamicPage(page, appending: false)
+            applyDynamicPage(page, appending: false, likeBaseline: likeBaseline)
             dynamicState = .loaded
         } catch {
             dynamicState = .failed(error.localizedDescription)
@@ -160,13 +172,18 @@ final class UploaderViewModel: ObservableObject {
     func loadMoreDynamics() async {
         guard dynamicHasMore, !dynamicState.isLoading else { return }
         dynamicState = .loading
+        let likeBaseline = dynamicLikeControllers.reconciliationBaseline()
         do {
             let page = try await api.fetchUploaderDynamicFeed(mid: seedOwner.mid, offset: dynamicOffset)
-            applyDynamicPage(page, appending: true)
+            applyDynamicPage(page, appending: true, likeBaseline: likeBaseline)
             dynamicState = .loaded
         } catch {
             dynamicState = .failed(error.localizedDescription)
         }
+    }
+
+    func dynamicLikeController(for item: DynamicFeedItem) -> DynamicLikeController {
+        dynamicLikeControllers.controller(for: item)
     }
 
     var hasMoreSeasonSeriesItems: Bool {
@@ -289,7 +306,11 @@ final class UploaderViewModel: ObservableObject {
         }
     }
 
-    private func applyDynamicPage(_ page: DynamicFeedData, appending: Bool) {
+    private func applyDynamicPage(
+        _ page: DynamicFeedData,
+        appending: Bool,
+        likeBaseline: DynamicLikeControllerRegistry.ReconciliationBaseline
+    ) {
         dynamicOffset = page.offset
         dynamicHasMore = page.hasMore ?? false
         let incoming = page.items ?? []
@@ -299,6 +320,11 @@ final class UploaderViewModel: ObservableObject {
         } else {
             dynamicItems = incoming
         }
+        dynamicLikeControllers.reconcile(
+            items: dynamicItems,
+            baseline: likeBaseline,
+            pruningMissingItems: true
+        )
     }
 
     private func applySeasonSeriesPage(_ page: UploaderSeasonSeriesData, appending: Bool) {

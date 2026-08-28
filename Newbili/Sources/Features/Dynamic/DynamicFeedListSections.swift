@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DynamicFeedItemsList: View {
     let api: BiliAPIClient
-    @ObservedObject var viewModel: DynamicViewModel
+    let viewModel: DynamicViewModel
     let items: [DynamicFeedItem]
     let contentWidth: CGFloat
 
@@ -16,6 +16,7 @@ struct DynamicFeedItemsList: View {
                 DynamicFeedCard(
                     item: item,
                     api: api,
+                    likeController: viewModel.likeController(for: item),
                     contentWidth: contentWidth
                 )
                 .frame(maxWidth: .infinity)
@@ -35,7 +36,7 @@ struct DynamicFeedItemsList: View {
 
 struct DynamicFeedItemsGrid: View {
     let api: BiliAPIClient
-    @ObservedObject var viewModel: DynamicViewModel
+    let viewModel: DynamicViewModel
     let items: [DynamicFeedItem]
     let contentWidth: CGFloat
 
@@ -62,6 +63,7 @@ struct DynamicFeedItemsGrid: View {
                 DynamicFeedCard(
                     item: item,
                     api: api,
+                    likeController: viewModel.likeController(for: item),
                     contentWidth: itemWidth
                 )
                 .frame(maxWidth: .infinity, alignment: .top)
