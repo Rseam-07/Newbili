@@ -15,8 +15,7 @@ extension HomeFeedScreenContent {
             detailPath: $detailPath,
             launchConfiguration: launchConfiguration,
             preloadContext: preloadContext,
-            actionStore: actionStore,
-            openAppURL: openAppURL
+            actionStore: actionStore
         )
         .actions
     }

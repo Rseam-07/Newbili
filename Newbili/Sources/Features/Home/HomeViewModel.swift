@@ -25,7 +25,6 @@ final class HomeViewModel: ObservableObject {
     var cellStore = HomeFeedCellStore()
     var featuredPopularCellStore = HomeFeedCellStore()
     var featuredPopularCells: [HomeVideoCellModel] = []
-    var featuredActivityBanners: [HomeActivityBanner] = []
     var featuredPopularLastRefreshDate: Date?
     var recommendMetadataHydrationTasks: [String: Task<Void, Never>] = [:]
 
@@ -87,16 +86,9 @@ final class HomeViewModel: ObservableObject {
         rebuildFeaturedItems()
     }
 
-    func updateFeaturedActivityBanners(_ banners: [HomeActivityBanner], refreshedAt date: Date) {
-        featuredActivityBanners = banners
-        featuredPopularLastRefreshDate = date
-        rebuildFeaturedItems()
-    }
-
     private func rebuildFeaturedItems() {
         let currentFeedCandidates = Array(videoCells.prefix(HomeFeaturedMixPolicy.maximumItemCount))
         let popularCandidates = Array(featuredPopularCells.prefix(HomeFeaturedMixPolicy.maximumItemCount))
-        let activityCandidates = Array(featuredActivityBanners.prefix(HomeFeaturedMixPolicy.maximumItemCount))
         let currentByID = Dictionary(
             currentFeedCandidates.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
@@ -105,29 +97,18 @@ final class HomeViewModel: ObservableObject {
             popularCandidates.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let activitiesByID = Dictionary(
-            activityCandidates.map { ("activity-\($0.id)", $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
         let selections = HomeFeaturedMixPolicy.selections(
             currentFeedIDs: currentFeedCandidates.map(\.id),
             popularIDs: popularCandidates.map(\.id),
-            activityIDs: activityCandidates.map { "activity-\($0.id)" },
-            includesPopular: mode == .recommend,
-            includesActivity: mode == .recommend
+            includesPopular: mode == .recommend
         )
         let nextItems = selections.compactMap { selection -> HomeFeaturedItem? in
-            switch selection.source {
-            case .currentFeed:
-                guard let cell = currentByID[selection.id] else { return nil }
-                return HomeFeaturedItem(cell: cell, source: selection.source)
-            case .popular:
-                guard let cell = popularByID[selection.id] else { return nil }
-                return HomeFeaturedItem(cell: cell, source: selection.source)
-            case .activity:
-                guard let activity = activitiesByID[selection.id] else { return nil }
-                return HomeFeaturedItem(activity: activity, index: 3)
+            let cell = switch selection.source {
+            case .currentFeed: currentByID[selection.id]
+            case .popular: popularByID[selection.id]
             }
+            guard let cell else { return nil }
+            return HomeFeaturedItem(cell: cell, source: selection.source)
         }
         guard featuredItems != nextItems else { return }
         featuredItems = nextItems

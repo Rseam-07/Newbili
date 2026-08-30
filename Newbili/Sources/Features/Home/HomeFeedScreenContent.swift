@@ -3,7 +3,6 @@ import SwiftUI
 struct HomeFeedScreenContent: View {
     @EnvironmentObject var dependencies: AppDependencies
     @EnvironmentObject var libraryStore: LibraryStore
-    @Environment(\.openAppURLAction) var openAppURL
     @StateObject var runtimeSettings = HomeRuntimeSettingsStore()
     @ObservedObject var viewModel: HomeViewModel
     @Binding var detailPath: NavigationPath
@@ -35,12 +34,11 @@ struct HomeFeedScreenContent: View {
         Group {
             switch primarySection {
             case .recommend, .popular:
-                if libraryStore.homePresentationStyle.usesFeaturedStage {
+                if libraryStore.homePresentationStyle == .immersive {
                     HomeImmersiveFeedScreen(
                         viewModel: viewModel,
                         runtimeSettings: runtimeSettings,
                         libraryStore: dependencies.libraryStore,
-                        presentationStyle: libraryStore.homePresentationStyle,
                         viewportState: $viewportState,
                         detailPath: $detailPath,
                         usesCinematicNavigationChrome: $usesCinematicNavigationChrome,
@@ -78,21 +76,14 @@ struct HomeFeedScreenContent: View {
             accountMessageViewModel: accountMessageViewModel,
             isModeSwitcherExperimentEnabled: true,
             prefersCinematicChrome: prefersCinematicChrome,
-            prefersEditorialChrome: prefersEditorialChrome,
             onOpenAccountMessages: onOpenAccountMessages
         )
     }
 
     private var prefersCinematicChrome: Bool {
-        libraryStore.homePresentationStyle.usesFeaturedStage
+        libraryStore.homePresentationStyle == .immersive
             && primarySection.feedMode != nil
             && usesCinematicNavigationChrome
-    }
-
-    private var prefersEditorialChrome: Bool {
-        libraryStore.homePresentationStyle == .editorial
-            && primarySection.feedMode != nil
-            && !usesCinematicNavigationChrome
     }
 
     private func selectPrimarySection(_ section: HomePrimarySection) {

@@ -1355,7 +1355,7 @@ final class DanmakuAnimationOverlayView: UIView {
                 attributes: [
                     .font: font,
                     .foregroundColor: foregroundColor,
-                    .strokeColor: UIColor.black.withAlphaComponent(settings.opacity),
+                    .strokeColor: foregroundColor,
                     .strokeWidth: strokePercentage
                 ]
             )
@@ -1386,7 +1386,7 @@ final class DanmakuAnimationOverlayView: UIView {
                     attributes: [
                         .font: font,
                         .foregroundColor: foregroundColor,
-                        .strokeColor: UIColor.black.withAlphaComponent(settings.opacity),
+                        .strokeColor: foregroundColor,
                         .strokeWidth: strokePercentage
                     ]
                 )

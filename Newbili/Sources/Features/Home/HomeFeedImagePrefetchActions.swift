@@ -44,15 +44,9 @@ extension HomeFeedMediaPreloadCoordinator {
 
         let environment = PlaybackEnvironment.current
         let layout = libraryStore.homeFeedLayout
-        let isConservative = environment.shouldPreferConservativePlayback
-        let prefetchLimit = HomeFeedImagePrefetchPolicy.lookaheadLimit(
-            layout: layout,
-            isConservative: isConservative
-        )
-        let startIndex = HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+        let startIndex = HomeFeedImagePrefetchPolicy.lookaheadStartIndex(
             visibleIndex: visibleIndex,
-            layout: layout,
-            isConservative: isConservative
+            layout: layout
         )
         guard startIndex < videos.count else { return }
 
@@ -60,19 +54,27 @@ extension HomeFeedMediaPreloadCoordinator {
         let request = HomeFeedImageLookaheadRequest(
             feedRootBVID: imageLookaheadFeedRootBVID,
             startIndex: startIndex,
-            profile: profile,
-            windowContentIdentity: HomeFeedImageLookaheadRequest.contentIdentity(
-                for: videos,
-                startIndex: startIndex,
-                limit: prefetchLimit
-            )
+            profile: profile
         )
         guard request != imageLookaheadRequest else { return }
 
+        let prefetchPlan = HomeFeedImagePrefetchPlan.make(
+            for: videos,
+            profile: profile,
+            startIndex: startIndex,
+            limit: HomeFeedImagePrefetchPolicy.lookaheadLimit(
+                layout: layout,
+                isConservative: environment.shouldPreferConservativePlayback
+            )
+        )
+        guard !prefetchPlan.coverSources.isEmpty else { return }
+
         imageLookaheadTask?.cancel()
         imageLookaheadRequest = request
+        let coverSources = prefetchPlan.coverSources
+        let targetPixelSize = prefetchPlan.coverTargetPixelSize
         let maximumConcurrentLoads = HomeFeedImagePrefetchPolicy.maximumConcurrentLoads(
-            isConservative: isConservative
+            isConservative: environment.shouldPreferConservativePlayback
         )
         imageLookaheadTask = Task(priority: .utility) { [weak self] in
             do {
@@ -83,29 +85,9 @@ extension HomeFeedMediaPreloadCoordinator {
                 return
             }
             guard !Task.isCancelled else { return }
-
-            // Build the URL/size plan only after the request survives the
-            // debounce window. Fast flicks now replace one lightweight window
-            // key instead of repeatedly mapping the whole lookahead slice.
-            let prefetchPlan = HomeFeedImagePrefetchPlan.make(
-                for: videos,
-                profile: profile,
-                startIndex: startIndex,
-                limit: prefetchLimit
-            )
-            guard !prefetchPlan.coverSources.isEmpty else {
-                if let self, self.imageLookaheadRequest == request {
-                    self.imageLookaheadTask = nil
-                    self.imageLookaheadRequest = HomeFeedImageLookaheadRequest.clearingAttemptIfCurrent(
-                        current: self.imageLookaheadRequest,
-                        attempted: request
-                    )
-                }
-                return
-            }
             await RemoteImageCache.shared.prefetch(
-                prefetchPlan.coverSources,
-                targetPixelSize: prefetchPlan.coverTargetPixelSize,
+                coverSources,
+                targetPixelSize: targetPixelSize,
                 maximumConcurrentLoads: maximumConcurrentLoads
             )
             guard !Task.isCancelled,

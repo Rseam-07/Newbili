@@ -7,7 +7,6 @@ struct HomeFeedScreenContentActionsBuilder {
     let launchConfiguration: HomeFeedLaunchConfiguration
     let preloadContext: HomeFeedPreloadContext
     let actionStore: HomeFeedScreenActionStore
-    let openAppURL: ((URL) -> Void)?
 
     var actions: HomeFeedContentActions {
         HomeFeedContentActions(
@@ -16,7 +15,7 @@ struct HomeFeedScreenContentActionsBuilder {
             onVideoPress: beginPressedPreload,
             onCardAppear: recordExposure,
             onCardDisappear: recordCardDisappearance,
-            onFeaturedItemTap: openFeaturedItem,
+            onFeaturedVideoTap: openFeaturedVideo,
             onFeaturedCardAppear: recordFeaturedExposure,
             onFeaturedCardDisappear: recordFeaturedDisappearance,
             onLoadMore: loadMoreIfNeeded,
@@ -43,19 +42,13 @@ struct HomeFeedScreenContentActionsBuilder {
         )
     }
 
-    private func openFeaturedItem(_ item: HomeFeaturedItem) {
-        if item.source == .activity, let destinationURL = item.destinationURL {
-            openAppURL?(destinationURL)
-            return
-        }
-
-        guard let video = item.preloadVideo else { return }
-        beginPressedPreload(video)
+    private func openFeaturedVideo(_ item: HomeFeaturedItem) {
+        beginPressedPreload(item.cell.video)
         if item.source == .currentFeed {
-            viewModel.recordRecommendClick(video)
+            viewModel.recordRecommendClick(item.cell.video)
         }
         actionStore.card.openVideo(
-            video,
+            item.cell.video,
             onVideoSelect: launchConfiguration.onVideoSelect,
             detailOpenActions: actionStore.detailOpen,
             appendDetailPath: appendDetailPath
@@ -77,12 +70,11 @@ struct HomeFeedScreenContentActionsBuilder {
     }
 
     private func recordFeaturedExposure(_ item: HomeFeaturedItem) {
-        guard let video = item.preloadVideo else { return }
         if item.source == .currentFeed {
-            recordExposure(video, index: item.cell.index)
+            recordExposure(item.cell.video, index: item.cell.index)
         } else {
             actionStore.preload.recordVisibleCard(
-                video,
+                item.cell.video,
                 index: 2,
                 context: preloadContext
             )
@@ -90,8 +82,7 @@ struct HomeFeedScreenContentActionsBuilder {
     }
 
     private func recordFeaturedDisappearance(_ item: HomeFeaturedItem) {
-        guard let video = item.preloadVideo else { return }
-        recordCardDisappearance(video)
+        recordCardDisappearance(item.cell.video)
     }
 
     private func loadMoreIfNeeded(_ video: VideoItem) async {

@@ -57,23 +57,6 @@ nonisolated struct HomeFeedCoverPrefetchProfile: Equatable {
         )
     }
 
-    static func editorial(
-        containerWidth: CGFloat,
-        displayScale: CGFloat
-    ) -> HomeFeedCoverPrefetchProfile {
-        let scale = max(displayScale, 1)
-        let maximumPixelLength = HomeEditorialImagePolicy.maximumPixelLength(
-            containerWidth: containerWidth
-        )
-        let pointWidth = CGFloat(maximumPixelLength) / scale
-        return HomeFeedCoverPrefetchProfile(
-            style: .maxSide,
-            size: CGSize(width: pointWidth, height: pointWidth / 1.45),
-            displayScale: scale,
-            maximumPixelLength: maximumPixelLength
-        )
-    }
-
     static func fallback(for layout: HomeFeedLayout) -> HomeFeedCoverPrefetchProfile {
         switch layout {
         case .singleColumn:

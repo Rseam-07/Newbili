@@ -6,7 +6,7 @@ struct HomeFeedContentActions {
     let onVideoPress: (VideoItem) -> Void
     let onCardAppear: (VideoItem, Int) -> Void
     let onCardDisappear: (VideoItem) -> Void
-    let onFeaturedItemTap: (HomeFeaturedItem) -> Void
+    let onFeaturedVideoTap: (HomeFeaturedItem) -> Void
     let onFeaturedCardAppear: (HomeFeaturedItem) -> Void
     let onFeaturedCardDisappear: (HomeFeaturedItem) -> Void
     let onLoadMore: (VideoItem) async -> Void

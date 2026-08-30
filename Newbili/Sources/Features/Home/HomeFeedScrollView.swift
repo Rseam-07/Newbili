@@ -5,7 +5,6 @@ private enum HomeFeedScrollAnchor {
 }
 
 struct HomeFeedScrollView<FeedContent: View>: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var viewModel: HomeViewModel
     @ObservedObject var runtimeSettings: HomeRuntimeSettingsStore
     @Binding var viewportState: HomeFeedViewportState
@@ -45,7 +44,7 @@ struct HomeFeedScrollView<FeedContent: View>: View {
             .defersRemoteImageLoadsDuringFastScroll()
             .background(background)
             .homeProgressiveTopScrollEdgeEffect()
-            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: layout)
+            .animation(.smooth(duration: 0.24), value: layout)
             .homeFeedScrollOverlays(
                 viewModel: viewModel,
                 runtimeSettings: runtimeSettings,
@@ -59,12 +58,8 @@ struct HomeFeedScrollView<FeedContent: View>: View {
     }
 
     private func scrollToTop(_ proxy: ScrollViewProxy) {
-        if reduceMotion {
+        withAnimation(.smooth(duration: 0.34)) {
             proxy.scrollTo(HomeFeedScrollAnchor.top, anchor: .top)
-        } else {
-            withAnimation(.smooth(duration: 0.34)) {
-                proxy.scrollTo(HomeFeedScrollAnchor.top, anchor: .top)
-            }
         }
     }
 }
