@@ -57,6 +57,15 @@ android {
         .gradleProperty("newbiliDebugReleaseSigning")
         .orNull
         ?.toBoolean() == true
+    val releaseBuildRequested = gradle.startParameter.taskNames.any {
+        it.contains("release", ignoreCase = true)
+    }
+    if (config == null && releaseBuildRequested && !allowDebugReleaseSigning) {
+        throw GradleException(
+            "Release signing is not configured. Add key.properties or explicitly set " +
+                "-PnewbiliDebugReleaseSigning=true for the legacy Newbili test channel."
+        )
+    }
 
     buildFeatures {
         if (project.hasProperty("dev")) {
@@ -66,14 +75,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = config ?: if (allowDebugReleaseSigning) {
-                signingConfigs["debug"]
-            } else {
-                throw GradleException(
-                    "Release signing is not configured. Add key.properties or explicitly set " +
-                        "-PnewbiliDebugReleaseSigning=true for the legacy Newbili test channel."
-                )
-            }
+            signingConfig = config ?: signingConfigs["debug"]
             if (project.hasProperty("dev")) {
                 applicationIdSuffix = ".dev"
                 resValue(
