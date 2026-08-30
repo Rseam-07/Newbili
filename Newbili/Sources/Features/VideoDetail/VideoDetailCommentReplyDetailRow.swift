@@ -77,6 +77,7 @@ struct CommentReplyDetailRow: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(appTintColor)
+                    .biliMinimumInteractiveTarget(alignment: .leading)
                     .padding(.top, 2)
                 }
             }

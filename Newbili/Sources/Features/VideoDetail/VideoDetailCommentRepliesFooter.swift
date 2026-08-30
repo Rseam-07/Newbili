@@ -36,6 +36,7 @@ struct CommentRepliesFooter: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(appTintColor)
+            .biliMinimumInteractiveTarget()
         }
     }
 }

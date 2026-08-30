@@ -50,9 +50,7 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
         XCTAssertTrue(BiliPlayerControlLayout.standard.showsTimeLabel)
     }
 
-    func testSystemNowPlayingPublicationIsDisabled() {
-        XCTAssertFalse(PlayerSystemMediaPresentationPolicy.publishesNowPlayingInfo)
-
+    func testInactiveVideoDoesNotPublishSystemNowPlayingByDefault() {
         let playbackStates = [
             (true, true, false, false, false),
             (true, false, true, false, false),
@@ -93,6 +91,42 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
                 isTerminated: false,
                 hasPlaybackFailure: false,
                 playbackContentMode: .audioOnly
+            )
+        )
+        XCTAssertTrue(
+            PlayerNowPlayingPublicationPolicy.shouldPublish(
+                isActive: true,
+                wantsAutoplay: false,
+                isPlaying: false,
+                isTerminated: false,
+                hasPlaybackFailure: false,
+                playbackContentMode: .audioOnly
+            ),
+            "锁屏暂停后应保留同一 Now Playing 会话，供用户继续播放"
+        )
+        XCTAssertFalse(
+            PlayerNowPlayingPublicationPolicy.shouldPublish(
+                isActive: true,
+                wantsAutoplay: true,
+                isPlaying: true,
+                isTerminated: false,
+                hasPlaybackFailure: false,
+                playbackContentMode: .audioOnly,
+                backgroundPlaybackMode: .off
+            )
+        )
+    }
+
+    func testAlwaysBackgroundPlaybackPublishesNowPlayingForVideo() {
+        XCTAssertTrue(
+            PlayerNowPlayingPublicationPolicy.shouldPublish(
+                isActive: true,
+                wantsAutoplay: true,
+                isPlaying: true,
+                isTerminated: false,
+                hasPlaybackFailure: false,
+                playbackContentMode: .video,
+                backgroundPlaybackMode: .always
             )
         )
     }
@@ -638,6 +672,90 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
         XCTAssertFalse(player.pauseForAppBackground())
         XCTAssertEqual(engine.backgroundPauseCallCount, 0)
         XCTAssertTrue(player.wantsAutoplay)
+    }
+
+    @MainActor
+    func testAlwaysBackgroundPlaybackKeepsRecordedVideoSessionRunning() {
+        let coordinator = ActivePlaybackCoordinator.shared
+        coordinator.stopActivePlayback()
+
+        let engine = PlayerLifecycleEngineSpy(isPlaying: true)
+        let player = PlayerStateViewModel(
+            videoURL: nil,
+            audioURL: nil,
+            title: "普通视频后台播放测试",
+            referer: "https://www.bilibili.com",
+            backgroundPlaybackMode: .always,
+            engine: engine
+        )
+        coordinator.activate(player)
+        player.setPlaybackIntent(true)
+        defer {
+            player.stop()
+            coordinator.stopActivePlayback()
+        }
+
+        XCTAssertFalse(player.pauseForAppBackground())
+        XCTAssertEqual(engine.backgroundPauseCallCount, 0)
+        XCTAssertTrue(player.wantsAutoplay)
+    }
+
+    @MainActor
+    func testDisabledBackgroundPlaybackPausesAudioOnlySession() throws {
+        let coordinator = ActivePlaybackCoordinator.shared
+        coordinator.stopActivePlayback()
+
+        let engine = PlayerLifecycleEngineSpy(isPlaying: true)
+        let audioURL = try XCTUnwrap(URL(string: "https://example.com/audio.m4s"))
+        let player = PlayerStateViewModel(
+            videoURL: nil,
+            audioURL: audioURL,
+            title: "关闭后台播放测试",
+            referer: "https://www.bilibili.com",
+            playbackContentMode: .audioOnly,
+            backgroundPlaybackMode: .off,
+            engine: engine
+        )
+        coordinator.activate(player)
+        player.setPlaybackIntent(true)
+        defer {
+            player.stop()
+            coordinator.stopActivePlayback()
+        }
+
+        XCTAssertTrue(player.pauseForAppBackground())
+        XCTAssertFalse(player.wantsAutoplay)
+        XCTAssertFalse(player.resumePlaybackAfterAppBackgroundIfNeeded())
+    }
+
+    @MainActor
+    func testBackgroundPlaybackPreferenceUpdatesCurrentPlayerWithoutRebuild() throws {
+        let coordinator = ActivePlaybackCoordinator.shared
+        coordinator.stopActivePlayback()
+        let defaults = makeUserDefaults()
+        let store = LibraryStore(userDefaults: defaults)
+        let engine = PlayerLifecycleEngineSpy(isPlaying: true)
+        let audioURL = try XCTUnwrap(URL(string: "https://example.com/audio.m4s"))
+        let player = PlayerStateViewModel(
+            videoURL: nil,
+            audioURL: audioURL,
+            title: "动态后台策略测试",
+            referer: "https://www.bilibili.com",
+            playbackContentMode: .audioOnly,
+            backgroundPlaybackMode: .listenOnly,
+            engine: engine
+        )
+        coordinator.activate(player)
+        player.setPlaybackIntent(true)
+        defer {
+            player.stop()
+            coordinator.stopActivePlayback()
+        }
+
+        store.setBackgroundPlaybackMode(.off)
+
+        XCTAssertTrue(player.pauseForAppBackground())
+        XCTAssertFalse(player.wantsAutoplay)
     }
 
     @MainActor

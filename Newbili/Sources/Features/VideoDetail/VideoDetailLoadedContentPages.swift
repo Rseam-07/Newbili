@@ -70,6 +70,11 @@ struct VideoDetailLoadedDetailContentPage: View {
             runtimeSettings: runtimeSettings,
             retryRelated: renderPack.actions.retryRelated
         )
+        .task(id: libraryStore.showsRelatedVideosInVideoDetail) {
+            renderPack.actions.updateRelatedVisibility(
+                libraryStore.showsRelatedVideosInVideoDetail
+            )
+        }
     }
 
     private var renderPack: VideoDetailLoadedDetailContentPageRenderPack {
@@ -81,6 +86,7 @@ struct VideoDetailLoadedDetailContentPage: View {
 }
 
 private struct VideoDetailRecommendationsSection: View {
+    @EnvironmentObject private var libraryStore: LibraryStore
     let detail: VideoItem
     @ObservedObject var relatedStore: VideoDetailRelatedRenderStore
     let layoutWidth: CGFloat
@@ -89,7 +95,10 @@ private struct VideoDetailRecommendationsSection: View {
 
     @ViewBuilder
     var body: some View {
-        if !detail.isPGCEpisode {
+        if VideoDetailContentVisibilityPolicy.showsRelatedVideos(
+            isPGCEpisode: detail.isPGCEpisode,
+            preferenceEnabled: libraryStore.showsRelatedVideosInVideoDetail
+        ) {
             VideoDetailRelatedSection(
                 store: relatedStore,
                 layoutWidth: layoutWidth,

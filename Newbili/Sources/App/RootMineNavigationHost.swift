@@ -32,16 +32,22 @@ struct RootMineNavigationDestination: View {
                 } else {
                     ProgressView()
                 }
+            case .settingsSearch:
+                MineSettingsSearchView(libraryStore: libraryStore)
             case .interfaceSettings:
                 MineInterfaceSettingsView(libraryStore: libraryStore)
             case .homeAndSearchSettings:
                 MineHomeAndSearchSettingsView(libraryStore: libraryStore)
             case .playbackSettings:
                 MinePlaybackSettingsView(libraryStore: libraryStore)
+            case .danmakuSettings:
+                MineDanmakuSettingsView(libraryStore: libraryStore)
             case .contentFilterSettings:
                 MineContentFilterSettingsView(libraryStore: libraryStore)
             case .privacySettings:
                 MinePrivacySettingsView(libraryStore: libraryStore)
+            case .appleIntelligenceSettings:
+                MineAppleIntelligenceSettingsView(libraryStore: libraryStore)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

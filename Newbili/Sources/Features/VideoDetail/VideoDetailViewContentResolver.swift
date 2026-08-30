@@ -71,7 +71,9 @@ struct VideoDetailViewContentResolver: View {
         }
 
         self.pendingCommentAnchor = nil
-        selectedContentTab = .comments
+        if dependencies.libraryStore.showsVideoCommentsInVideoDetail {
+            selectedContentTab = .comments
+        }
         guard let loadedThread else { return }
         sheetRoute = .commentThread(
             VideoDetailCommentThreadSheetPresentation(

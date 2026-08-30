@@ -19,6 +19,16 @@ nonisolated enum HoldProgressMovementPolicy {
     }
 }
 
+nonisolated enum HoldProgressReleasePolicy {
+    static func shouldSuppressTap(
+        didCommit: Bool,
+        hasPendingSuppression: Bool,
+        ignoredCurrentTouch: Bool
+    ) -> Bool {
+        didCommit || hasPendingSuppression || ignoredCurrentTouch
+    }
+}
+
 nonisolated struct HoldProgressTracker: Equatable, Sendable {
     nonisolated enum Event: Equatable, Sendable {
         case milestone(Int)
@@ -70,6 +80,7 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
     @State private var ignoresCurrentTouch = false
     @State private var suppressesNextTap = false
     @State private var progressTask: Task<Void, Never>?
+    @State private var tapSuppressionTask: Task<Void, Never>?
     @State private var interactiveSize = CGSize.zero
 
     init(
@@ -98,6 +109,8 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
         Button {
             guard !suppressesNextTap else {
                 suppressesNextTap = false
+                tapSuppressionTask?.cancel()
+                tapSuppressionTask = nil
                 return
             }
             tapAction()
@@ -127,6 +140,8 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
         .onDisappear {
             progressTask?.cancel()
             progressTask = nil
+            tapSuppressionTask?.cancel()
+            tapSuppressionTask = nil
         }
     }
 
@@ -144,11 +159,17 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
                     maximumMovement: maximumMovement
                 ) {
                     ignoresCurrentTouch = true
-                    finishTracking(suppressingTap: true)
+                    finishTracking(suppressingTap: true, untilRelease: true)
                 }
             }
             .onEnded { _ in
-                finishTracking(suppressingTap: tracker.suppressesTapOnRelease || suppressesNextTap)
+                finishTracking(
+                    suppressingTap: HoldProgressReleasePolicy.shouldSuppressTap(
+                        didCommit: tracker.suppressesTapOnRelease,
+                        hasPendingSuppression: suppressesNextTap,
+                        ignoredCurrentTouch: ignoresCurrentTouch
+                    )
+                )
                 ignoresCurrentTouch = false
             }
     }
@@ -157,6 +178,8 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
         tracker.reset()
         isTracking = true
         suppressesNextTap = false
+        tapSuppressionTask?.cancel()
+        tapSuppressionTask = nil
         progressTask?.cancel()
         let stepCount = 36
         let interval = max(holdDuration / Double(stepCount), 0.01)
@@ -183,16 +206,20 @@ struct HoldProgressButton<Label: View, ProgressIndicator: View>: View {
         }
     }
 
-    private func finishTracking(suppressingTap: Bool) {
+    private func finishTracking(suppressingTap: Bool, untilRelease: Bool = false) {
         progressTask?.cancel()
         progressTask = nil
         isTracking = false
         tracker.reset()
         if suppressingTap {
             suppressesNextTap = true
-            Task { @MainActor in
+            tapSuppressionTask?.cancel()
+            guard !untilRelease else { return }
+            tapSuppressionTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
                 suppressesNextTap = false
+                tapSuppressionTask = nil
             }
         }
     }

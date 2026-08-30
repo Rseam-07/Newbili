@@ -1,5 +1,25 @@
 import SwiftUI
 
+nonisolated enum TopNavigationCollapsePolicy {
+    static let collapseThreshold: CGFloat = 24
+    static let expandThreshold: CGFloat = 8
+
+    static func isCollapsed(contentOffsetY: CGFloat, contentInsetTop: CGFloat) -> Bool {
+        contentOffsetY + contentInsetTop > collapseThreshold
+    }
+
+    static func resolvedState(
+        currentlyCollapsed: Bool,
+        contentOffsetY: CGFloat,
+        contentInsetTop: CGFloat
+    ) -> Bool {
+        let scrollDistance = contentOffsetY + contentInsetTop
+        return currentlyCollapsed
+            ? scrollDistance > expandThreshold
+            : scrollDistance > collapseThreshold
+    }
+}
+
 struct RootNavigationTitleHiddenKey: EnvironmentKey {
     static let defaultValue = Binding<Bool>.constant(false)
 }
@@ -163,9 +183,14 @@ private struct HomeProgressiveTopScrollEdgeEffect: ViewModifier {
             // 首页固定使用 iOS 26 风格的柔和渐进边缘，避免新样式在滚动阈值处
             // 突然切成一整块硬质玻璃；其他页面仍服从全局设置。
             .scrollEdgeEffectStyle(.soft, for: .top)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top > 18
-            } action: { _, isHidden in
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, scrollDistance in
+                let isHidden = TopNavigationCollapsePolicy.resolvedState(
+                    currentlyCollapsed: rootNavigationTitleHidden.wrappedValue,
+                    contentOffsetY: scrollDistance,
+                    contentInsetTop: 0
+                )
                 guard rootNavigationTitleHidden.wrappedValue != isHidden else { return }
                 if reduceMotion {
                     rootNavigationTitleHidden.wrappedValue = isHidden
@@ -303,9 +328,14 @@ struct TopScrollEdgeEffect: ViewModifier {
     func body(content: Content) -> some View {
         if hidesRootNavigationTitle {
             nativeStyledContent(content)
-                .onScrollGeometryChange(for: Bool.self) { geometry in
-                    geometry.contentOffset.y + geometry.contentInsets.top > 18
-                } action: { _, isHidden in
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top
+                } action: { _, scrollDistance in
+                    let isHidden = TopNavigationCollapsePolicy.resolvedState(
+                        currentlyCollapsed: rootNavigationTitleHidden.wrappedValue,
+                        contentOffsetY: scrollDistance,
+                        contentInsetTop: 0
+                    )
                     guard rootNavigationTitleHidden.wrappedValue != isHidden else { return }
                     withAnimation(.smooth(duration: 0.18)) {
                         rootNavigationTitleHidden.wrappedValue = isHidden

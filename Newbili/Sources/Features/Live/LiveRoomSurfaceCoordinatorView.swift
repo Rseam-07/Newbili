@@ -524,9 +524,9 @@ private struct LiveRoomSurfaceOnlyOverlay: View {
                 playerViewModel: playerViewModel,
                 usesLandscapeChrome: state.usesLandscapeChrome,
                 isLayoutTransitioning: state.isBareSurfaceTransitionActive,
-                videoAspectRatio: state.videoAspectRatio
+                videoAspectRatio: state.videoAspectRatio,
+                quickActions: liveDanmakuQuickActions
             )
-            .allowsHitTesting(false)
             .zIndex(2.5)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -556,6 +556,13 @@ private struct LiveRoomSurfaceOnlyOverlay: View {
         }
         .onChange(of: surfaceState.isUserSeeking) { _, isUserSeeking in
             updateSeekTransitionSnapshot(isUserSeeking: isUserSeeking)
+        }
+    }
+
+    private var liveDanmakuQuickActions: DanmakuQuickActionConfiguration? {
+        guard libraryStore.danmakuTapInteractionEnabled else { return nil }
+        return .copyOnly { item in
+            DanmakuInteractionActions.copy(item)
         }
     }
 

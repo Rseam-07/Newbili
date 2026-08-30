@@ -22,7 +22,9 @@ final class VideoDetailViewModel: ObservableObject {
     var detailPresentationState = VideoDetailPresentationState()
     var relatedStateStorage = VideoDetailRelatedState()
     var commentListState = VideoDetailCommentListState()
-    @Published var selectedCID: Int? { didSet { scheduleRenderStoreSync(.playback) } }
+    @Published var selectedCID: Int? {
+        didSet { scheduleRenderStoreSync([.description, .playback]) }
+    }
     @Published var state: LoadingState = .idle {
         didSet { scheduleRenderStoreSync(.playback) }
     }

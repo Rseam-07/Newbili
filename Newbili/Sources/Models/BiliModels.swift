@@ -7773,6 +7773,7 @@ nonisolated struct LiveDanmakuHistoryMessage: Decodable, Hashable, Sendable {
     let text: String
     let nickname: String?
     let timeline: String?
+    let senderIdentifier: String?
 
     enum CodingKeys: String, CodingKey {
         case text
@@ -7782,6 +7783,8 @@ nonisolated struct LiveDanmakuHistoryMessage: Decodable, Hashable, Sendable {
         case username
         case name
         case timeline
+        case uid
+        case mid
     }
 
     init(from decoder: Decoder) throws {
@@ -7797,6 +7800,8 @@ nonisolated struct LiveDanmakuHistoryMessage: Decodable, Hashable, Sendable {
         .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         .first(where: { !$0.isEmpty })
         timeline = container.decodeLossyStringIfPresent(forKey: .timeline)
+        senderIdentifier = container.decodeLossyStringIfPresent(forKey: .uid)
+            ?? container.decodeLossyStringIfPresent(forKey: .mid)
     }
 }
 

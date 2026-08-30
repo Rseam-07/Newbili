@@ -1,6 +1,8 @@
 import Foundation
 
 struct VideoDetailDescriptionRenderSnapshot: Equatable {
+    var bvid = ""
+    var cid: Int?
     var titleText = ""
     var owner: VideoOwner?
     var viewCountText = "-"
@@ -22,6 +24,8 @@ struct VideoDetailDescriptionRenderSnapshot: Equatable {
         let detail = viewModel.detail
         let trimmedTitle = detail.title.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        bvid = detail.bvid
+        cid = viewModel.selectedCID ?? detail.cid ?? detail.pages?.first?.cid
         titleText = detail.title
         owner = detail.owner
         viewCountText = BiliFormatters.compactCount(detail.stat?.view)

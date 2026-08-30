@@ -19,6 +19,7 @@ struct CommentsSectionPreviewFooter: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
+            .biliMinimumInteractiveTarget()
         }
     }
 }

@@ -211,6 +211,77 @@ nonisolated struct WatchLaterVideoEntryPage {
     let hasMore: Bool
 }
 
+/// Tracks exact non-idempotent mutations so two UI surfaces cannot submit the
+/// same operation at once. Callers may briefly suppress a recent success to
+/// absorb a late second tap; failures are immediately eligible for an explicit
+/// retry because the request itself is never replayed automatically.
+nonisolated struct BiliNonIdempotentMutationDeduplicationState: Sendable {
+    enum BeginDecision: Equatable, Sendable {
+        case start(UUID)
+        case join(UUID)
+        case suppressRecentSuccess
+    }
+
+    private var inFlightTokens: [String: UUID] = [:]
+    private var recentSuccessDates: [String: Date] = [:]
+
+    mutating func begin(
+        key: String,
+        now: Date,
+        successCooldown: TimeInterval
+    ) -> BeginDecision {
+        pruneRecentSuccesses(now: now, successCooldown: successCooldown)
+        if let token = inFlightTokens[key] {
+            return .join(token)
+        }
+        if recentSuccessDates[key] != nil {
+            return .suppressRecentSuccess
+        }
+        let token = UUID()
+        inFlightTokens[key] = token
+        return .start(token)
+    }
+
+    mutating func finish(
+        key: String,
+        token: UUID,
+        succeeded: Bool,
+        now: Date
+    ) {
+        guard inFlightTokens[key] == token else { return }
+        inFlightTokens[key] = nil
+        if succeeded {
+            recentSuccessDates[key] = now
+            trimRecentSuccessesIfNeeded()
+        }
+    }
+
+    private mutating func pruneRecentSuccesses(
+        now: Date,
+        successCooldown: TimeInterval
+    ) {
+        guard successCooldown > 0 else {
+            recentSuccessDates.removeAll(keepingCapacity: true)
+            return
+        }
+        recentSuccessDates = recentSuccessDates.filter { _, date in
+            now.timeIntervalSince(date) < successCooldown
+        }
+    }
+
+    private mutating func trimRecentSuccessesIfNeeded() {
+        let maximumRecentSuccessCount = 64
+        guard recentSuccessDates.count > maximumRecentSuccessCount else { return }
+        let overflow = recentSuccessDates.count - maximumRecentSuccessCount
+        for key in recentSuccessDates
+            .sorted(by: { $0.value < $1.value })
+            .prefix(overflow)
+            .map(\.key) {
+            recentSuccessDates[key] = nil
+        }
+    }
+}
+
 nonisolated final class BiliAPIClient {
     private let baseURL = URL(string: "https://api.bilibili.com")!
     private let appURL = URL(string: "https://app.bilibili.com")!
@@ -1205,6 +1276,27 @@ nonisolated final class BiliAPIClient {
         }
     }
 
+    func fetchHomeActivityBanners(placementID: Int = 4_694) async throws -> [HomeActivityBanner] {
+        let response: BiliResponse<[String: [HomeActivityBanner]]> = try await get(
+            base: baseURL,
+            path: "/x/web-show/res/locs",
+            query: [
+                "pf": "0",
+                "ids": String(placementID)
+            ],
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return (response.payload?[String(placementID)] ?? [])
+            .filter(\.isEligibleEditorialActivity)
+            .sorted { lhs, rhs in
+                if lhs.position != rhs.position { return lhs.position < rhs.position }
+                return lhs.id < rhs.id
+            }
+    }
+
     func fetchRankingVideos(regionID: Int) async throws -> [VideoItem] {
         let signedQuery = try await signedWBIQuery([
             "rid": String(max(0, regionID)),
@@ -2003,53 +2095,66 @@ nonisolated final class BiliAPIClient {
         }
         let normalizedBVID = bvid.trimmingCharacters(in: .whitespacesAndNewlines)
         let context = try await requireCSRFContext(for: .interaction)
-        let response: BiliResponse<VideoTripleMutationResult>
+        let mutationKey = Self.videoTripleMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            credentialVersion: context.snapshot.playbackCredentialVersion,
+            aid: aid,
+            bvid: normalizedBVID,
+            pgcEpisodeID: pgcEpisodeID,
+            pgcSeasonID: pgcSeasonID
+        )
+        return try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            let response: BiliResponse<VideoTripleMutationResult>
 
-        if let pgcEpisodeID, pgcEpisodeID > 0 {
-            let refererID: String
-            if let pgcSeasonID, pgcSeasonID > 0 {
-                refererID = "ss\(pgcSeasonID)"
+            if let pgcEpisodeID, pgcEpisodeID > 0 {
+                let refererID: String
+                if let pgcSeasonID, pgcSeasonID > 0 {
+                    refererID = "ss\(pgcSeasonID)"
+                } else {
+                    refererID = "ep\(pgcEpisodeID)"
+                }
+                response = try await postForm(
+                    base: baseURL,
+                    path: "/pgc/season/episode/like/triple",
+                    body: [
+                        "ep_id": String(pgcEpisodeID),
+                        "csrf": context.csrf
+                    ],
+                    referer: "https://www.bilibili.com/bangumi/play/\(refererID)",
+                    cookieHeader: context.snapshot.cookieHeader,
+                    retryPolicy: .nonIdempotentMutation
+                )
             } else {
-                refererID = "ep\(pgcEpisodeID)"
+                response = try await postForm(
+                    base: baseURL,
+                    path: "/x/web-interface/archive/like/triple",
+                    body: [
+                        "aid": String(aid),
+                        "eab_x": "2",
+                        "ramval": "0",
+                        "source": "web_normal",
+                        "ga": "1",
+                        "csrf": context.csrf,
+                        "spmid": "333.788.0.0",
+                        "statistics": #"{"appId":100,"platform":5}"#
+                    ],
+                    referer: normalizedBVID.isEmpty
+                        ? "https://www.bilibili.com"
+                        : "https://www.bilibili.com/video/\(normalizedBVID)",
+                    cookieHeader: context.snapshot.cookieHeader,
+                    retryPolicy: .nonIdempotentMutation
+                )
             }
-            response = try await postForm(
-                base: baseURL,
-                path: "/pgc/season/episode/like/triple",
-                body: [
-                    "ep_id": String(pgcEpisodeID),
-                    "csrf": context.csrf
-                ],
-                referer: "https://www.bilibili.com/bangumi/play/\(refererID)",
-                cookieHeader: context.snapshot.cookieHeader,
-                retryPolicy: .nonIdempotentMutation
-            )
-        } else {
-            response = try await postForm(
-                base: baseURL,
-                path: "/x/web-interface/archive/like/triple",
-                body: [
-                    "aid": String(aid),
-                    "eab_x": "2",
-                    "ramval": "0",
-                    "source": "web_normal",
-                    "ga": "1",
-                    "csrf": context.csrf,
-                    "spmid": "333.788.0.0",
-                    "statistics": #"{"appId":100,"platform":5}"#
-                ],
-                referer: normalizedBVID.isEmpty
-                    ? "https://www.bilibili.com"
-                    : "https://www.bilibili.com/video/\(normalizedBVID)",
-                cookieHeader: context.snapshot.cookieHeader,
-                retryPolicy: .nonIdempotentMutation
-            )
-        }
 
-        guard response.code == 0 else {
-            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
+            guard let result = response.payload else { throw BiliAPIError.missingPayload }
+            return result
         }
-        guard let result = response.payload else { throw BiliAPIError.missingPayload }
-        return result
     }
 
     func postDanmaku(
@@ -2075,32 +2180,48 @@ nonisolated final class BiliAPIClient {
 
         let context = try await requireCSRFContext(for: .interaction)
         let progressMilliseconds = Int64((max(0, progress) * 1_000).rounded())
-        let randomTimestamp = Int64((Date().timeIntervalSince1970 * 1_000_000).rounded())
-        let response: BiliResponse<DanmakuPostResult> = try await postForm(
-            base: baseURL,
-            path: "/x/v2/dm/post",
-            body: [
-                "type": "1",
-                "oid": String(cid),
-                "msg": normalizedText,
-                "mode": String(mode.rawValue),
-                "bvid": normalizedBVID,
-                "progress": String(progressMilliseconds),
-                "color": String(color),
-                "fontsize": String(fontSize),
-                "pool": "0",
-                "rnd": String(randomTimestamp),
-                "csrf": context.csrf,
-                "csrf_token": context.csrf
-            ],
-            referer: "https://www.bilibili.com/video/\(normalizedBVID)",
-            cookieHeader: context.snapshot.cookieHeader,
-            retryPolicy: .nonIdempotentMutation
+        let mutationKey = Self.danmakuPostMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            credentialVersion: context.snapshot.playbackCredentialVersion,
+            bvid: normalizedBVID,
+            cid: cid,
+            progressMilliseconds: progressMilliseconds,
+            text: normalizedText,
+            mode: mode,
+            fontSize: fontSize,
+            color: color
         )
-        guard response.code == 0 else {
-            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        return try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            let randomTimestamp = Int64((Date().timeIntervalSince1970 * 1_000_000).rounded())
+            let response: BiliResponse<DanmakuPostResult> = try await postForm(
+                base: baseURL,
+                path: "/x/v2/dm/post",
+                body: [
+                    "type": "1",
+                    "oid": String(cid),
+                    "msg": normalizedText,
+                    "mode": String(mode.rawValue),
+                    "bvid": normalizedBVID,
+                    "progress": String(progressMilliseconds),
+                    "color": String(color),
+                    "fontsize": String(fontSize),
+                    "pool": "0",
+                    "rnd": String(randomTimestamp),
+                    "csrf": context.csrf,
+                    "csrf_token": context.csrf
+                ],
+                referer: "https://www.bilibili.com/video/\(normalizedBVID)",
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
+            return response.payload
         }
-        return response.payload
     }
 
     func setDanmakuLiked(cid: Int, dmid: Int64, liked: Bool) async throws -> Bool {
@@ -2162,15 +2283,29 @@ nonisolated final class BiliAPIClient {
         if let normalizedContent, !normalizedContent.isEmpty {
             body["content"] = normalizedContent
         }
-        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
-            base: baseURL,
-            path: "/x/dm/report/add",
-            body: body,
-            cookieHeader: context.snapshot.cookieHeader,
-            retryPolicy: .nonIdempotentMutation
+        let requestBody = body
+        let mutationKey = Self.danmakuReportMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            credentialVersion: context.snapshot.playbackCredentialVersion,
+            cid: cid,
+            dmid: dmid,
+            reason: reason,
+            content: normalizedContent
         )
-        guard response.code == 0 else {
-            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 2
+        ) { [self] in
+            let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+                base: baseURL,
+                path: "/x/dm/report/add",
+                body: requestBody,
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
         }
     }
 
@@ -2179,22 +2314,39 @@ nonisolated final class BiliAPIClient {
             throw BiliAPIError.api(code: -1, message: "投币数量无效")
         }
         let context = try await requireCSRFContext(for: .interaction)
-        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
-            base: baseURL,
-            path: "/x/web-interface/coin/add",
-            body: [
-                "aid": String(aid),
-                "multiply": String(multiply),
-                "select_like": selectLike ? "1" : "0",
-                "csrf": context.csrf,
-                "cross_domain": "true",
-                "source": "web_normal",
-                "ga": "1"
-            ],
-            cookieHeader: context.snapshot.cookieHeader,
-            retryPolicy: .nonIdempotentMutation
+        let requestBody = [
+            "aid": String(aid),
+            "multiply": String(multiply),
+            "select_like": selectLike ? "1" : "0",
+            "csrf": context.csrf,
+            "cross_domain": "true",
+            "source": "web_normal",
+            "ga": "1"
+        ]
+        let mutationKey = Self.hashedMutationKey(
+            prefix: "coin-add",
+            components: [
+                "account=\(context.snapshot.currentUserMID ?? 0)",
+                "aid=\(aid)",
+                "multiply=\(multiply)",
+                "selectLike=\(selectLike)"
+            ]
         )
-        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+                base: baseURL,
+                path: "/x/web-interface/coin/add",
+                body: requestBody,
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
+        }
     }
 
     func setVideoFavorite(aid: Int, favorited: Bool) async throws {
@@ -2212,25 +2364,42 @@ nonisolated final class BiliAPIClient {
             guard !targetIDs.isEmpty else { throw BiliAPIError.missingPayload }
         }
 
-        let addMediaIDs = favorited ? targetIDs.map(String.init).joined(separator: ",") : ""
-        let delMediaIDs = favorited ? "" : targetIDs.map(String.init).joined(separator: ",")
-        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
-            base: baseURL,
-            path: "/x/v3/fav/resource/deal",
-            body: [
-                "rid": String(aid),
-                "type": "2",
-                "add_media_ids": addMediaIDs,
-                "del_media_ids": delMediaIDs,
-                "csrf": context.csrf,
-                "platform": "web",
-                "gaia_source": "web_normal",
-                "ga": "1"
-            ],
-            cookieHeader: context.snapshot.cookieHeader,
-            retryPolicy: .nonIdempotentMutation
+        let normalizedTargetIDs = Array(Set(targetIDs.filter { $0 > 0 })).sorted()
+        guard !normalizedTargetIDs.isEmpty else { throw BiliAPIError.missingPayload }
+        let addIDs = favorited ? normalizedTargetIDs : []
+        let removeIDs = favorited ? [] : normalizedTargetIDs
+        let requestBody = [
+            "rid": String(aid),
+            "type": "2",
+            "add_media_ids": addIDs.map(String.init).joined(separator: ","),
+            "del_media_ids": removeIDs.map(String.init).joined(separator: ","),
+            "csrf": context.csrf,
+            "platform": "web",
+            "gaia_source": "web_normal",
+            "ga": "1"
+        ]
+        let mutationKey = Self.videoFavoriteMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            credentialVersion: context.snapshot.playbackCredentialVersion,
+            aid: aid,
+            addFolderIDs: addIDs,
+            removeFolderIDs: removeIDs
         )
-        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+                base: baseURL,
+                path: "/x/v3/fav/resource/deal",
+                body: requestBody,
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
+        }
     }
 
     func fetchFavoriteFolders(for aid: Int? = nil) async throws -> [FavoriteFolder] {
@@ -2250,22 +2419,38 @@ nonisolated final class BiliAPIClient {
             .sorted()
         guard !addIDs.isEmpty || !removeIDs.isEmpty else { return }
 
-        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
-            base: baseURL,
-            path: "/x/v3/fav/resource/deal",
-            body: [
-                "rid": String(aid),
-                "type": "2",
-                "add_media_ids": addIDs.map(String.init).joined(separator: ","),
-                "del_media_ids": removeIDs.map(String.init).joined(separator: ","),
-                "csrf": context.csrf,
-                "platform": "web",
-                "gaia_source": "web_normal",
-                "ga": "1"
-            ],
-            cookieHeader: context.snapshot.cookieHeader
+        let requestBody = [
+            "rid": String(aid),
+            "type": "2",
+            "add_media_ids": addIDs.map(String.init).joined(separator: ","),
+            "del_media_ids": removeIDs.map(String.init).joined(separator: ","),
+            "csrf": context.csrf,
+            "platform": "web",
+            "gaia_source": "web_normal",
+            "ga": "1"
+        ]
+        let mutationKey = Self.videoFavoriteMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            credentialVersion: context.snapshot.playbackCredentialVersion,
+            aid: aid,
+            addFolderIDs: addIDs,
+            removeFolderIDs: removeIDs
         )
-        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+                base: baseURL,
+                path: "/x/v3/fav/resource/deal",
+                body: requestBody,
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
+        }
     }
 
     func fetchAccountHistory(page: Int = 1, pageSize: Int = 20) async throws -> [AccountVideoEntry] {
@@ -2742,24 +2927,66 @@ nonisolated final class BiliAPIClient {
     }
 
     func setUploaderFollowing(mid: Int, following: Bool) async throws {
-        let snapshot = await requestSnapshot()
-        if let csrf = snapshot.csrfToken, snapshot.isLoggedIn {
-            try await setUploaderFollowingWithWeb(mid: mid, following: following, csrf: csrf)
-            return
+        guard mid > 0 else {
+            throw BiliAPIError.api(code: -1, message: "UP 主 UID 无效")
         }
-        if let accessKey = snapshot.appAccessKey, !accessKey.isEmpty {
-            try await setUploaderFollowingWithAppAccessKey(
-                mid: mid,
-                following: following,
-                accessKey: accessKey,
-                cookieHeader: snapshot.cookieHeader
-            )
-            return
+
+        let snapshot = await requestSnapshot(purpose: .interaction)
+        let mutationKey = Self.uploaderFollowingMutationKey(
+            accountMID: snapshot.currentUserMID,
+            credentialVersion: snapshot.playbackCredentialVersion,
+            uploaderMID: mid,
+            following: following
+        )
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 0
+        ) { [self] in
+            if let csrf = snapshot.csrfToken, snapshot.isLoggedIn {
+                try await setUploaderFollowingWithWeb(
+                    mid: mid,
+                    following: following,
+                    csrf: csrf,
+                    cookieHeader: snapshot.cookieHeader
+                )
+                return
+            }
+            if let accessKey = snapshot.appAccessKey, !accessKey.isEmpty {
+                try await setUploaderFollowingWithAppAccessKey(
+                    mid: mid,
+                    following: following,
+                    accessKey: accessKey,
+                    cookieHeader: snapshot.cookieHeader
+                )
+                return
+            }
+            throw BiliAPIError.missingSESSDATA
         }
-        throw BiliAPIError.missingSESSDATA
     }
 
-    private func setUploaderFollowingWithWeb(mid: Int, following: Bool, csrf: String) async throws {
+    nonisolated static func uploaderFollowingMutationKey(
+        accountMID: Int?,
+        credentialVersion: Int,
+        uploaderMID: Int,
+        following: Bool
+    ) -> String {
+        hashedMutationKey(
+            prefix: "uploader-following",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "credentialVersion=\(credentialVersion)",
+                "mid=\(uploaderMID)",
+                "following=\(following)"
+            ]
+        )
+    }
+
+    private func setUploaderFollowingWithWeb(
+        mid: Int,
+        following: Bool,
+        csrf: String,
+        cookieHeader: String
+    ) async throws {
         let response: BiliResponse<EmptyBiliPayload> = try await postForm(
             base: baseURL,
             path: "/x/relation/modify",
@@ -2770,7 +2997,9 @@ nonisolated final class BiliAPIClient {
                 "csrf": csrf,
                 "gaia_source": "web_normal",
                 "ga": "1"
-            ]
+            ],
+            cookieHeader: cookieHeader,
+            retryPolicy: .nonIdempotentMutation
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
     }
@@ -7103,17 +7332,149 @@ nonisolated final class BiliAPIClient {
         if let parent {
             body["parent"] = String(parent)
         }
+        let requestBody = body
 
-        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
-            base: baseURL,
-            path: "/x/v2/reply/add",
-            body: body,
-            cookieHeader: context.snapshot.cookieHeader,
-            retryPolicy: .nonIdempotentMutation
+        let mutationKey = Self.commentSubmissionMutationKey(
+            accountMID: context.snapshot.currentUserMID,
+            oid: normalizedOID,
+            type: type,
+            message: normalizedMessage,
+            root: root,
+            parent: parent
         )
-        guard response.code == 0 else {
-            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        try await state.performDeduplicatedNonIdempotentMutation(
+            key: mutationKey,
+            successCooldown: 2
+        ) { [self] in
+            let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+                base: baseURL,
+                path: "/x/v2/reply/add",
+                body: requestBody,
+                cookieHeader: context.snapshot.cookieHeader,
+                retryPolicy: .nonIdempotentMutation
+            )
+            guard response.code == 0 else {
+                throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+            }
         }
+    }
+
+    private nonisolated static func commentSubmissionMutationKey(
+        accountMID: Int?,
+        oid: String,
+        type: Int,
+        message: String,
+        root: Int?,
+        parent: Int?
+    ) -> String {
+        hashedMutationKey(
+            prefix: "comment-submit",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "oid=\(oid)",
+                "type=\(type)",
+                "root=\(root ?? 0)",
+                "parent=\(parent ?? 0)",
+                "message=\(message)"
+            ]
+        )
+    }
+
+    nonisolated static func videoTripleMutationKey(
+        accountMID: Int?,
+        credentialVersion: Int,
+        aid: Int,
+        bvid: String,
+        pgcEpisodeID: Int?,
+        pgcSeasonID: Int?
+    ) -> String {
+        hashedMutationKey(
+            prefix: "video-triple",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "credentialVersion=\(credentialVersion)",
+                "aid=\(aid)",
+                "bvid=\(bvid)",
+                "pgcEpisodeID=\(pgcEpisodeID ?? 0)",
+                "pgcSeasonID=\(pgcSeasonID ?? 0)"
+            ]
+        )
+    }
+
+    nonisolated static func videoFavoriteMutationKey(
+        accountMID: Int?,
+        credentialVersion: Int,
+        aid: Int,
+        addFolderIDs: [Int],
+        removeFolderIDs: [Int]
+    ) -> String {
+        hashedMutationKey(
+            prefix: "video-favorite",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "credentialVersion=\(credentialVersion)",
+                "aid=\(aid)",
+                "add=\(addFolderIDs.filter { $0 > 0 }.sorted().map(String.init).joined(separator: ","))",
+                "remove=\(removeFolderIDs.filter { $0 > 0 }.sorted().map(String.init).joined(separator: ","))"
+            ]
+        )
+    }
+
+    nonisolated static func danmakuPostMutationKey(
+        accountMID: Int?,
+        credentialVersion: Int,
+        bvid: String,
+        cid: Int,
+        progressMilliseconds: Int64,
+        text: String,
+        mode: DanmakuPostMode,
+        fontSize: Int,
+        color: UInt32
+    ) -> String {
+        hashedMutationKey(
+            prefix: "danmaku-post",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "credentialVersion=\(credentialVersion)",
+                "bvid=\(bvid)",
+                "cid=\(cid)",
+                "progress=\(progressMilliseconds)",
+                "text=\(text)",
+                "mode=\(mode.rawValue)",
+                "fontSize=\(fontSize)",
+                "color=\(color)"
+            ]
+        )
+    }
+
+    nonisolated static func danmakuReportMutationKey(
+        accountMID: Int?,
+        credentialVersion: Int,
+        cid: Int,
+        dmid: Int64,
+        reason: DanmakuReportReason,
+        content: String?
+    ) -> String {
+        hashedMutationKey(
+            prefix: "danmaku-report",
+            components: [
+                "account=\(accountMID ?? 0)",
+                "credentialVersion=\(credentialVersion)",
+                "cid=\(cid)",
+                "dmid=\(dmid)",
+                "reason=\(reason.rawValue)",
+                "content=\(content ?? "")"
+            ]
+        )
+    }
+
+    private nonisolated static func hashedMutationKey(
+        prefix: String,
+        components: [String]
+    ) -> String {
+        let material = components.joined(separator: "\n")
+        let digest = SHA256.hash(data: Data(material.utf8))
+        return prefix + ":" + digest.map { String(format: "%02x", $0) }.joined()
     }
 
     nonisolated static func validatedCommentMessage(_ message: String) throws -> String {
@@ -8524,6 +8885,21 @@ nonisolated private struct FrontendFingerprintData: Decodable {
     }
 }
 
+nonisolated private struct BiliNonIdempotentMutationTaskResult: @unchecked Sendable {
+    let value: Any
+
+    init<Value: Sendable>(_ value: Value) {
+        self.value = value
+    }
+
+    func decoded<Value: Sendable>(as type: Value.Type) throws -> Value {
+        guard let typedValue = value as? Value else {
+            throw BiliAPIError.api(code: -1, message: "请求返回类型不匹配，请重试")
+        }
+        return typedValue
+    }
+}
+
 private actor BiliAPIClientState {
     private struct PersistedWBIKeys: Codable {
         let keys: WBIKeys
@@ -8551,6 +8927,80 @@ private actor BiliAPIClientState {
     private var playURLRequestTasks: [PendingPlayURLRequestKey: PendingPlayURLRequest] = [:]
     private var playURLStageTasks: [String: PendingPlayURLStageRequest] = [:]
     private var danmakuCache: [Int: CachedDanmaku] = [:]
+    private var nonIdempotentMutationTasks: [
+        String: (token: UUID, task: Task<BiliNonIdempotentMutationTaskResult, Error>)
+    ] = [:]
+    private var nonIdempotentMutationDeduplicationState = BiliNonIdempotentMutationDeduplicationState()
+
+    func performDeduplicatedNonIdempotentMutation<Value: Sendable>(
+        key: String,
+        successCooldown: TimeInterval,
+        operation: @escaping @Sendable () async throws -> Value
+    ) async throws -> Value {
+        let decision = nonIdempotentMutationDeduplicationState.begin(
+            key: key,
+            now: Date(),
+            successCooldown: successCooldown
+        )
+
+        let token: UUID
+        let task: Task<BiliNonIdempotentMutationTaskResult, Error>
+        switch decision {
+        case .suppressRecentSuccess:
+            guard let emptyValue = () as? Value else {
+                throw BiliAPIError.api(code: -1, message: "请求刚刚已完成，请稍后重试")
+            }
+            return emptyValue
+        case .join(let existingToken):
+            guard let existing = nonIdempotentMutationTasks[key],
+                  existing.token == existingToken
+            else {
+                // The actor keeps the task and state machine in one transaction,
+                // so this branch only protects against future maintenance drift.
+                throw BiliAPIError.api(code: -1, message: "请求状态已变化，请重试")
+            }
+            token = existingToken
+            task = existing.task
+        case .start(let newToken):
+            token = newToken
+            task = Task(priority: .userInitiated) {
+                BiliNonIdempotentMutationTaskResult(try await operation())
+            }
+            nonIdempotentMutationTasks[key] = (newToken, task)
+        }
+
+        do {
+            let result = try await task.value
+            finishNonIdempotentMutation(
+                key: key,
+                token: token,
+                succeeded: true
+            )
+            return try result.decoded(as: Value.self)
+        } catch {
+            finishNonIdempotentMutation(
+                key: key,
+                token: token,
+                succeeded: false
+            )
+            throw error
+        }
+    }
+
+    private func finishNonIdempotentMutation(
+        key: String,
+        token: UUID,
+        succeeded: Bool
+    ) {
+        guard nonIdempotentMutationTasks[key]?.token == token else { return }
+        nonIdempotentMutationTasks[key] = nil
+        nonIdempotentMutationDeduplicationState.finish(
+            key: key,
+            token: token,
+            succeeded: succeeded,
+            now: Date()
+        )
+    }
 
     func freshCachedWBIKeys() -> WBIKeys? {
         guard let keys = cachedWBIKeys,

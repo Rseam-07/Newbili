@@ -19,9 +19,10 @@ extension VideoDetailViewModel {
 
     var effectiveDanmakuSettings: DanmakuSettings {
         var settings = danmakuSettings
-        settings.loadFactor = libraryStore.isPlaybackAutoOptimizationEnabled
+        let adaptiveLoadFactor = libraryStore.isPlaybackAutoOptimizationEnabled
             ? playbackAdaptationProfile.danmakuLoadFactor
             : 1.0
+        settings.loadFactor = min(settings.loadFactor, adaptiveLoadFactor)
         return settings.normalized
     }
 }

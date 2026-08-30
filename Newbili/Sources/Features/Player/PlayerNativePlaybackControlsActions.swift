@@ -8,5 +8,6 @@ struct PlayerNativePlaybackControlsActions {
     let onTogglePlayback: () -> Void
     let onToggleDanmaku: () -> Void
     let onSendDanmaku: () -> Void
+    let onTogglePictureInPicture: () -> Void
     let onToggleFullscreen: () -> Void
 }

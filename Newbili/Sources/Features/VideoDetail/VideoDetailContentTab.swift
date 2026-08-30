@@ -24,3 +24,26 @@ enum VideoDetailContentTab: String, CaseIterable, Identifiable {
         }
     }
 }
+
+enum VideoDetailContentVisibilityPolicy {
+    static func resolvedSelection(
+        _ selection: VideoDetailContentTab,
+        showsComments: Bool
+    ) -> VideoDetailContentTab {
+        selection == .comments && !showsComments ? .detail : selection
+    }
+
+    static func showsRelatedVideos(
+        isPGCEpisode: Bool,
+        preferenceEnabled: Bool
+    ) -> Bool {
+        preferenceEnabled && !isPGCEpisode
+    }
+
+    static func automaticallyLoadsComments(
+        hasCommentTarget: Bool,
+        preferenceEnabled: Bool
+    ) -> Bool {
+        preferenceEnabled && hasCommentTarget
+    }
+}

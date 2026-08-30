@@ -32,4 +32,9 @@ final class HomeFeedPageCoordinator {
         guard limit > 0 else { return [] }
         return Array(try await api.fetchPopularVideos(page: 1).prefix(limit))
     }
+
+    func fetchFeaturedActivityBanners(limit: Int) async throws -> [HomeActivityBanner] {
+        guard limit > 0 else { return [] }
+        return Array(try await api.fetchHomeActivityBanners().prefix(limit))
+    }
 }

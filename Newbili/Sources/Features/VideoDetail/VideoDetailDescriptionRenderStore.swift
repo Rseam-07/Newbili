@@ -5,6 +5,8 @@ import Foundation
 final class VideoDetailDescriptionRenderStore: ObservableObject {
     @Published private var snapshot = VideoDetailDescriptionRenderSnapshot()
 
+    var bvid: String { snapshot.bvid }
+    var cid: Int? { snapshot.cid }
     var titleText: String { snapshot.titleText }
     var owner: VideoOwner? { snapshot.owner }
     var viewCountText: String { snapshot.viewCountText }

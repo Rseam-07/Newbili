@@ -10,6 +10,7 @@ struct RootTabView: View {
     @StateObject var mineViewModelHolder = MineViewModelHolder()
     @StateObject var searchBottomAccessoryStore = SearchBottomAccessoryStore()
     @StateObject var audioMiniPlayerCoordinator = AudioMiniPlayerCoordinator.shared
+    @StateObject var appIntentRouteInbox = AppIntentRouteInbox.shared
     @State var selectedTab = Self.initialTab.appTab
     @State var bottomMode: BottomTabMode = .root
     @State var rootTabBarRestoreRequestID = 0
@@ -64,6 +65,7 @@ struct RootTabView: View {
         }
         .task {
             restoreRootOrientationsIfNeeded()
+            appIntentRouteInbox.refreshFromDisk()
             AppIconController.apply(libraryStore.appIconPreference)
             PictureInPictureRestoreCoordinator.shared.restoreHandler = { video in
                 await restoreVideoPlaybackUIForPictureInPicture(video)
@@ -75,6 +77,9 @@ struct RootTabView: View {
             openStartupUploaderIfNeeded()
             openStartupMineRouteIfNeeded()
             dependencies.scheduleDeferredStartupWorkIfNeeded()
+        }
+        .task(id: appIntentRouteInbox.pendingRequest?.id) {
+            consumePendingAppIntentRouteIfNeeded()
         }
         .task(id: homeMessageUnreadRefreshTaskID) {
             await refreshHomeMessageUnreadIfNeeded()
@@ -95,10 +100,12 @@ struct RootTabView: View {
             switch phase {
             case .active:
                 restoreRootOrientationsIfNeeded()
+                appIntentRouteInbox.refreshFromDisk()
                 Task {
                     await refreshHomeMessageUnreadIfNeeded()
                 }
             case .background:
+                libraryStore.flushDanmakuSettingsPersistence()
                 Task {
                     await VideoPreloadCenter.shared.cancelMediaWarmups(clearCache: false)
                 }

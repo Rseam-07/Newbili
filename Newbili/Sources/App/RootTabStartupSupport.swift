@@ -77,6 +77,12 @@ extension RootTabView {
             return .accountMessages
         case "playback-settings":
             return .playbackSettings
+        case "settings-search":
+            return .settingsSearch
+        case "danmaku-settings":
+            return .danmakuSettings
+        case "apple-intelligence-settings":
+            return .appleIntelligenceSettings
         default:
             return nil
         }

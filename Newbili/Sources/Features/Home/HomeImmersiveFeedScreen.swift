@@ -6,6 +6,7 @@ struct HomeImmersiveFeedScreen: View {
     @ObservedObject var viewModel: HomeViewModel
     @ObservedObject var runtimeSettings: HomeRuntimeSettingsStore
     @ObservedObject var libraryStore: LibraryStore
+    let presentationStyle: HomePresentationStyle
     @Binding var viewportState: HomeFeedViewportState
     @Binding var detailPath: NavigationPath
     @Binding var usesCinematicNavigationChrome: Bool
@@ -18,21 +19,31 @@ struct HomeImmersiveFeedScreen: View {
     let launchConfiguration: HomeFeedLaunchConfiguration
 
     var body: some View {
-        let usesCinematicWideLayout = HomeCinematicWideLayoutPolicy.usesCinematicShelves(
-            containerWidth: viewportState.feedContainerWidth,
-            viewportHeight: viewportState.viewportHeight
-        )
+        let usesCinematicWideLayout = presentationStyle != .editorial
+            && HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: viewportState.feedContainerWidth,
+                viewportHeight: viewportState.viewportHeight
+            )
         let layout = effectiveLayout
         let metrics = viewportState.layoutMetrics(for: layout)
-        let imagePrefetchProfile = HomeFeedCoverPrefetchProfile.make(
-            layout: layout,
-            metrics: metrics,
-            displayScale: displayScale
+        let editorialImagePixelLength = HomeEditorialImagePolicy.maximumPixelLength(
+            containerWidth: viewportState.feedContainerWidth
         )
+        let imagePrefetchProfile = presentationStyle == .editorial
+            ? HomeFeedCoverPrefetchProfile.editorial(
+                containerWidth: viewportState.feedContainerWidth,
+                displayScale: displayScale
+            )
+            : HomeFeedCoverPrefetchProfile.make(
+                layout: layout,
+                metrics: metrics,
+                displayScale: displayScale
+            )
         ZStack(alignment: .top) {
             HomeImmersiveBackdrop(
                 mode: viewModel.mode,
-                usesCinematicWideLayout: usesCinematicWideLayout
+                usesCinematicWideLayout: usesCinematicWideLayout,
+                presentationStyle: presentationStyle
             )
 
             HomeFeedScrollView(
@@ -69,27 +80,58 @@ struct HomeImmersiveFeedScreen: View {
                                 HomeFeaturedCarousel(
                                     items: viewModel.featuredItems,
                                     mode: viewModel.mode,
-                                    style: .compact,
+                                    style: presentationStyle == .editorial
+                                        ? .editorial(
+                                            containerWidth: viewportState.feedContainerWidth,
+                                            viewportHeight: viewportState.viewportHeight
+                                        )
+                                        : .compact,
                                     actions: contentActions
                                 )
-                                .padding(.horizontal, 16)
-                                .padding(.top, 10)
-                                .padding(.bottom, 22)
+                                .padding(
+                                    .horizontal,
+                                    presentationStyle == .editorial
+                                        ? HomeEditorialLayoutPolicy.horizontalInset(
+                                            containerWidth: viewportState.feedContainerWidth
+                                        )
+                                        : 16
+                                )
+                                .padding(.top, presentationStyle == .editorial ? 8 : 10)
+                                .padding(.bottom, presentationStyle == .editorial ? 28 : 22)
                             }
 
                             if viewModel.videoCells.count > viewModel.featuredCurrentFeedItemCount {
-                                HomeImmersiveFeedHeading(mode: viewModel.mode)
-
-                                HomeFeedContentSection(
-                                    metrics: metrics,
-                                    cells: viewModel.videoCells,
-                                    cellStartIndex: viewModel.featuredCurrentFeedItemCount,
-                                    lastSeenMarkerIndex: viewModel.lastSeenMarkerIndex,
-                                    isLoadingMore: viewModel.state.isLoading
-                                        && !viewModel.isRefreshing
-                                        && !viewModel.isUserRefreshing,
-                                    actions: contentActions
+                                HomeImmersiveFeedHeading(
+                                    mode: viewModel.mode,
+                                    presentationStyle: presentationStyle
                                 )
+
+                                if presentationStyle == .editorial {
+                                    HomeEditorialMagazineFeed(
+                                        cells: viewModel.videoCells,
+                                        startIndex: viewModel.featuredCurrentFeedItemCount,
+                                        mode: viewModel.mode,
+                                        layout: layout,
+                                        containerWidth: viewportState.feedContainerWidth,
+                                        imagePixelLength: editorialImagePixelLength,
+                                        lastSeenMarkerCellIndex: viewModel.lastSeenMarkerIndex,
+                                        isLoadingMore: viewModel.state.isLoading
+                                            && !viewModel.isRefreshing
+                                            && !viewModel.isUserRefreshing,
+                                        actions: contentActions
+                                    )
+                                } else {
+                                    HomeFeedContentSection(
+                                        metrics: metrics,
+                                        cells: viewModel.videoCells,
+                                        cellStartIndex: viewModel.featuredCurrentFeedItemCount,
+                                        lastSeenMarkerIndex: viewModel.lastSeenMarkerIndex,
+                                        isLoadingMore: viewModel.state.isLoading
+                                            && !viewModel.isRefreshing
+                                            && !viewModel.isUserRefreshing,
+                                        actions: contentActions
+                                    )
+                                }
                             }
                         }
                     }
@@ -117,7 +159,13 @@ struct HomeImmersiveFeedScreen: View {
     }
 
     private var effectiveLayout: HomeFeedLayout {
-        HomeImmersiveAdaptiveLayoutPolicy.resolve(
+        if presentationStyle == .editorial {
+            return HomeEditorialAdaptiveLayoutPolicy.resolve(
+                preferredLayout: runtimeSettings.homeFeedLayout,
+                usesAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            )
+        }
+        return HomeImmersiveAdaptiveLayoutPolicy.resolve(
             preferredLayout: runtimeSettings.homeFeedLayout,
             containerWidth: viewportState.feedContainerWidth,
             usesAccessibilitySize: dynamicTypeSize.isAccessibilitySize
@@ -130,6 +178,21 @@ struct HomeImmersiveFeedScreen: View {
             lifecycleActions: actionStore.lifecycle,
             detailOpenActions: actionStore.detailOpen
         )
+    }
+}
+
+nonisolated enum HomeEditorialAdaptiveLayoutPolicy {
+    static func resolve(
+        preferredLayout: HomeFeedLayout,
+        usesAccessibilitySize: Bool
+    ) -> HomeFeedLayout {
+        guard usesAccessibilitySize else { return preferredLayout }
+        switch preferredLayout {
+        case .borderedDoubleColumn, .borderedSingleColumn:
+            return .borderedSingleColumn
+        case .doubleColumn, .singleColumn:
+            return .singleColumn
+        }
     }
 }
 
@@ -506,23 +569,52 @@ private struct HomeCinematicLastSeenMarker: View {
 
 private struct HomeImmersiveFeedHeading: View {
     let mode: HomeFeedMode
+    let presentationStyle: HomePresentationStyle
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(mode == .popular ? "全站热榜" : "继续发现")
-                    .font(.title3.bold())
-                Text(mode == .popular ? "此刻大家都在看" : "根据你的内容偏好持续更新")
+                Text(headingTitle)
+                    .font(presentationStyle == .editorial ? .title2.weight(.bold) : .title3.bold())
+                Text(headingSubtitle)
                     .font(.caption)
+                    .foregroundStyle(
+                        presentationStyle == .editorial
+                            ? HomeEditorialPalette.secondaryText
+                            : Color.secondary
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+
+            if presentationStyle == .editorial {
+                Rectangle()
+                    .fill(HomeEditorialPalette.divider)
+                    .frame(minWidth: 24, maxWidth: .infinity)
+                    .frame(height: 1)
+                    .accessibilityHidden(true)
+            } else {
+                Spacer()
+                Image(systemName: "arrow.down")
+                    .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Image(systemName: "arrow.down")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 18)
-        .padding(.bottom, 10)
+        .padding(.bottom, presentationStyle == .editorial ? 15 : 10)
+        .foregroundStyle(presentationStyle == .editorial ? Color.white : Color.primary)
+    }
+
+    private var headingTitle: String {
+        if mode == .popular { return "全站热榜" }
+        return presentationStyle == .editorial ? "为你推荐" : "继续发现"
+    }
+
+    private var headingSubtitle: String {
+        if mode == .popular { return "此刻大家都在看" }
+        return presentationStyle == .editorial
+            ? "根据你的观看偏好更新，每次刷新都会变化"
+            : "根据你的内容偏好持续更新"
     }
 }
 
@@ -532,53 +624,65 @@ private struct HomeImmersiveBackdrop: View {
     private var realtimeAmbientBlurEnabled = HomeRealtimeBlurSettings.defaultIsEnabled
     let mode: HomeFeedMode
     let usesCinematicWideLayout: Bool
+    let presentationStyle: HomePresentationStyle
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: usesCinematicWideLayout
-                    ? [Color.black, Color(red: 0.07, green: 0.06, blue: 0.10), Color.black]
-                    : colorScheme == .dark
-                    ? [Color(red: 0.04, green: 0.05, blue: 0.09), Color(red: 0.11, green: 0.07, blue: 0.12), .black]
-                    : [Color(red: 0.98, green: 0.98, blue: 1), Color(red: 1, green: 0.96, blue: 0.98), .white],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            if realtimeAmbientBlurEnabled {
-                Circle()
-                    .fill((mode == .popular ? Color.orange : Color.pink).opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16))
-                    .frame(width: usesCinematicWideLayout ? 620 : 360, height: usesCinematicWideLayout ? 620 : 360)
-                    .blur(radius: usesCinematicWideLayout ? 128 : 84)
-                    .offset(x: usesCinematicWideLayout ? -260 : -160, y: usesCinematicWideLayout ? -330 : -250)
-
-                Circle()
-                    .fill(Color.cyan.opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12))
-                    .frame(width: usesCinematicWideLayout ? 680 : 380, height: usesCinematicWideLayout ? 680 : 380)
-                    .blur(radius: usesCinematicWideLayout ? 142 : 88)
-                    .offset(x: usesCinematicWideLayout ? 360 : 170, y: usesCinematicWideLayout ? 460 : 310)
+        Group {
+            if presentationStyle == .editorial {
+                HomeEditorialPalette.background
             } else {
-                HomeAmbientGradientGlow(
-                    color: mode == .popular ? .orange : .pink,
-                    innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16,
-                    middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.11 : 0.07,
-                    endRadius: usesCinematicWideLayout ? 420 : 260
-                )
-                .frame(width: usesCinematicWideLayout ? 840 : 520, height: usesCinematicWideLayout ? 840 : 520)
-                .offset(x: usesCinematicWideLayout ? -260 : -160, y: usesCinematicWideLayout ? -330 : -250)
+                ZStack {
+                    LinearGradient(
+                        colors: usesCinematicWideLayout
+                            ? [Color.black, Color(red: 0.07, green: 0.06, blue: 0.10), Color.black]
+                            : colorScheme == .dark
+                            ? [Color(red: 0.04, green: 0.05, blue: 0.09), Color(red: 0.11, green: 0.07, blue: 0.12), .black]
+                            : [Color(red: 0.98, green: 0.98, blue: 1), Color(red: 1, green: 0.96, blue: 0.98), .white],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
 
-                HomeAmbientGradientGlow(
-                    color: .cyan,
-                    innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12,
-                    middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.08 : 0.05,
-                    endRadius: usesCinematicWideLayout ? 450 : 280
-                )
-                .frame(width: usesCinematicWideLayout ? 900 : 560, height: usesCinematicWideLayout ? 900 : 560)
-                .offset(x: usesCinematicWideLayout ? 360 : 170, y: usesCinematicWideLayout ? 460 : 310)
+                    if realtimeAmbientBlurEnabled {
+                        Circle()
+                            .fill(primaryGlowColor.opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16))
+                            .frame(width: usesCinematicWideLayout ? 620 : 360, height: usesCinematicWideLayout ? 620 : 360)
+                            .blur(radius: usesCinematicWideLayout ? 128 : 84)
+                            .offset(x: usesCinematicWideLayout ? -260 : -160, y: usesCinematicWideLayout ? -330 : -250)
+
+                        Circle()
+                            .fill(Color.cyan.opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12))
+                            .frame(width: usesCinematicWideLayout ? 680 : 380, height: usesCinematicWideLayout ? 680 : 380)
+                            .blur(radius: usesCinematicWideLayout ? 142 : 88)
+                            .offset(x: usesCinematicWideLayout ? 360 : 170, y: usesCinematicWideLayout ? 460 : 310)
+                    } else {
+                        HomeAmbientGradientGlow(
+                            color: primaryGlowColor,
+                            innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16,
+                            middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.11 : 0.07,
+                            endRadius: usesCinematicWideLayout ? 420 : 260
+                        )
+                        .frame(width: usesCinematicWideLayout ? 840 : 520, height: usesCinematicWideLayout ? 840 : 520)
+                        .offset(x: usesCinematicWideLayout ? -260 : -160, y: usesCinematicWideLayout ? -330 : -250)
+
+                        HomeAmbientGradientGlow(
+                            color: .cyan,
+                            innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12,
+                            middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.08 : 0.05,
+                            endRadius: usesCinematicWideLayout ? 450 : 280
+                        )
+                        .frame(width: usesCinematicWideLayout ? 900 : 560, height: usesCinematicWideLayout ? 900 : 560)
+                        .offset(x: usesCinematicWideLayout ? 360 : 170, y: usesCinematicWideLayout ? 460 : 310)
+                    }
+                }
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+
+    private var primaryGlowColor: Color {
+        if mode == .popular { return .orange }
+        return .pink
     }
 }
 

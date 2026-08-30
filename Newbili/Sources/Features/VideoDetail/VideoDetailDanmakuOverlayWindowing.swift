@@ -36,7 +36,11 @@ extension VideoDetailDanmakuOverlayState {
     }
 
     var effectiveWindowLookBehind: TimeInterval {
-        snapshot.isLoadShedding ? 6 : normalWindowLookBehind
+        let visibleLifetime = max(
+            snapshot.settings.scrollingDuration,
+            snapshot.settings.staticDuration
+        ) + 1
+        return max(snapshot.isLoadShedding ? 8 : normalWindowLookBehind, visibleLifetime)
     }
 
     var effectiveWindowLookAhead: TimeInterval {

@@ -19,7 +19,7 @@ final class LiveRoomViewModelHolder: ObservableObject {
             }
         }
         lastSnapshot = LiveRoomToolbarSnapshot(viewModel)
-        cancellable = viewModel.objectWillChange.sink { [weak self] _ in
+        cancellable = viewModel.objectWillChange.sink { [weak self, weak viewModel] _ in
             Task { @MainActor [weak self, weak viewModel] in
                 guard let self, let viewModel else { return }
                 let snapshot = LiveRoomToolbarSnapshot(viewModel)

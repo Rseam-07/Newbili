@@ -2,6 +2,88 @@ import Combine
 import SwiftUI
 import UIKit
 
+nonisolated enum DanmakuMotionTiming {
+    static func remainingDuration(
+        totalDuration: TimeInterval,
+        elapsed: TimeInterval
+    ) -> TimeInterval {
+        max(0.05, totalDuration - min(max(elapsed, 0), totalDuration))
+    }
+
+    static func laneEntranceDelay(
+        surfaceWidth: CGFloat,
+        labelWidth: CGFloat,
+        duration: TimeInterval,
+        gap: CGFloat
+    ) -> TimeInterval {
+        let travelDistance = max(surfaceWidth + labelWidth, 1)
+        let protectedWidth = min(labelWidth + gap, surfaceWidth * 0.72)
+        return duration * TimeInterval(protectedWidth / travelDistance)
+    }
+}
+
+nonisolated enum DanmakuQuickActionLayout {
+    static let minimumHitDimension: CGFloat = 44
+
+    static func frame(
+        anchoredTo anchor: CGRect,
+        menuSize: CGSize,
+        in container: CGRect,
+        edgeInset: CGFloat = 8,
+        verticalGap: CGFloat = 6
+    ) -> CGRect {
+        let safeBounds = container.insetBy(dx: max(0, edgeInset), dy: max(0, edgeInset))
+        let width = min(max(0, menuSize.width), max(0, safeBounds.width))
+        let height = min(max(0, menuSize.height), max(0, safeBounds.height))
+        let centeredX = anchor.midX - width / 2
+        let x = min(max(centeredX, safeBounds.minX), max(safeBounds.minX, safeBounds.maxX - width))
+        let preferredAboveY = anchor.minY - verticalGap - height
+        let preferredBelowY = anchor.maxY + verticalGap
+        let hasRoomAbove = preferredAboveY >= safeBounds.minY
+        let candidateY = hasRoomAbove ? preferredAboveY : preferredBelowY
+        let y = min(max(candidateY, safeBounds.minY), max(safeBounds.minY, safeBounds.maxY - height))
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+}
+
+nonisolated enum DanmakuQuickActionPolicy {
+    static func showsLike(
+        allowsRemoteInteraction: Bool,
+        dmid: Int64?,
+        hasLikeAction: Bool
+    ) -> Bool {
+        allowsRemoteInteraction
+            && (dmid ?? 0) > 0
+            && hasLikeAction
+    }
+
+    static func showsMore(hasMoreAction: Bool) -> Bool {
+        hasMoreAction
+    }
+}
+
+enum DanmakuQuickActionLikeResult {
+    case success(isLiked: Bool)
+    case failure(message: String)
+}
+
+@MainActor
+struct DanmakuQuickActionConfiguration {
+    let allowsRemoteInteraction: Bool
+    let onCopy: (DanmakuItem) -> Void
+    let onToggleLike: ((DanmakuItem, Bool, @escaping (DanmakuQuickActionLikeResult) -> Void) -> Void)?
+    let onMore: ((DanmakuItem, Bool) -> Void)?
+
+    static func copyOnly(onCopy: @escaping (DanmakuItem) -> Void) -> Self {
+        Self(
+            allowsRemoteInteraction: false,
+            onCopy: onCopy,
+            onToggleLike: nil,
+            onMore: nil
+        )
+    }
+}
+
 struct DanmakuOverlayView: UIViewRepresentable {
     fileprivate struct ConfigurationSignature: Equatable {
         let itemsRevision: Int
@@ -58,6 +140,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
     let playbackClock: PlayerPlaybackClock?
     let onPlaybackTime: ((TimeInterval, Bool) -> Void)?
     let onSelectItem: ((DanmakuItem) -> Void)?
+    let quickActions: DanmakuQuickActionConfiguration?
 
     init(
         items: [DanmakuItem],
@@ -74,7 +157,8 @@ struct DanmakuOverlayView: UIViewRepresentable {
         isLayoutTransitioning: Bool = false,
         playbackClock: PlayerPlaybackClock? = nil,
         onPlaybackTime: ((TimeInterval, Bool) -> Void)? = nil,
-        onSelectItem: ((DanmakuItem) -> Void)? = nil
+        onSelectItem: ((DanmakuItem) -> Void)? = nil,
+        quickActions: DanmakuQuickActionConfiguration? = nil
     ) {
         self.items = items
         self.itemsRevision = itemsRevision
@@ -91,6 +175,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
         self.playbackClock = playbackClock
         self.onPlaybackTime = onPlaybackTime
         self.onSelectItem = onSelectItem
+        self.quickActions = quickActions
     }
 
     func makeCoordinator() -> Coordinator {
@@ -100,6 +185,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
     func makeUIView(context: Context) -> DanmakuAnimationOverlayView {
         let view = DanmakuAnimationOverlayView()
         view.onSelectItem = onSelectItem
+        view.quickActions = quickActions
         view.setLayoutTransitioning(isLayoutTransitioning)
         let resolvedCurrentTime = playbackClock?.currentTime ?? currentTime
         let signature = configurationSignature(resolvedCurrentTime: resolvedCurrentTime)
@@ -123,6 +209,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
 
     func updateUIView(_ uiView: DanmakuAnimationOverlayView, context: Context) {
         uiView.onSelectItem = onSelectItem
+        uiView.quickActions = quickActions
         if isLayoutTransitioning {
             uiView.setLayoutTransitioning(true)
         }
@@ -169,6 +256,7 @@ struct DanmakuOverlayView: UIViewRepresentable {
     static func dismantleUIView(_ uiView: DanmakuAnimationOverlayView, coordinator: Coordinator) {
         coordinator.unbind()
         uiView.onSelectItem = nil
+        uiView.quickActions = nil
         uiView.stop()
     }
 
@@ -270,6 +358,7 @@ final class DanmakuAnimationOverlayView: UIView {
     private var items: [DanmakuItem] = []
     private var timeBuckets: [TimeBucket] = []
     private var settings: DanmakuSettings = .default
+    private var itemFilter = DanmakuItemFilter(rules: DanmakuSettings.default.filterRules)
     private var currentTime: TimeInterval = 0
     private var isPlaying = false
     private var playbackRate: Double = 1
@@ -300,6 +389,22 @@ final class DanmakuAnimationOverlayView: UIView {
     private var renderEnvironment = PlaybackEnvironment.current
     private var lastRenderEnvironmentRefreshTime = CACurrentMediaTime()
     var onSelectItem: ((DanmakuItem) -> Void)?
+    var quickActions: DanmakuQuickActionConfiguration? {
+        didSet {
+            if quickActions == nil {
+                dismissQuickActions(animated: false)
+            }
+        }
+    }
+    private var quickActionContainer: UIVisualEffectView?
+    private var quickActionStack: UIStackView?
+    private var quickActionItem: DanmakuItem?
+    private var quickActionLiked = false
+    private var quickActionLikedStateByDMID: [Int64: Bool] = [:]
+    private var quickActionEntryID: String?
+    private weak var quickActionLabel: UILabel?
+    private var quickActionDismissWorkItem: DispatchWorkItem?
+    private weak var quickActionLikeButton: UIButton?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -345,7 +450,12 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        guard onSelectItem != nil, shouldRenderDanmaku else { return false }
+        if let quickActionContainer,
+           !quickActionContainer.isHidden,
+           quickActionContainer.frame.contains(point) {
+            return true
+        }
+        guard (quickActions != nil || onSelectItem != nil), shouldRenderDanmaku else { return false }
         return activeEntry(at: point) != nil
     }
 
@@ -353,6 +463,7 @@ final class DanmakuAnimationOverlayView: UIView {
         guard isLayoutTransitioning != isTransitioning else { return }
         isLayoutTransitioning = isTransitioning
         if isTransitioning {
+            dismissQuickActions(animated: false)
             cancelLayoutSettling()
             return
         }
@@ -386,15 +497,26 @@ final class DanmakuAnimationOverlayView: UIView {
         let previousIsPlaying = isPlaying
         let didChangeItems = newItemsRevision != lastItemsRevision
         let normalizedSettings = newSettings.normalized
-        let didChangeRenderedSettings = abs(normalizedSettings.fontScale - settings.fontScale) > 0.001
-            || abs(normalizedSettings.opacity - settings.opacity) > 0.001
+        let didChangeFilterRules = normalizedSettings.filterRules != settings.filterRules
+        let didChangeOpacity = abs(normalizedSettings.opacity - settings.opacity) > 0.001
+        let requiresRenderedItemRebuild = abs(normalizedSettings.fontScale - settings.fontScale) > 0.001
             || normalizedSettings.displayArea != settings.displayArea
             || normalizedSettings.fontWeight != settings.fontWeight
+            || abs(normalizedSettings.scrollingDuration - settings.scrollingDuration) > 0.001
+            || abs(normalizedSettings.staticDuration - settings.staticDuration) > 0.001
+            || abs(normalizedSettings.lineHeight - settings.lineHeight) > 0.001
+            || abs(normalizedSettings.strokeWidth - settings.strokeWidth) > 0.001
+            || didChangeFilterRules
         let didChangeTextMetrics = abs(normalizedSettings.fontScale - settings.fontScale) > 0.001
             || normalizedSettings.fontWeight != settings.fontWeight
+            || abs(normalizedSettings.lineHeight - settings.lineHeight) > 0.001
+            || abs(normalizedSettings.strokeWidth - settings.strokeWidth) > 0.001
         let didChangeInsets = abs(newTopInset - topInset) > 0.5 || abs(newBottomInset - bottomInset) > 0.5
-        items = newItems
-        if didChangeItems {
+        if didChangeFilterRules {
+            itemFilter = DanmakuItemFilter(rules: normalizedSettings.filterRules)
+        }
+        if didChangeItems || didChangeFilterRules {
+            items = itemFilter.filtered(newItems)
             rebuildTimeBuckets()
         }
         lastItemsRevision = newItemsRevision
@@ -410,6 +532,9 @@ final class DanmakuAnimationOverlayView: UIView {
         if didChangeTextMetrics {
             textSizeCache.removeAll(keepingCapacity: true)
             textSizeCacheOrder.removeAll(keepingCapacity: true)
+        }
+        if didChangeOpacity {
+            refreshActiveLabelColors()
         }
 
         let currentShouldRender = shouldRenderDanmaku
@@ -433,7 +558,7 @@ final class DanmakuAnimationOverlayView: UIView {
             return
         }
 
-        if !previousShouldRender || didChangeRenderedSettings || jumped {
+        if !previousShouldRender || requiresRenderedItemRebuild || jumped {
             rebuildVisibleItems(at: sanitizedTime, animated: newIsPlaying)
             updateDisplayLinkState()
             updateAnimationPauseState()
@@ -469,6 +594,7 @@ final class DanmakuAnimationOverlayView: UIView {
     func stop() {
         cancelLayoutSettling()
         stopDisplayLink()
+        dismissQuickActions(animated: false)
         clearActiveLabels()
     }
 
@@ -521,7 +647,16 @@ final class DanmakuAnimationOverlayView: UIView {
         guard gesture.state == .ended,
               let entry = activeEntry(at: gesture.location(in: self))
         else { return }
-        onSelectItem?(entry.item)
+        if quickActions != nil {
+            showQuickActions(for: entry, anchoredTo: interactiveFrame(for: entry))
+        } else {
+            onSelectItem?(entry.item)
+        }
+    }
+
+    private func interactiveFrame(for entry: ActiveEntry) -> CGRect {
+        let layer = entry.label.layer.presentation() ?? entry.label.layer
+        return layer.frame
     }
 
     private func activeEntry(at point: CGPoint) -> ActiveEntry? {
@@ -530,14 +665,254 @@ final class DanmakuAnimationOverlayView: UIView {
                 let layer = entry.label.layer.presentation() ?? entry.label.layer
                 guard layer.opacity > 0.05 else { return false }
                 let frame = layer.frame
-                let horizontalExpansion = max((44 - frame.width) / 2, 8)
-                let verticalExpansion = max((44 - frame.height) / 2, 6)
+                let horizontalExpansion = max(
+                    (DanmakuQuickActionLayout.minimumHitDimension - frame.width) / 2,
+                    8
+                )
+                let verticalExpansion = max(
+                    (DanmakuQuickActionLayout.minimumHitDimension - frame.height) / 2,
+                    6
+                )
                 return frame.insetBy(
                     dx: -horizontalExpansion,
                     dy: -verticalExpansion
                 ).contains(point)
             }
             .max { lhs, rhs in lhs.createdAt < rhs.createdAt }
+    }
+
+    private func showQuickActions(for entry: ActiveEntry, anchoredTo anchor: CGRect) {
+        guard let quickActions else { return }
+        quickActionDismissWorkItem?.cancel()
+        dismissQuickActions(animated: false)
+        let item = entry.item
+        quickActionItem = item
+        quickActionLiked = item.dmid.flatMap { quickActionLikedStateByDMID[$0] } ?? false
+        quickActionEntryID = entry.id
+        quickActionLabel = entry.label
+        suspendQuickActionLabel(entry.label)
+
+        let blur = UIBlurEffect(style: .systemChromeMaterialDark)
+        let container = UIVisualEffectView(effect: blur)
+        container.clipsToBounds = true
+        container.layer.cornerCurve = .continuous
+        container.layer.cornerRadius = 24
+        container.layer.borderWidth = 0.5
+        container.layer.borderColor = UIColor.white.withAlphaComponent(0.24).cgColor
+        container.accessibilityViewIsModal = false
+
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.distribution = .fillEqually
+        stack.spacing = 0
+        stack.layoutMargins = UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+        stack.isLayoutMarginsRelativeArrangement = true
+        container.contentView.addSubview(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: container.contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.contentView.bottomAnchor)
+        ])
+
+        let copyButton = makeQuickActionButton(
+            systemImage: "doc.on.doc",
+            accessibilityLabel: "复制弹幕",
+            action: #selector(copyQuickAction)
+        )
+        stack.addArrangedSubview(copyButton)
+
+        let showsLike = DanmakuQuickActionPolicy.showsLike(
+            allowsRemoteInteraction: quickActions.allowsRemoteInteraction,
+            dmid: item.dmid,
+            hasLikeAction: quickActions.onToggleLike != nil
+        )
+        if showsLike {
+            let likeButton = makeQuickActionButton(
+                systemImage: quickActionLiked ? "hand.thumbsup.fill" : "hand.thumbsup",
+                accessibilityLabel: quickActionLiked ? "取消弹幕点赞" : "点赞弹幕",
+                action: #selector(toggleLikeQuickAction)
+            )
+            stack.addArrangedSubview(likeButton)
+            quickActionLikeButton = likeButton
+        }
+        if DanmakuQuickActionPolicy.showsMore(hasMoreAction: quickActions.onMore != nil) {
+            stack.addArrangedSubview(
+                makeQuickActionButton(
+                    systemImage: "ellipsis.circle",
+                    accessibilityLabel: "更多弹幕操作",
+                    action: #selector(moreQuickAction)
+                )
+            )
+        }
+
+        addSubview(container)
+        quickActionContainer = container
+        quickActionStack = stack
+        let itemCount = CGFloat(stack.arrangedSubviews.count)
+        let menuSize = CGSize(width: itemCount * 48 + 8, height: 48)
+        container.frame = DanmakuQuickActionLayout.frame(
+            anchoredTo: anchor,
+            menuSize: menuSize,
+            in: bounds
+        )
+        presentQuickActionContainer(container)
+        UISelectionFeedbackGenerator().selectionChanged()
+        scheduleQuickActionDismissal()
+    }
+
+    private func makeQuickActionButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        action: Selector
+    ) -> UIButton {
+        let button = UIButton(type: .system)
+        button.tintColor = .white
+        button.setImage(UIImage(systemName: systemImage), for: .normal)
+        button.accessibilityLabel = accessibilityLabel
+        button.accessibilityTraits.insert(.button)
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(
+                greaterThanOrEqualToConstant: DanmakuQuickActionLayout.minimumHitDimension
+            ),
+            button.heightAnchor.constraint(
+                greaterThanOrEqualToConstant: DanmakuQuickActionLayout.minimumHitDimension
+            )
+        ])
+        return button
+    }
+
+    private func presentQuickActionContainer(_ container: UIView) {
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            container.alpha = 1
+            container.transform = .identity
+            return
+        }
+        container.alpha = 0
+        container.transform = CGAffineTransform(scaleX: 0.88, y: 0.88)
+        UIView.animate(
+            withDuration: 0.18,
+            delay: 0,
+            options: [.curveEaseOut, .beginFromCurrentState]
+        ) {
+            container.alpha = 1
+            container.transform = .identity
+        }
+    }
+
+    private func scheduleQuickActionDismissal() {
+        quickActionDismissWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.dismissQuickActions(animated: true)
+        }
+        quickActionDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5, execute: workItem)
+    }
+
+    private func dismissQuickActions(animated: Bool) {
+        quickActionDismissWorkItem?.cancel()
+        quickActionDismissWorkItem = nil
+        resumeQuickActionLabelIfNeeded()
+        quickActionEntryID = nil
+        quickActionLabel = nil
+        quickActionItem = nil
+        quickActionLikeButton = nil
+        quickActionStack = nil
+        guard let container = quickActionContainer else { return }
+        quickActionContainer = nil
+        guard animated, !UIAccessibility.isReduceMotionEnabled else {
+            container.removeFromSuperview()
+            return
+        }
+        UIView.animate(
+            withDuration: 0.12,
+            delay: 0,
+            options: [.curveEaseIn, .beginFromCurrentState]
+        ) {
+            container.alpha = 0
+            container.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+        } completion: { _ in
+            container.removeFromSuperview()
+        }
+    }
+
+    @objc private func copyQuickAction() {
+        guard let item = quickActionItem, let quickActions else { return }
+        quickActions.onCopy(item)
+        if let copyButton = quickActionStack?.arrangedSubviews.first as? UIButton {
+            copyButton.setImage(UIImage(systemName: "checkmark"), for: .normal)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: "已复制弹幕")
+        scheduleQuickActionDismissal()
+    }
+
+    @objc private func toggleLikeQuickAction() {
+        guard let item = quickActionItem,
+              let quickActions,
+              let onToggleLike = quickActions.onToggleLike,
+              let button = quickActionLikeButton
+        else { return }
+        quickActionDismissWorkItem?.cancel()
+        button.isEnabled = false
+        var configuration = button.configuration ?? .plain()
+        configuration.showsActivityIndicator = true
+        configuration.image = nil
+        button.configuration = configuration
+        let target = !quickActionLiked
+        onToggleLike(item, target) { [weak self, weak button] result in
+            guard let self, let button else { return }
+            button.isEnabled = true
+            var configuration = button.configuration ?? .plain()
+            configuration.showsActivityIndicator = false
+            switch result {
+            case let .success(isLiked):
+                self.quickActionLiked = isLiked
+                if let dmid = item.dmid {
+                    self.quickActionLikedStateByDMID[dmid] = isLiked
+                }
+                configuration.image = UIImage(systemName: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                button.accessibilityLabel = isLiked ? "取消弹幕点赞" : "点赞弹幕"
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: isLiked ? "已点赞弹幕" : "已取消弹幕点赞"
+                )
+            case let .failure(message):
+                configuration.image = UIImage(systemName: "exclamationmark.circle")
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                UIAccessibility.post(notification: .announcement, argument: message)
+            }
+            button.configuration = configuration
+            self.scheduleQuickActionDismissal()
+        }
+    }
+
+    @objc private func moreQuickAction() {
+        guard let item = quickActionItem, let quickActions else { return }
+        let isLiked = quickActionLiked
+        dismissQuickActions(animated: true)
+        quickActions.onMore?(item, isLiked)
+    }
+
+    private func suspendQuickActionLabel(_ label: UILabel) {
+        let pausedTime = label.layer.convertTime(CACurrentMediaTime(), from: nil)
+        label.layer.speed = 0
+        label.layer.timeOffset = pausedTime
+    }
+
+    private func resumeQuickActionLabelIfNeeded() {
+        guard let label = quickActionLabel, label.layer.speed == 0 else { return }
+        let pausedTime = label.layer.timeOffset
+        label.layer.speed = 1
+        label.layer.timeOffset = 0
+        label.layer.beginTime = 0
+        let currentTime = label.layer.convertTime(CACurrentMediaTime(), from: nil)
+        label.layer.beginTime = currentTime - pausedTime
     }
 
     private var shouldRenderDanmaku: Bool {
@@ -728,13 +1103,16 @@ final class DanmakuAnimationOverlayView: UIView {
             let font = UIFont.systemFont(ofSize: fontSize, weight: settings.fontWeight.uiFontWeight)
             let textSize = measuredTextSize(for: entry.item, font: font)
             let labelSize = CGSize(
-                width: min(max(textSize.width + 18, 44), bounds.width * 1.45),
-                height: max(textSize.height + 8, fontSize + 8)
+                width: min(max(textSize.width + 18 + CGFloat(settings.strokeWidth * 2), 44), bounds.width * 1.45),
+                height: max(
+                    textSize.height + 8 + CGFloat(settings.strokeWidth * 2),
+                    fontSize * CGFloat(settings.lineHeight) + 4
+                )
             )
             configure(entry.label, for: entry.item, font: font, size: labelSize)
 
             let band = displayBand()
-            let laneHeight = max(labelSize.height, fontSize + 10)
+            let laneHeight = max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
             let laneCount = max(1, Int(max(1, band.height) / laneHeight))
             let lane = entry.item.isScrolling
                 ? stableLane(for: entry.item.id, laneCount: laneCount)
@@ -756,10 +1134,7 @@ final class DanmakuAnimationOverlayView: UIView {
                 )
                 entry.label.center = CGPoint(x: startX, y: y)
                 let animationDuration = animated
-                    ? remainingScrollAnimationDuration(
-                        fromX: startX,
-                        toX: endX
-                    )
+                    ? DanmakuMotionTiming.remainingDuration(totalDuration: duration, elapsed: age)
                     : 0
                 let entryAnimationGeneration = animationGeneration
                 let completion = animated ? DanmakuAnimationCompletionDelegate { [weak self, weak label = entry.label] finished in
@@ -867,8 +1242,11 @@ final class DanmakuAnimationOverlayView: UIView {
         let font = UIFont.systemFont(ofSize: fontSize, weight: settings.fontWeight.uiFontWeight)
         let textSize = measuredTextSize(for: item, font: font)
         let labelSize = CGSize(
-            width: min(max(textSize.width + 18, 44), bounds.width * 1.45),
-            height: max(textSize.height + 8, fontSize + 8)
+            width: min(max(textSize.width + 18 + CGFloat(settings.strokeWidth * 2), 44), bounds.width * 1.45),
+            height: max(
+                textSize.height + 8 + CGFloat(settings.strokeWidth * 2),
+                fontSize * CGFloat(settings.lineHeight) + 4
+            )
         )
         let label = dequeueLabel()
         configure(label, for: item, font: font, size: labelSize)
@@ -878,7 +1256,7 @@ final class DanmakuAnimationOverlayView: UIView {
         let remainingPlaybackDuration = max(0.05, duration - age)
         let animationDuration = animated ? remainingPlaybackDuration : 0
         let band = displayBand()
-        let laneHeight = max(labelSize.height, fontSize + 10)
+        let laneHeight = max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
         let laneCount = max(1, Int(max(1, band.height) / laneHeight))
         let lane: Int
         if item.isScrolling {
@@ -938,9 +1316,9 @@ final class DanmakuAnimationOverlayView: UIView {
                 let animation = CABasicAnimation(keyPath: "position.x")
                 animation.fromValue = startX
                 animation.toValue = endX
-                animation.duration = remainingScrollAnimationDuration(
-                    fromX: startX,
-                    toX: endX
+                animation.duration = DanmakuMotionTiming.remainingDuration(
+                    totalDuration: duration,
+                    elapsed: age
                 )
                 animation.timingFunction = CAMediaTimingFunction(name: .linear)
                 animation.isRemovedOnCompletion = false
@@ -965,22 +1343,59 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private func configure(_ label: UILabel, for item: DanmakuItem, font: UIFont, size: CGSize) {
-        label.text = item.text
         label.font = font
         label.textAlignment = .center
         label.numberOfLines = 1
         label.lineBreakMode = .byClipping
-        label.textColor = UIColor.danmakuRGB(item.color).withAlphaComponent(settings.opacity)
+        let foregroundColor = UIColor.danmakuRGB(item.color).withAlphaComponent(settings.opacity)
+        if settings.strokeWidth > 0.01 {
+            let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
+            label.attributedText = NSAttributedString(
+                string: item.text,
+                attributes: [
+                    .font: font,
+                    .foregroundColor: foregroundColor,
+                    .strokeColor: UIColor.black.withAlphaComponent(settings.opacity),
+                    .strokeWidth: strokePercentage
+                ]
+            )
+        } else {
+            label.attributedText = nil
+            label.text = item.text
+            label.textColor = foregroundColor
+        }
         label.alpha = 1
         label.layer.opacity = 1
         label.frame = CGRect(origin: .zero, size: size)
-        label.layer.shadowColor = UIColor.black.cgColor
-        label.layer.shadowOpacity = 0.92
-        label.layer.shadowRadius = 1.4
-        label.layer.shadowOffset = CGSize(width: 0, height: 1)
+        label.layer.shadowOpacity = 0
         label.layer.shouldRasterize = true
         label.layer.rasterizationScale = window?.screen.scale ?? traitCollection.displayScale
         label.layer.allowsEdgeAntialiasing = true
+    }
+
+    private func refreshActiveLabelColors() {
+        for entry in activeEntries.values {
+            let label = entry.label
+            let font = label.font ?? UIFont.systemFont(ofSize: fontSize(for: entry.item))
+            let foregroundColor = UIColor.danmakuRGB(entry.item.color)
+                .withAlphaComponent(settings.opacity)
+            if settings.strokeWidth > 0.01 {
+                let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
+                label.attributedText = NSAttributedString(
+                    string: entry.item.text,
+                    attributes: [
+                        .font: font,
+                        .foregroundColor: foregroundColor,
+                        .strokeColor: UIColor.black.withAlphaComponent(settings.opacity),
+                        .strokeWidth: strokePercentage
+                    ]
+                )
+            } else {
+                label.attributedText = nil
+                label.text = entry.item.text
+                label.textColor = foregroundColor
+            }
+        }
     }
 
     private func dequeueLabel() -> UILabel {
@@ -996,6 +1411,7 @@ final class DanmakuAnimationOverlayView: UIView {
 
     private func recycle(_ label: UILabel) {
         label.text = nil
+        label.attributedText = nil
         label.layer.removeAllAnimations()
         label.removeFromSuperview()
         guard reusableLabels.count < 72 else { return }
@@ -1003,6 +1419,7 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private func clearActiveLabels() {
+        dismissQuickActions(animated: false)
         let entries = activeEntries.values
         activeEntries.removeAll(keepingCapacity: true)
         for entry in entries {
@@ -1063,7 +1480,8 @@ final class DanmakuAnimationOverlayView: UIView {
         guard !activeEntries.isEmpty else { return }
         retirementCandidateIDs.removeAll(keepingCapacity: true)
         for entry in activeEntries.values
-        where shouldRetire(entry: entry, label: entry.label, at: playbackTime) {
+        where entry.id != quickActionEntryID
+            && shouldRetire(entry: entry, label: entry.label, at: playbackTime) {
             retirementCandidateIDs.append(entry.id)
         }
         for id in retirementCandidateIDs {
@@ -1134,14 +1552,6 @@ final class DanmakuAnimationOverlayView: UIView {
         )
     }
 
-    private func remainingScrollAnimationDuration(
-        fromX startX: CGFloat,
-        toX endX: CGFloat
-    ) -> TimeInterval {
-        let remainingDistance = max(startX - endX, 1)
-        return max(0.05, TimeInterval(remainingDistance / scrollingPixelsPerSecond))
-    }
-
     private var scrollingRetirementOverscan: CGFloat {
         min(max(bounds.width * 0.035, 8), 28)
     }
@@ -1206,7 +1616,7 @@ final class DanmakuAnimationOverlayView: UIView {
             max(25 * compactScale * CGFloat(settings.fontScale), bounds.width > 640 ? 13.5 : 11.7),
             (bounds.width > 640 ? 24 : 18) * 1.35
         )
-        let laneHeight = representativeFontSize + 10
+        let laneHeight = representativeFontSize * CGFloat(settings.lineHeight) + 4
         let preferredLaneCount: CGFloat
         if bounds.height < 220 {
             preferredLaneCount = fraction <= 0.25 ? 3 : 4
@@ -1275,9 +1685,12 @@ final class DanmakuAnimationOverlayView: UIView {
 
     private func laneEntranceDelay(for labelWidth: CGFloat) -> TimeInterval {
         let gap = bounds.width > 640 ? 40.0 : 30.0
-        let travelDistance = max(bounds.width + labelWidth, 1)
-        let protectedWidth = min(labelWidth + gap, bounds.width * 0.72)
-        return scrollDuration * TimeInterval(protectedWidth / travelDistance)
+        return DanmakuMotionTiming.laneEntranceDelay(
+            surfaceWidth: bounds.width,
+            labelWidth: labelWidth,
+            duration: scrollDuration,
+            gap: gap
+        )
     }
 
     private var maxLaneOverlapTolerance: TimeInterval {
@@ -1285,20 +1698,15 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private func displayDuration(for item: DanmakuItem) -> TimeInterval {
-        item.isScrolling ? scrollDuration : 4.2
+        item.isScrolling ? scrollDuration : settings.staticDuration
     }
 
     private func maximumDisplayDuration() -> TimeInterval {
-        max(scrollDuration, 4.2)
+        max(scrollDuration, settings.staticDuration)
     }
 
     private var scrollDuration: TimeInterval {
-        bounds.width > 640 ? 8.4 : 7.2
-    }
-
-    private var scrollingPixelsPerSecond: CGFloat {
-        let representativeLabelWidth = min(max(bounds.width * 0.36, 160), bounds.width * 0.85)
-        return scrollingTravelDistance(labelWidth: representativeLabelWidth) / max(scrollDuration, 0.1)
+        settings.scrollingDuration
     }
 
     private var maxActiveCount: Int {

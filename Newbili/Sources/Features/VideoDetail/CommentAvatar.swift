@@ -28,6 +28,7 @@ struct CommentAvatar: View {
                 avatarImage
             }
             .accessibilityLabel("查看 \(owner.name) 的个人主页")
+            .biliMinimumInteractiveTarget()
         } else {
             avatarImage
         }

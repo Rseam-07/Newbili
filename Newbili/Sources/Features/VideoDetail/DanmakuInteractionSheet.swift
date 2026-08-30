@@ -1,16 +1,89 @@
 import SwiftUI
 import UIKit
 
+nonisolated enum DanmakuInteractionActions {
+    @MainActor
+    static func copy(_ item: DanmakuItem) {
+        UIPasteboard.general.string = item.text
+    }
+
+    static func setLiked(
+        _ liked: Bool,
+        item: DanmakuItem,
+        cid: Int?,
+        api: BiliAPIClient
+    ) async throws -> Bool {
+        guard let cid, let dmid = item.dmid else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的弹幕信息")
+        }
+        return try await api.setDanmakuLiked(cid: cid, dmid: dmid, liked: liked)
+    }
+
+    static func report(
+        _ item: DanmakuItem,
+        cid: Int?,
+        reason: DanmakuReportReason,
+        content: String? = nil,
+        api: BiliAPIClient
+    ) async throws {
+        guard let cid, let dmid = item.dmid else {
+            throw BiliAPIError.api(code: -1, message: "缺少有效的弹幕信息")
+        }
+        try await api.reportDanmaku(
+            cid: cid,
+            dmid: dmid,
+            reason: reason,
+            content: content
+        )
+    }
+
+    @MainActor
+    static func settingsByBlockingSender(
+        of item: DanmakuItem,
+        in settings: DanmakuSettings
+    ) throws -> DanmakuSettings {
+        guard let senderIdentifier = DanmakuSettings.normalizedBlockedSenderIdentifier(
+            item.senderIdentifier
+        ) else {
+            throw BiliAPIError.api(code: -1, message: "这条弹幕没有可用的发送者信息")
+        }
+
+        var updatedSettings = settings.normalized
+        guard !updatedSettings.blockedUserIDs.contains(senderIdentifier) else {
+            return updatedSettings
+        }
+        updatedSettings.blockedUserIDs.append(senderIdentifier)
+        return updatedSettings.normalized
+    }
+}
+
 struct DanmakuInteractionSheet: View {
     @Environment(\.dismiss) private var dismiss
     let item: DanmakuItem
     let cid: Int?
     let api: BiliAPIClient
     let isLoggedIn: Bool
+    let blockSender: (DanmakuItem) throws -> Void
 
     @State private var isLiked = false
     @State private var isMutatingLike = false
     @State private var message: String?
+
+    init(
+        item: DanmakuItem,
+        cid: Int?,
+        api: BiliAPIClient,
+        isLoggedIn: Bool,
+        initiallyLiked: Bool = false,
+        blockSender: @escaping (DanmakuItem) throws -> Void
+    ) {
+        self.item = item
+        self.cid = cid
+        self.api = api
+        self.isLoggedIn = isLoggedIn
+        self.blockSender = blockSender
+        _isLiked = State(initialValue: initiallyLiked)
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,10 +103,18 @@ struct DanmakuInteractionSheet: View {
                     .disabled(!supportsRemoteInteraction || isMutatingLike || !isLoggedIn)
 
                     Button {
-                        UIPasteboard.general.string = item.text
+                        DanmakuInteractionActions.copy(item)
                         message = "已复制弹幕"
                     } label: {
                         Label("复制", systemImage: "doc.on.doc")
+                    }
+
+                    if supportsSenderBlocking {
+                        Button(role: .destructive) {
+                            blockSelectedSender()
+                        } label: {
+                            Label("屏蔽该用户", systemImage: "person.crop.circle.badge.xmark")
+                        }
                     }
 
                     NavigationLink {
@@ -56,7 +137,12 @@ struct DanmakuInteractionSheet: View {
                     }
                 } else if !supportsRemoteInteraction {
                     Section {
-                        Label("这条弹幕没有可用的服务端编号，只能复制。", systemImage: "info.circle")
+                        Label(
+                            supportsSenderBlocking
+                                ? "这条弹幕没有可用的服务端编号，仍可复制或屏蔽发送者。"
+                                : "这条弹幕没有可用的服务端编号，只能复制。",
+                            systemImage: "info.circle"
+                        )
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -84,17 +170,33 @@ struct DanmakuInteractionSheet: View {
         (cid ?? 0) > 0 && (item.dmid ?? 0) > 0
     }
 
+    private var supportsSenderBlocking: Bool {
+        DanmakuSettings.normalizedBlockedSenderIdentifier(item.senderIdentifier) != nil
+    }
+
+    private func blockSelectedSender() {
+        do {
+            try blockSender(item)
+            message = "已屏蔽该用户，相关弹幕将立即隐藏"
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            message = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
+
     private func mutateLike() {
-        guard let cid, let dmid = item.dmid else { return }
+        guard supportsRemoteInteraction else { return }
         let target = !isLiked
         isMutatingLike = true
         message = nil
         Task {
             do {
-                let effectiveLiked = try await api.setDanmakuLiked(
+                let effectiveLiked = try await DanmakuInteractionActions.setLiked(
+                    target,
+                    item: item,
                     cid: cid,
-                    dmid: dmid,
-                    liked: target
+                    api: api
                 )
                 isLiked = effectiveLiked
                 message = effectiveLiked ? "已点赞" : "已取消点赞"
@@ -150,12 +252,17 @@ private struct DanmakuReportReasonList: View {
     }
 
     private func submit(_ reason: DanmakuReportReason) {
-        guard let cid, let dmid = item.dmid else { return }
+        guard (cid ?? 0) > 0, (item.dmid ?? 0) > 0 else { return }
         submittingReason = reason
         message = nil
         Task {
             do {
-                try await api.reportDanmaku(cid: cid, dmid: dmid, reason: reason)
+                try await DanmakuInteractionActions.report(
+                    item,
+                    cid: cid,
+                    reason: reason,
+                    api: api
+                )
                 message = "举报已提交"
             } catch {
                 message = error.localizedDescription
@@ -208,16 +315,17 @@ private struct DanmakuCustomReportForm: View {
     }
 
     private func submit() {
-        guard let cid, let dmid = item.dmid else { return }
+        guard (cid ?? 0) > 0, (item.dmid ?? 0) > 0 else { return }
         isSubmitting = true
         message = nil
         Task {
             do {
-                try await api.reportDanmaku(
+                try await DanmakuInteractionActions.report(
+                    item,
                     cid: cid,
-                    dmid: dmid,
                     reason: .other,
-                    content: content
+                    content: content,
+                    api: api
                 )
                 message = "举报已提交"
             } catch {

@@ -2,12 +2,18 @@ import Foundation
 
 extension VideoDetailViewModel {
     func scheduleRelatedLoadIfNeeded() {
-        guard !detail.isPGCEpisode else { return }
+        guard VideoDetailContentVisibilityPolicy.showsRelatedVideos(
+            isPGCEpisode: detail.isPGCEpisode,
+            preferenceEnabled: libraryStore.showsRelatedVideosInVideoDetail
+        ) else { return }
         scheduleRelatedLoadAfterPlaybackStartIfNeeded()
     }
 
     func scheduleRelatedLoadAfterPlaybackStartIfNeeded() {
-        guard !detail.isPGCEpisode else { return }
+        guard VideoDetailContentVisibilityPolicy.showsRelatedVideos(
+            isPGCEpisode: detail.isPGCEpisode,
+            preferenceEnabled: libraryStore.showsRelatedVideosInVideoDetail
+        ) else { return }
         guard related.isEmpty, !relatedState.isLoading, relatedLoadingTask == nil else { return }
         let loadGeneration = advanceRelatedLoadingGeneration()
         relatedLoadingTask = Task(priority: .utility) { [weak self] in

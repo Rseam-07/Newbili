@@ -10,7 +10,7 @@ struct DanmakuSettingsOpacitySection: View {
                 title: "不透明度",
                 systemImage: "circle.lefthalf.filled",
                 value: $opacity,
-                range: 0.25...1.0,
+                range: 0...1.0,
                 step: 0.05,
                 valueText: "\(Int((settings.opacity * 100).rounded()))%"
             )

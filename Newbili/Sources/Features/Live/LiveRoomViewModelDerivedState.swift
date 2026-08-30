@@ -94,9 +94,7 @@ extension LiveRoomViewModel {
     }
 
     var effectiveDanmakuSettings: DanmakuSettings {
-        var settings = danmakuSettings.normalized
-        settings.loadFactor = min(settings.loadFactor, 0.75)
-        return settings
+        danmakuSettings.normalized
     }
 
 }

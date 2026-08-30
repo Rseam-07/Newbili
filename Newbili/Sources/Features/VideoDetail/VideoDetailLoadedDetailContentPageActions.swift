@@ -16,4 +16,13 @@ struct VideoDetailLoadedDetailContentPageActions {
         guard let viewModel else { return }
         await viewModel.retryRelated()
     }
+
+    func updateRelatedVisibility(_ isVisible: Bool) {
+        guard let viewModel else { return }
+        if isVisible {
+            viewModel.scheduleRelatedLoadIfNeeded()
+        } else {
+            viewModel.cancelRelatedLoad()
+        }
+    }
 }

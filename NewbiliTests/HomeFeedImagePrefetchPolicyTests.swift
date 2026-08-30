@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import bili
 
@@ -55,6 +56,45 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
         XCTAssertTrue(source.url.absoluteString.contains("/w/432/h/272/"))
     }
 
+    func testEditorialProfileUsesOneSharedAssetSizeForCardsAndPrefetch() throws {
+        let phoneProfile = HomeFeedCoverPrefetchProfile.editorial(
+            containerWidth: 402,
+            displayScale: 3
+        )
+        let padProfile = HomeFeedCoverPrefetchProfile.editorial(
+            containerWidth: 1_024,
+            displayScale: 2
+        )
+        let phoneSource = try XCTUnwrap(
+            phoneProfile.source(for: "https://i0.hdslb.com/bfs/archive/example.jpg")
+        )
+        let padSource = try XCTUnwrap(
+            padProfile.source(for: "https://i0.hdslb.com/bfs/archive/example.jpg")
+        )
+
+        XCTAssertEqual(HomeEditorialImagePolicy.maximumPixelLength(containerWidth: 402), 960)
+        XCTAssertEqual(HomeEditorialImagePolicy.maximumPixelLength(containerWidth: 1_024), 1_280)
+        XCTAssertEqual(phoneProfile.targetPixelSize, 960)
+        XCTAssertEqual(padProfile.targetPixelSize, 1_280)
+        XCTAssertTrue(phoneSource.url.absoluteString.contains("/w/960/"))
+        XCTAssertTrue(padSource.url.absoluteString.contains("/w/1280/"))
+    }
+
+    func testEditorialHeroStaysCompactOnPhoneAndBoundedOnIPad() {
+        XCTAssertEqual(
+            HomeEditorialLayoutPolicy.heroHeight(containerWidth: 390, viewportHeight: 844),
+            238,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            HomeEditorialLayoutPolicy.heroHeight(containerWidth: 1_024, viewportHeight: 1_366),
+            406.56,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(HomeEditorialLayoutPolicy.horizontalInset(containerWidth: 390), 16)
+        XCTAssertEqual(HomeEditorialLayoutPolicy.horizontalInset(containerWidth: 1_024), 28)
+    }
+
     func testImmersiveLayoutAdaptsWideIPadAndKeepsNarrowSplitPhoneLike() {
         XCTAssertEqual(
             HomeImmersiveAdaptiveLayoutPolicy.resolve(
@@ -82,6 +122,23 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
                 usesAccessibilitySize: true
             ),
             .singleColumn
+        )
+    }
+
+    func testEditorialLayoutKeepsUserDensityChoiceAndStacksAccessibilityContent() {
+        XCTAssertEqual(
+            HomeEditorialAdaptiveLayoutPolicy.resolve(
+                preferredLayout: .singleColumn,
+                usesAccessibilitySize: false
+            ),
+            .singleColumn
+        )
+        XCTAssertEqual(
+            HomeEditorialAdaptiveLayoutPolicy.resolve(
+                preferredLayout: .borderedDoubleColumn,
+                usesAccessibilitySize: true
+            ),
+            .borderedSingleColumn
         )
     }
 
@@ -194,6 +251,75 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
         XCTAssertTrue(selections.allSatisfy { $0.source == .currentFeed })
     }
 
+    func testFeaturedMixAddsOnePopularAndOneOfficialActivityWithoutDuplicatingFeed() {
+        let selections = HomeFeaturedMixPolicy.selections(
+            currentFeedIDs: ["r1", "r2", "r3", "r4"],
+            popularIDs: ["r1", "p1"],
+            activityIDs: ["activity-11", "activity-12"],
+            includesPopular: true,
+            includesActivity: true
+        )
+
+        XCTAssertEqual(
+            selections,
+            [
+                HomeFeaturedSelection(id: "r1", source: .currentFeed),
+                HomeFeaturedSelection(id: "r2", source: .currentFeed),
+                HomeFeaturedSelection(id: "p1", source: .popular),
+                HomeFeaturedSelection(id: "activity-11", source: .activity),
+                HomeFeaturedSelection(id: "r3", source: .currentFeed)
+            ]
+        )
+    }
+
+    func testHomeActivityBannerOnlyAcceptsNonAdvertisingOfficialBilibiliActivities() throws {
+        let response = try JSONDecoder().decode(
+            BiliResponse<[String: [HomeActivityBanner]]>.self,
+            from: Data(
+                """
+                {
+                  "code": 0,
+                  "data": {
+                    "4694": [
+                      {
+                        "id": 11,
+                        "pos_num": 2,
+                        "name": "官方创作活动",
+                        "pic": "http://i0.hdslb.com/bfs/banner/activity.jpg",
+                        "url": "https://www.bilibili.com/blackboard/era/activity.html",
+                        "label": "征稿",
+                        "is_ad_loc": false
+                      },
+                      {
+                        "id": 12,
+                        "pos_num": 1,
+                        "name": "广告活动",
+                        "pic": "http://i0.hdslb.com/bfs/banner/ad.jpg",
+                        "url": "https://www.bilibili.com/blackboard/era/ad.html",
+                        "is_ad_loc": true
+                      },
+                      {
+                        "id": 13,
+                        "pos_num": 3,
+                        "name": "站外活动",
+                        "pic": "https://example.com/banner.jpg",
+                        "url": "https://example.com/activity",
+                        "is_ad_loc": false
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        let banners = try XCTUnwrap(response.payload?["4694"])
+        XCTAssertTrue(banners[0].isEligibleEditorialActivity)
+        XCTAssertFalse(banners[1].isEligibleEditorialActivity)
+        XCTAssertFalse(banners[2].isEligibleEditorialActivity)
+        XCTAssertEqual(banners[0].destinationURL?.host, "www.bilibili.com")
+    }
+
     func testFeaturedCarouselNavigationWrapsInBothDirections() {
         let ids = ["one", "two", "three"]
 
@@ -208,6 +334,16 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
                 itemCount: 5,
                 isSceneActive: true,
                 isUserInteracting: false,
+                reduceMotion: false,
+                voiceOverEnabled: false
+            )
+        )
+        XCTAssertFalse(
+            HomeFeaturedMixPolicy.shouldAutoAdvance(
+                itemCount: 5,
+                isSceneActive: true,
+                isUserInteracting: false,
+                isPausedByUser: true,
                 reduceMotion: false,
                 voiceOverEnabled: false
             )

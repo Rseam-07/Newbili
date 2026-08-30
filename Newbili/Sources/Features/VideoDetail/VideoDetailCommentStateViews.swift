@@ -26,6 +26,7 @@ struct CommentErrorView: View {
             .buttonStyle(.bordered)
             .buttonBorderShape(.capsule)
             .tint(appTintColor)
+            .biliMinimumInteractiveTarget(alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)

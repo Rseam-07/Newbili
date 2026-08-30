@@ -2,6 +2,34 @@ import XCTest
 @testable import bili
 
 final class PlayerPlaybackControlsVisibilityModelTests: XCTestCase {
+    func testPictureInPictureControlIsHiddenWhenUnsupported() {
+        let presentation = PlayerNativePictureInPictureControlPresentation(
+            isSupported: false,
+            isActive: false
+        )
+
+        XCTAssertFalse(presentation.isVisible)
+    }
+
+    func testPictureInPictureControlAnnouncesActiveState() {
+        let inactivePresentation = PlayerNativePictureInPictureControlPresentation(
+            isSupported: true,
+            isActive: false
+        )
+        let activePresentation = PlayerNativePictureInPictureControlPresentation(
+            isSupported: true,
+            isActive: true
+        )
+
+        XCTAssertTrue(inactivePresentation.isVisible)
+        XCTAssertEqual(inactivePresentation.systemName, "pip.enter")
+        XCTAssertEqual(inactivePresentation.accessibilityLabel, "开启画中画")
+        XCTAssertEqual(inactivePresentation.accessibilityValue, "已关闭")
+        XCTAssertEqual(activePresentation.systemName, "pip.exit")
+        XCTAssertEqual(activePresentation.accessibilityLabel, "关闭画中画")
+        XCTAssertEqual(activePresentation.accessibilityValue, "已开启")
+    }
+
     @MainActor
     func testAnimatedHideKeepsControlsTouchableDuringFade() async throws {
         let model = PlayerPlaybackControlsVisibilityModel()

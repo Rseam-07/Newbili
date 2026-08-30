@@ -533,6 +533,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
     @State private var isVideoListenQueuePresented = false
     @State private var isDanmakuComposerPresented = false
     @State private var selectedDanmakuItem: DanmakuItem?
+    @State private var selectedDanmakuInitiallyLiked = false
 
     init(
         viewModel: PlayerStateViewModel,
@@ -712,10 +713,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                         usesLandscapePlaybackChrome: configuration.isFullscreenActive,
                         isLayoutTransitioning: isBareSurfaceTransitionActive,
                         onPlaybackTime: { detailViewModel.updateDanmakuPlaybackTime($0, underLoad: $1) },
-                        onSelectItem: { item in
-                            viewModel.pause()
-                            selectedDanmakuItem = item
-                        }
+                        quickActions: danmakuQuickActions
                     )
                     .zIndex(2.5)
 
@@ -790,6 +788,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                 isVideoListenQueuePresented = false
                 isDanmakuComposerPresented = false
                 selectedDanmakuItem = nil
+                selectedDanmakuInitiallyLiked = false
             }
             playbackControlsVisibility.cancelAutoHide()
         }
@@ -829,9 +828,47 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                 item: item,
                 cid: detailViewModel.selectedCID,
                 api: dependencies.api,
-                isLoggedIn: dependencies.sessionStore.isLoggedIn
+                isLoggedIn: dependencies.sessionStore.isLoggedIn,
+                initiallyLiked: selectedDanmakuInitiallyLiked,
+                blockSender: { item in
+                    let updatedSettings = try DanmakuInteractionActions.settingsByBlockingSender(
+                        of: item,
+                        in: detailViewModel.danmakuSettings
+                    )
+                    detailViewModel.updateDanmakuSettings(updatedSettings)
+                }
             )
         }
+    }
+
+    private var danmakuQuickActions: DanmakuQuickActionConfiguration? {
+        guard libraryStore.danmakuTapInteractionEnabled else { return nil }
+        return DanmakuQuickActionConfiguration(
+            allowsRemoteInteraction: dependencies.sessionStore.isLoggedIn
+                && (detailViewModel.selectedCID ?? 0) > 0,
+            onCopy: { item in
+                DanmakuInteractionActions.copy(item)
+            },
+            onToggleLike: { item, target, completion in
+                Task {
+                    do {
+                        let effectiveLiked = try await DanmakuInteractionActions.setLiked(
+                            target,
+                            item: item,
+                            cid: detailViewModel.selectedCID,
+                            api: dependencies.api
+                        )
+                        completion(.success(isLiked: effectiveLiked))
+                    } catch {
+                        completion(.failure(message: error.localizedDescription))
+                    }
+                }
+            },
+            onMore: { item, isLiked in
+                selectedDanmakuInitiallyLiked = isLiked
+                selectedDanmakuItem = item
+            }
+        )
     }
 
     private var backButton: some View {
@@ -2968,11 +3005,7 @@ private struct SurfaceOnlyDanmakuSettingsPage: View {
         DanmakuSettingsSheetContent(
             store: detailViewModel.danmakuSettingsRenderStore,
             summary: settingsSummary,
-            displayAreaBinding: displayAreaBinding,
-            hidesDanmakuInPortraitBinding: hidesDanmakuInPortraitBinding,
-            fontScaleBinding: fontScaleBinding,
-            fontWeightBinding: fontWeightBinding,
-            opacityBinding: opacityBinding,
+            settings: settingsBinding,
             toggleDanmaku: toggleDanmaku
         )
         .scrollContentBackground(.hidden)
@@ -2992,58 +3025,10 @@ private struct SurfaceOnlyDanmakuSettingsPage: View {
         return "弹幕已关闭，播放时不会显示滚动评论。"
     }
 
-    private var displayAreaBinding: Binding<DanmakuDisplayArea> {
+    private var settingsBinding: Binding<DanmakuSettings> {
         Binding(
-            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings.displayArea },
-            set: { newValue in
-                var settings = detailViewModel.danmakuSettingsRenderStore.danmakuSettings
-                settings.displayArea = newValue
-                detailViewModel.updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    private var fontScaleBinding: Binding<Double> {
-        Binding(
-            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings.fontScale },
-            set: { newValue in
-                var settings = detailViewModel.danmakuSettingsRenderStore.danmakuSettings
-                settings.fontScale = newValue
-                detailViewModel.updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    private var hidesDanmakuInPortraitBinding: Binding<Bool> {
-        Binding(
-            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings.hidesInPortrait },
-            set: { newValue in
-                var settings = detailViewModel.danmakuSettingsRenderStore.danmakuSettings
-                settings.hidesInPortrait = newValue
-                detailViewModel.updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    private var fontWeightBinding: Binding<DanmakuFontWeightOption> {
-        Binding(
-            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings.fontWeight },
-            set: { newValue in
-                var settings = detailViewModel.danmakuSettingsRenderStore.danmakuSettings
-                settings.fontWeight = newValue
-                detailViewModel.updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    private var opacityBinding: Binding<Double> {
-        Binding(
-            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings.opacity },
-            set: { newValue in
-                var settings = detailViewModel.danmakuSettingsRenderStore.danmakuSettings
-                settings.opacity = newValue
-                detailViewModel.updateDanmakuSettings(settings)
-            }
+            get: { detailViewModel.danmakuSettingsRenderStore.danmakuSettings },
+            set: detailViewModel.updateDanmakuSettings
         )
     }
 }

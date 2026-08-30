@@ -16,5 +16,6 @@ struct CommentLoadMoreRetryButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint(message)
+        .biliMinimumInteractiveTarget()
     }
 }

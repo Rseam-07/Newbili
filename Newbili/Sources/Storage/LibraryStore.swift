@@ -128,11 +128,13 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var blockedRecommendKeywords: [String]
     @Published private(set) var appliesRecommendFiltersToRelatedVideos: Bool
     @Published private(set) var danmakuEnabled: Bool
+    @Published private(set) var danmakuTapInteractionEnabled: Bool
     @Published private(set) var danmakuSettings: DanmakuSettings
     @Published private(set) var sponsorBlockEnabled: Bool
     @Published private(set) var sponsorBlockPreferences: SponsorBlockPreferences
     @Published private(set) var markedAnimeBVIDs: Set<String>
     @Published private(set) var pictureInPictureEnabled: Bool
+    @Published private(set) var backgroundPlaybackMode: BackgroundPlaybackMode
     @Published private(set) var usesNativePlaybackControls: Bool
     @Published private(set) var playerPerformanceOverlayEnabled: Bool
     @Published private(set) var diagnosticsBackgroundProcessingExperimentEnabled: Bool
@@ -146,6 +148,10 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var showsVideoDetailNetworkDiagnosticsButton: Bool
     @Published private(set) var showsVideoDetailPinnedProgressBar: Bool
     @Published private(set) var videoDetailAutoplayEnabled: Bool
+    @Published private(set) var showsRelatedVideosInVideoDetail: Bool
+    @Published private(set) var showsVideoCommentsInVideoDetail: Bool
+    @Published private(set) var expandsVideoDescriptionByDefault: Bool
+    @Published private(set) var videoIntelligenceSummaryEnabled: Bool
     @Published private(set) var videoListenPlaybackOrder: VideoListenPlaybackOrder
     @Published private(set) var videoListenPlaylistSortOrder: VideoListenPlaylistSortOrder
     @Published private(set) var cellularBiliTrafficCompatibilityExperimentEnabled: Bool
@@ -171,6 +177,8 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var showsHotSearches: Bool
 
     private let userDefaults: UserDefaults
+    private var pendingDanmakuSettingsPersistence: DanmakuSettings?
+    private var danmakuSettingsPersistenceTask: Task<Void, Never>?
     private static let appearanceModeKey = "cc.bili.appearance.mode.v1"
     private static let appIconPreferenceKey = "cc.bili.appearance.appIconPreference.v1"
     private static let appTintColorHexKey = "cc.bili.appearance.tintColorHex.v1"
@@ -206,11 +214,13 @@ final class LibraryStore: ObservableObject {
     private static let blockedRecommendKeywordsKey = "cc.bili.content.blockedRecommendKeywords.v1"
     private static let appliesRecommendFiltersToRelatedVideosKey = "cc.bili.content.appliesRecommendFiltersToRelatedVideos.v1"
     private static let danmakuEnabledKey = "cc.bili.playback.danmakuEnabled.v1"
+    private static let danmakuTapInteractionEnabledKey = "cc.bili.playback.danmakuTapInteractionEnabled.v1"
     private static let danmakuSettingsKey = "cc.bili.playback.danmakuSettings.v1"
     private static let sponsorBlockEnabledKey = "cc.bili.playback.sponsorBlockEnabled.v1"
     private static let sponsorBlockPreferencesKey = "cc.bili.playback.sponsorBlockPreferences.v1"
     private static let markedAnimeBVIDsKey = "cc.bili.videoDetail.markedAnimeBVIDs.v1"
     private static let pictureInPictureEnabledKey = "cc.bili.playback.pictureInPictureEnabled.v1"
+    private static let backgroundPlaybackModeKey = "cc.bili.playback.backgroundPlaybackMode.v1"
     private static let usesNativePlaybackControlsKey = "cc.bili.playback.usesNativePlaybackControls.v1"
     private static let playerPerformanceOverlayEnabledKey = "cc.bili.playback.performanceOverlayEnabled.v1"
     private static let diagnosticsBackgroundProcessingExperimentEnabledKey = PlayerDiagnosticsBackgroundProcessingExperiment.storageKey
@@ -226,6 +236,10 @@ final class LibraryStore: ObservableObject {
     private static let showsVideoDetailNetworkDiagnosticsButtonKey = "cc.bili.videoDetail.showsNetworkDiagnosticsButton.v1"
     private static let showsVideoDetailPinnedProgressBarKey = "cc.bili.videoDetail.showsPinnedProgressBar.v1"
     private static let videoDetailAutoplayEnabledKey = "cc.bili.videoDetail.autoplayEnabled.v1"
+    private static let showsRelatedVideosInVideoDetailKey = "cc.bili.videoDetail.showsRelatedVideos.v1"
+    private static let showsVideoCommentsInVideoDetailKey = "cc.bili.videoDetail.showsComments.v1"
+    private static let expandsVideoDescriptionByDefaultKey = "cc.bili.videoDetail.expandsDescriptionByDefault.v1"
+    private static let videoIntelligenceSummaryEnabledKey = "cc.bili.videoDetail.intelligenceSummaryEnabled.v1"
     private static let videoListenPlaybackOrderKey = "cc.bili.playback.videoListenPlaybackOrder.v1"
     private static let videoListenPlaylistSortOrderKey = "cc.bili.playback.videoListenPlaylistSortOrder.v1"
     private static let cellularBiliTrafficCompatibilityExperimentEnabledKey = CellularBiliTrafficCompatibilityExperiment.storageKey
@@ -477,6 +491,7 @@ final class LibraryStore: ObservableObject {
         )
         self.appliesRecommendFiltersToRelatedVideos = userDefaults.object(forKey: Self.appliesRecommendFiltersToRelatedVideosKey) as? Bool ?? false
         self.danmakuEnabled = userDefaults.object(forKey: Self.danmakuEnabledKey) as? Bool ?? true
+        self.danmakuTapInteractionEnabled = userDefaults.object(forKey: Self.danmakuTapInteractionEnabledKey) as? Bool ?? true
         if let settingsData = userDefaults.data(forKey: Self.danmakuSettingsKey),
            let settings = try? JSONDecoder().decode(DanmakuSettings.self, from: settingsData) {
             self.danmakuSettings = settings.normalized
@@ -495,6 +510,9 @@ final class LibraryStore: ObservableObject {
                 .compactMap(Self.normalizedBVID)
         )
         self.pictureInPictureEnabled = userDefaults.object(forKey: Self.pictureInPictureEnabledKey) as? Bool ?? false
+        self.backgroundPlaybackMode = BackgroundPlaybackMode(
+            rawValue: userDefaults.string(forKey: Self.backgroundPlaybackModeKey) ?? ""
+        ) ?? .defaultValue
         self.usesNativePlaybackControls = userDefaults.object(forKey: Self.usesNativePlaybackControlsKey) as? Bool ?? false
         self.playerPerformanceOverlayEnabled = userDefaults.object(forKey: Self.playerPerformanceOverlayEnabledKey) as? Bool ?? false
         self.diagnosticsBackgroundProcessingExperimentEnabled = userDefaults.object(forKey: Self.diagnosticsBackgroundProcessingExperimentEnabledKey) as? Bool ?? false
@@ -518,6 +536,18 @@ final class LibraryStore: ObservableObject {
         self.showsVideoDetailNetworkDiagnosticsButton = userDefaults.object(forKey: Self.showsVideoDetailNetworkDiagnosticsButtonKey) as? Bool ?? false
         self.showsVideoDetailPinnedProgressBar = userDefaults.object(forKey: Self.showsVideoDetailPinnedProgressBarKey) as? Bool ?? false
         self.videoDetailAutoplayEnabled = userDefaults.object(forKey: Self.videoDetailAutoplayEnabledKey) as? Bool ?? true
+        self.showsRelatedVideosInVideoDetail = userDefaults.object(
+            forKey: Self.showsRelatedVideosInVideoDetailKey
+        ) as? Bool ?? true
+        self.showsVideoCommentsInVideoDetail = userDefaults.object(
+            forKey: Self.showsVideoCommentsInVideoDetailKey
+        ) as? Bool ?? true
+        self.expandsVideoDescriptionByDefault = userDefaults.object(
+            forKey: Self.expandsVideoDescriptionByDefaultKey
+        ) as? Bool ?? false
+        self.videoIntelligenceSummaryEnabled = userDefaults.object(
+            forKey: Self.videoIntelligenceSummaryEnabledKey
+        ) as? Bool ?? false
         self.videoListenPlaybackOrder = userDefaults.string(
             forKey: Self.videoListenPlaybackOrderKey
         ).flatMap(VideoListenPlaybackOrder.init(rawValue:)) ?? .sequential
@@ -1056,10 +1086,30 @@ final class LibraryStore: ObservableObject {
         userDefaults.set(isEnabled, forKey: Self.danmakuEnabledKey)
     }
 
+    func setDanmakuTapInteractionEnabled(_ isEnabled: Bool) {
+        danmakuTapInteractionEnabled = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.danmakuTapInteractionEnabledKey)
+    }
+
     func setDanmakuSettings(_ settings: DanmakuSettings) {
         let normalizedSettings = settings.normalized
         danmakuSettings = normalizedSettings
-        guard let data = try? JSONEncoder().encode(normalizedSettings) else { return }
+        pendingDanmakuSettingsPersistence = normalizedSettings
+        danmakuSettingsPersistenceTask?.cancel()
+        danmakuSettingsPersistenceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+            self?.flushDanmakuSettingsPersistence()
+        }
+    }
+
+    func flushDanmakuSettingsPersistence() {
+        danmakuSettingsPersistenceTask?.cancel()
+        danmakuSettingsPersistenceTask = nil
+        guard let settings = pendingDanmakuSettingsPersistence,
+              let data = try? JSONEncoder().encode(settings)
+        else { return }
+        pendingDanmakuSettingsPersistence = nil
         userDefaults.set(data, forKey: Self.danmakuSettingsKey)
     }
 
@@ -1099,6 +1149,12 @@ final class LibraryStore: ObservableObject {
     func setPictureInPictureEnabled(_ isEnabled: Bool) {
         pictureInPictureEnabled = isEnabled
         userDefaults.set(isEnabled, forKey: Self.pictureInPictureEnabledKey)
+    }
+
+    func setBackgroundPlaybackMode(_ mode: BackgroundPlaybackMode) {
+        backgroundPlaybackMode = mode
+        userDefaults.set(mode.rawValue, forKey: Self.backgroundPlaybackModeKey)
+        ActivePlaybackCoordinator.shared.applyBackgroundPlaybackMode(mode)
     }
 
     private static func normalizedBVID(_ value: String) -> String? {
@@ -1175,6 +1231,26 @@ final class LibraryStore: ObservableObject {
     func setVideoDetailAutoplayEnabled(_ isEnabled: Bool) {
         videoDetailAutoplayEnabled = isEnabled
         userDefaults.set(isEnabled, forKey: Self.videoDetailAutoplayEnabledKey)
+    }
+
+    func setShowsRelatedVideosInVideoDetail(_ isEnabled: Bool) {
+        showsRelatedVideosInVideoDetail = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.showsRelatedVideosInVideoDetailKey)
+    }
+
+    func setShowsVideoCommentsInVideoDetail(_ isEnabled: Bool) {
+        showsVideoCommentsInVideoDetail = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.showsVideoCommentsInVideoDetailKey)
+    }
+
+    func setExpandsVideoDescriptionByDefault(_ isEnabled: Bool) {
+        expandsVideoDescriptionByDefault = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.expandsVideoDescriptionByDefaultKey)
+    }
+
+    func setVideoIntelligenceSummaryEnabled(_ isEnabled: Bool) {
+        videoIntelligenceSummaryEnabled = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.videoIntelligenceSummaryEnabledKey)
     }
 
     func setVideoListenPlaybackOrder(_ order: VideoListenPlaybackOrder) {

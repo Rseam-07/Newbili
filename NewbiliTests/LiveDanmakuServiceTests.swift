@@ -77,6 +77,7 @@ final class LiveDanmakuServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(item.senderName, "弹幕用户")
+        XCTAssertEqual(item.senderIdentifier, "123")
         XCTAssertEqual(item.text, "你好")
     }
 
@@ -104,11 +105,12 @@ final class LiveDanmakuServiceTests: XCTestCase {
     }
 
     func testHistoryMessageAcceptsAlternateNicknameFields() throws {
-        let data = Data(#"{"text":"历史消息","uname":"历史用户","timeline":"12:00:00"}"#.utf8)
+        let data = Data(#"{"text":"历史消息","uname":"历史用户","uid":"456","timeline":"12:00:00"}"#.utf8)
 
         let message = try JSONDecoder().decode(LiveDanmakuHistoryMessage.self, from: data)
 
         XCTAssertEqual(message.nickname, "历史用户")
+        XCTAssertEqual(message.senderIdentifier, "456")
     }
 
     func testBrowserCompatibleWebSocketRequestKeepsLiveClientHeaders() throws {

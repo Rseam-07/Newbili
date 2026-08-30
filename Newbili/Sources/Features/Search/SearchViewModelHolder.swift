@@ -12,7 +12,7 @@ final class SearchViewModelHolder: ObservableObject {
             let viewModel = SearchViewModel(api: api)
             self.viewModel = viewModel
             lastSnapshot = SearchRenderSnapshot(viewModel)
-            cancellable = viewModel.objectWillChange.sink { [weak self] _ in
+            cancellable = viewModel.objectWillChange.sink { [weak self, weak viewModel] _ in
                 Task { @MainActor [weak self, weak viewModel] in
                     guard let self, let viewModel else { return }
                     let snapshot = SearchRenderSnapshot(viewModel)

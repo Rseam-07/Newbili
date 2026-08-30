@@ -7,6 +7,16 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
     var fontWeight: DanmakuFontWeightOption
     var loadFactor: Double
     var hidesInPortrait: Bool
+    var scrollingDuration: Double
+    var staticDuration: Double
+    var lineHeight: Double
+    var strokeWidth: Double
+    var showsScrollingDanmaku: Bool
+    var showsTopDanmaku: Bool
+    var showsBottomDanmaku: Bool
+    var blockedKeywords: [String]
+    var blockedRegularExpressions: [String]
+    var blockedUserIDs: [String]
 
     init(
         fontScale: Double,
@@ -14,7 +24,17 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         displayArea: DanmakuDisplayArea,
         fontWeight: DanmakuFontWeightOption,
         loadFactor: Double = 1.0,
-        hidesInPortrait: Bool = false
+        hidesInPortrait: Bool = false,
+        scrollingDuration: Double = 7.0,
+        staticDuration: Double = 4.0,
+        lineHeight: Double = 1.6,
+        strokeWidth: Double = 1.5,
+        showsScrollingDanmaku: Bool = true,
+        showsTopDanmaku: Bool = true,
+        showsBottomDanmaku: Bool = true,
+        blockedKeywords: [String] = [],
+        blockedRegularExpressions: [String] = [],
+        blockedUserIDs: [String] = []
     ) {
         self.fontScale = fontScale
         self.opacity = opacity
@@ -22,6 +42,16 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         self.fontWeight = fontWeight
         self.loadFactor = loadFactor
         self.hidesInPortrait = hidesInPortrait
+        self.scrollingDuration = scrollingDuration
+        self.staticDuration = staticDuration
+        self.lineHeight = lineHeight
+        self.strokeWidth = strokeWidth
+        self.showsScrollingDanmaku = showsScrollingDanmaku
+        self.showsTopDanmaku = showsTopDanmaku
+        self.showsBottomDanmaku = showsBottomDanmaku
+        self.blockedKeywords = blockedKeywords
+        self.blockedRegularExpressions = blockedRegularExpressions
+        self.blockedUserIDs = blockedUserIDs
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -31,6 +61,16 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         case fontWeight
         case loadFactor
         case hidesInPortrait
+        case scrollingDuration
+        case staticDuration
+        case lineHeight
+        case strokeWidth
+        case showsScrollingDanmaku
+        case showsTopDanmaku
+        case showsBottomDanmaku
+        case blockedKeywords
+        case blockedRegularExpressions
+        case blockedUserIDs
     }
 
     init(from decoder: Decoder) throws {
@@ -41,6 +81,16 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
         self.fontWeight = try container.decode(DanmakuFontWeightOption.self, forKey: .fontWeight)
         self.loadFactor = try container.decodeIfPresent(Double.self, forKey: .loadFactor) ?? 1.0
         self.hidesInPortrait = try container.decodeIfPresent(Bool.self, forKey: .hidesInPortrait) ?? false
+        self.scrollingDuration = try container.decodeIfPresent(Double.self, forKey: .scrollingDuration) ?? 7.0
+        self.staticDuration = try container.decodeIfPresent(Double.self, forKey: .staticDuration) ?? 4.0
+        self.lineHeight = try container.decodeIfPresent(Double.self, forKey: .lineHeight) ?? 1.6
+        self.strokeWidth = try container.decodeIfPresent(Double.self, forKey: .strokeWidth) ?? 1.5
+        self.showsScrollingDanmaku = try container.decodeIfPresent(Bool.self, forKey: .showsScrollingDanmaku) ?? true
+        self.showsTopDanmaku = try container.decodeIfPresent(Bool.self, forKey: .showsTopDanmaku) ?? true
+        self.showsBottomDanmaku = try container.decodeIfPresent(Bool.self, forKey: .showsBottomDanmaku) ?? true
+        self.blockedKeywords = try container.decodeIfPresent([String].self, forKey: .blockedKeywords) ?? []
+        self.blockedRegularExpressions = try container.decodeIfPresent([String].self, forKey: .blockedRegularExpressions) ?? []
+        self.blockedUserIDs = try container.decodeIfPresent([String].self, forKey: .blockedUserIDs) ?? []
     }
 
     static let `default` = DanmakuSettings(
@@ -54,13 +104,83 @@ struct DanmakuSettings: Codable, Equatable, Sendable {
 
     var normalized: DanmakuSettings {
         DanmakuSettings(
-            fontScale: min(max(fontScale, 0.7), 1.45),
-            opacity: min(max(opacity, 0.25), 1.0),
+            fontScale: min(max(fontScale, 0.5), 2.5),
+            opacity: min(max(opacity, 0), 1.0),
             displayArea: displayArea.normalized,
             fontWeight: fontWeight,
             loadFactor: min(max(loadFactor, 0.35), 1.0),
-            hidesInPortrait: hidesInPortrait
+            hidesInPortrait: hidesInPortrait,
+            scrollingDuration: min(max(scrollingDuration, 1.0), 50.0),
+            staticDuration: min(max(staticDuration, 1.0), 50.0),
+            lineHeight: min(max(lineHeight, 1.0), 3.0),
+            strokeWidth: min(max(strokeWidth, 0), 5.0),
+            showsScrollingDanmaku: showsScrollingDanmaku,
+            showsTopDanmaku: showsTopDanmaku,
+            showsBottomDanmaku: showsBottomDanmaku,
+            blockedKeywords: Self.normalizedRules(blockedKeywords, maximumLength: 80),
+            blockedRegularExpressions: Self.normalizedRules(blockedRegularExpressions, maximumLength: 256),
+            blockedUserIDs: Self.normalizedUserIDs(blockedUserIDs)
         )
+    }
+
+    var filterRules: DanmakuFilterRules {
+        DanmakuFilterRules(
+            showsScrollingDanmaku: showsScrollingDanmaku,
+            showsTopDanmaku: showsTopDanmaku,
+            showsBottomDanmaku: showsBottomDanmaku,
+            blockedKeywords: blockedKeywords,
+            blockedRegularExpressions: blockedRegularExpressions,
+            blockedUserIDs: blockedUserIDs
+        )
+    }
+
+    private static func normalizedRules(
+        _ rules: [String],
+        maximumLength: Int
+    ) -> [String] {
+        var seen = Set<String>()
+        var normalized = [String]()
+        normalized.reserveCapacity(min(rules.count, 100))
+        for rule in rules {
+            let value = String(
+                rule.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maximumLength)
+            )
+            guard !value.isEmpty, seen.insert(value).inserted else { continue }
+            normalized.append(value)
+            if normalized.count == 100 { break }
+        }
+        return normalized
+    }
+
+    static func normalizedBlockedSenderIdentifier(_ identifier: String?) -> String? {
+        guard let identifier else { return nil }
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowercaseIdentifier = trimmed.lowercased()
+        if lowercaseIdentifier.count <= 8,
+           lowercaseIdentifier.contains(where: { "abcdef".contains($0) }),
+           lowercaseIdentifier.allSatisfy({ $0.isHexDigit }) {
+            return lowercaseIdentifier
+        }
+
+        let digits = trimmed.filter { "0123456789".contains($0) }
+        let value = String(digits.prefix(20))
+        return value.isEmpty || value == "0" ? nil : value
+    }
+
+    private static func normalizedUserIDs(_ userIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized = [String]()
+        normalized.reserveCapacity(min(userIDs.count, 100))
+        for userID in userIDs {
+            guard let value = normalizedBlockedSenderIdentifier(userID),
+                  seen.insert(value).inserted
+            else { continue }
+            normalized.append(value)
+            if normalized.count == 100 { break }
+        }
+        return normalized
     }
 }
 
@@ -272,6 +392,9 @@ nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
     let color: UInt32
     let text: String
     let senderName: String?
+    /// Video danmaku carries a CRC32 MID hash, while live danmaku can carry the raw UID.
+    /// Filtering understands both representations without exposing either in the renderer.
+    let senderIdentifier: String?
     let inlineEmotes: [String: BiliInlineEmote]
 
     init(
@@ -283,6 +406,7 @@ nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
         color: UInt32,
         text: String,
         senderName: String? = nil,
+        senderIdentifier: String? = nil,
         inlineEmotes: [String: BiliInlineEmote] = [:]
     ) {
         self.id = id
@@ -293,6 +417,7 @@ nonisolated struct DanmakuItem: Identifiable, Hashable, Sendable {
         self.color = color
         self.text = text
         self.senderName = senderName
+        self.senderIdentifier = senderIdentifier
         self.inlineEmotes = inlineEmotes
     }
 
@@ -417,7 +542,8 @@ nonisolated final class DanmakuXMLParser: NSObject, XMLParserDelegate {
             mode: mode,
             fontSize: fontSize,
             color: color,
-            text: trimmedText
+            text: trimmedText,
+            senderIdentifier: parts.count > 6 ? String(parts[6]) : nil
         )
     }
 }
@@ -467,6 +593,7 @@ nonisolated struct DanmakuSegmentProtobufParser {
         var fontSize = 25.0
         var color: UInt32 = 0xFF_FF_FF
         var content = ""
+        var senderIdentifier: String?
 
         while !reader.isAtEnd {
             let key = try reader.readVarint()
@@ -484,6 +611,8 @@ nonisolated struct DanmakuSegmentProtobufParser {
                 fontSize = Double(try reader.readVarint())
             case (5, ProtobufWireType.varint):
                 color = UInt32(truncatingIfNeeded: try reader.readVarint())
+            case (6, ProtobufWireType.lengthDelimited):
+                senderIdentifier = try reader.readString()
             case (7, ProtobufWireType.lengthDelimited):
                 content = try reader.readString()
             case (12, ProtobufWireType.lengthDelimited):
@@ -514,7 +643,8 @@ nonisolated struct DanmakuSegmentProtobufParser {
             mode: mode,
             fontSize: fontSize,
             color: color,
-            text: text
+            text: text,
+            senderIdentifier: senderIdentifier
         )
         return item.isSupported ? item : nil
     }

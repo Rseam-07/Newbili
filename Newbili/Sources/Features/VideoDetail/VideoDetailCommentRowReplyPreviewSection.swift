@@ -19,6 +19,7 @@ struct CommentRowReplyPreviewSection: View {
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .biliMinimumInteractiveTarget(alignment: .leading)
         }
     }
 }

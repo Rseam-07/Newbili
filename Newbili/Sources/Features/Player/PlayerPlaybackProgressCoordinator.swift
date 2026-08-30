@@ -72,7 +72,7 @@ final class PlayerPlaybackProgressCoordinator: ObservableObject {
         endBackgroundTaskIfNeeded()
         backgroundTaskGeneration += 1
         let generation = backgroundTaskGeneration
-        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "cc.bili.player.progress") {
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "cc.bili.player.progress") { [weak self] in
             Task { @MainActor [weak self] in
                 self?.endBackgroundTaskIfNeeded()
             }

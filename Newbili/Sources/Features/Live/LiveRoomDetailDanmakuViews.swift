@@ -117,6 +117,7 @@ struct LiveDanmakuOverlay: View {
     let usesLandscapeChrome: Bool
     let isLayoutTransitioning: Bool
     let videoAspectRatio: CGFloat
+    let quickActions: DanmakuQuickActionConfiguration?
 
     var body: some View {
         let snapshot = state.snapshot
@@ -138,7 +139,9 @@ struct LiveDanmakuOverlay: View {
                 bottomInset: usesLandscapeChrome ? 84 : 54,
                 isLayoutTransitioning: isLayoutTransitioning,
                 playbackClock: nil,
-                onPlaybackTime: nil
+                onPlaybackTime: nil,
+                onSelectItem: nil,
+                quickActions: quickActions
             )
             .padding(videoContentInsets(in: proxy.size))
             .padding(.horizontal, usesLandscapeChrome ? 18 : 4)
@@ -181,19 +184,7 @@ struct LiveDanmakuSettingsSheet: View {
                     )
                 }
 
-                DanmakuSettingsDisplayAreaSection(displayArea: displayAreaBinding)
-                DanmakuSettingsPortraitVisibilitySection(
-                    hidesDanmakuInPortrait: hidesInPortraitBinding
-                )
-                DanmakuSettingsTextSection(
-                    settings: viewModel.danmakuSettings,
-                    fontScale: fontScaleBinding,
-                    fontWeight: fontWeightBinding
-                )
-                DanmakuSettingsOpacitySection(
-                    settings: viewModel.danmakuSettings,
-                    opacity: opacityBinding
-                )
+                DanmakuSettingsEditorSections(settings: settingsBinding)
             }
             .navigationTitle("弹幕设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -210,64 +201,10 @@ struct LiveDanmakuSettingsSheet: View {
         return "弹幕已关闭，直播画面不会显示滚动评论。"
     }
 
-    private var displayAreaBinding: Binding<DanmakuDisplayArea> {
+    private var settingsBinding: Binding<DanmakuSettings> {
         Binding(
-            get: { viewModel.danmakuSettings.displayArea },
-            set: { updateSettings(displayArea: $0) }
+            get: { viewModel.danmakuSettings },
+            set: viewModel.updateDanmakuSettings
         )
-    }
-
-    private var hidesInPortraitBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.danmakuSettings.hidesInPortrait },
-            set: { updateSettings(hidesInPortrait: $0) }
-        )
-    }
-
-    private var fontScaleBinding: Binding<Double> {
-        Binding(
-            get: { viewModel.danmakuSettings.fontScale },
-            set: { updateSettings(fontScale: $0) }
-        )
-    }
-
-    private var fontWeightBinding: Binding<DanmakuFontWeightOption> {
-        Binding(
-            get: { viewModel.danmakuSettings.fontWeight },
-            set: { updateSettings(fontWeight: $0) }
-        )
-    }
-
-    private var opacityBinding: Binding<Double> {
-        Binding(
-            get: { viewModel.danmakuSettings.opacity },
-            set: { updateSettings(opacity: $0) }
-        )
-    }
-
-    private func updateSettings(
-        fontScale: Double? = nil,
-        opacity: Double? = nil,
-        displayArea: DanmakuDisplayArea? = nil,
-        fontWeight: DanmakuFontWeightOption? = nil,
-        hidesInPortrait: Bool? = nil
-    ) {
-        var settings = viewModel.danmakuSettings
-        if let fontScale {
-            settings.fontScale = fontScale
-        }
-        if let opacity {
-            settings.opacity = opacity
-        }
-        if let displayArea {
-            settings.displayArea = displayArea
-        }
-        if let fontWeight {
-            settings.fontWeight = fontWeight
-        }
-        if let hidesInPortrait {
-            settings.hidesInPortrait = hidesInPortrait
-        }
-        viewModel.updateDanmakuSettings(settings)
     }
 }

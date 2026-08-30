@@ -75,13 +75,18 @@ final class AudioMiniPlayerCoordinator: ObservableObject {
         return viewModel.detail
     }
 
-    func stopUnlessPreparedForDetailOpen(_ video: VideoItem) {
+    /// Resolves whether the requested route is the pending handoff back to the
+    /// retained detail session. Callers use the result to avoid starting a
+    /// second play-info/media preload or suspending the player being handed off.
+    @discardableResult
+    func stopUnlessPreparedForDetailOpen(_ video: VideoItem) -> Bool {
         let key = VideoListenPlaybackSessionStore.contentKey(for: video)
         if key != nil, key == pendingDetailOpenKey {
-            return
+            return true
         }
         pendingDetailOpenKey = nil
         close()
+        return false
     }
 
     /// Hands the already-playing listen-mode detail back to the page that opened

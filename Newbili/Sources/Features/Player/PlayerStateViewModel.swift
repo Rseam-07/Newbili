@@ -63,10 +63,6 @@ private struct PlayerNowPlayingMetadataFingerprint: Equatable {
     let isLiveStream: Bool
 }
 
-enum PlayerSystemMediaPresentationPolicy {
-    static let publishesNowPlayingInfo = false
-}
-
 enum PlayerNowPlayingPublicationPolicy {
     static func shouldPublish(
         isActive: Bool,
@@ -74,17 +70,17 @@ enum PlayerNowPlayingPublicationPolicy {
         isPlaying: Bool,
         isTerminated: Bool,
         hasPlaybackFailure: Bool,
-        playbackContentMode: PlayerPlaybackContentMode = .video
+        playbackContentMode: PlayerPlaybackContentMode = .video,
+        backgroundPlaybackMode: BackgroundPlaybackMode = .defaultValue
     ) -> Bool {
-        guard playbackContentMode == .audioOnly
-                || PlayerSystemMediaPresentationPolicy.publishesNowPlayingInfo
+        guard (playbackContentMode == .audioOnly && backgroundPlaybackMode != .off)
+                || backgroundPlaybackMode == .always
         else {
             return false
         }
         return !isTerminated
             && !hasPlaybackFailure
             && isActive
-            && (wantsAutoplay || isPlaying)
     }
 }
 
@@ -107,6 +103,7 @@ private final class PlayerRemoteControlSession {
     ) {
         guard ActivePlaybackCoordinator.shared.isActive(player) else { return }
         configureRemoteCommandsIfNeeded()
+        setBaseRemoteCommandAvailability(true)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         let playerID = ObjectIdentifier(player)
         if currentPlayerID != playerID {
@@ -133,6 +130,7 @@ private final class PlayerRemoteControlSession {
         currentPlayerID = nil
         resetDetailedMetadataCache()
         let center = MPRemoteCommandCenter.shared()
+        setBaseRemoteCommandAvailability(false)
         center.nextTrackCommand.isEnabled = false
         center.previousTrackCommand.isEnabled = false
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -236,39 +234,31 @@ private final class PlayerRemoteControlSession {
     private func configureRemoteCommandsIfNeeded() {
         guard remoteCommandTargets.isEmpty else { return }
         let center = MPRemoteCommandCenter.shared()
-        center.playCommand.isEnabled = true
-        center.pauseCommand.isEnabled = true
-        center.togglePlayPauseCommand.isEnabled = true
-        center.changePlaybackPositionCommand.isEnabled = true
-        center.skipForwardCommand.isEnabled = true
-        center.skipBackwardCommand.isEnabled = true
-        center.nextTrackCommand.isEnabled = false
-        center.previousTrackCommand.isEnabled = false
         center.skipForwardCommand.preferredIntervals = [15]
         center.skipBackwardCommand.preferredIntervals = [15]
 
         remoteCommandTargets.append(center.playCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.play()
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.play()
             }
             return .success
         })
         remoteCommandTargets.append(center.pauseCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.pause()
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.pause()
             }
             return .success
         })
         remoteCommandTargets.append(center.togglePlayPauseCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.togglePlayback()
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.togglePlayback()
             }
             return .success
         })
         remoteCommandTargets.append(center.changePlaybackPositionCommand.addTarget { event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             Task { @MainActor in
-                guard let player = ActivePlaybackCoordinator.shared.currentActivePlayer(),
+                guard let player = PlayerRemoteControlSession.shared.currentRemoteControlledPlayer(),
                       let duration = player.displayDuration,
                       duration > 0
                 else { return }
@@ -278,28 +268,45 @@ private final class PlayerRemoteControlSession {
         })
         remoteCommandTargets.append(center.skipForwardCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.seek(by: 15)
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.seek(by: 15)
             }
             return .success
         })
         remoteCommandTargets.append(center.skipBackwardCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.seek(by: -15)
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.seek(by: -15)
             }
             return .success
         })
         remoteCommandTargets.append(center.nextTrackCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.requestNextTrack()
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.requestNextTrack()
             }
             return .success
         })
         remoteCommandTargets.append(center.previousTrackCommand.addTarget { _ in
             Task { @MainActor in
-                ActivePlaybackCoordinator.shared.currentActivePlayer()?.requestPreviousTrack()
+                PlayerRemoteControlSession.shared.currentRemoteControlledPlayer()?.requestPreviousTrack()
             }
             return .success
         })
+    }
+
+    private func setBaseRemoteCommandAvailability(_ isEnabled: Bool) {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.isEnabled = isEnabled
+        center.pauseCommand.isEnabled = isEnabled
+        center.togglePlayPauseCommand.isEnabled = isEnabled
+        center.changePlaybackPositionCommand.isEnabled = isEnabled
+        center.skipForwardCommand.isEnabled = isEnabled
+        center.skipBackwardCommand.isEnabled = isEnabled
+    }
+
+    private func currentRemoteControlledPlayer() -> PlayerStateViewModel? {
+        guard let player = ActivePlaybackCoordinator.shared.currentActivePlayer(),
+              currentPlayerID == ObjectIdentifier(player)
+        else { return nil }
+        return player
     }
 }
 
@@ -445,6 +452,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     private let metricsID: String
     private let metricsStartTime = CACurrentMediaTime()
     private let streamSource: PlayerStreamSource
+    private var backgroundPlaybackMode: BackgroundPlaybackMode
     private let durationHint: TimeInterval?
     private let resumeTime: TimeInterval
     private let startupResumePolicy: PlayerStartupResumePolicy
@@ -586,12 +594,14 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         httpHeaders: [String: String]? = nil,
         artworkURL: URL? = nil,
         playbackContentMode: PlayerPlaybackContentMode = .video,
+        backgroundPlaybackMode: BackgroundPlaybackMode = .defaultValue,
         engine: PlayerRenderingEngine? = nil
     ) {
         let resolvedMetricsID = metricsID?.isEmpty == false ? metricsID! : UUID().uuidString
         self.title = title
         self.authorName = authorName
         self.artworkURL = artworkURL
+        self.backgroundPlaybackMode = backgroundPlaybackMode
         self.metricsID = resolvedMetricsID
         self.streamSource = PlayerStreamSource(
             metricsID: resolvedMetricsID,
@@ -693,7 +703,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private func configureAudioSessionNotificationsIfNeeded() {
-        guard playbackContentMode == .audioOnly else { return }
+        guard supportsBackgroundAudioSessionLifecycle else { return }
+        guard audioSessionCancellables.isEmpty else { return }
         NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -717,7 +728,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private func handleAudioSessionInterruption(_ notification: Notification) {
-        guard playbackContentMode == .audioOnly,
+        guard supportsBackgroundAudioSessionLifecycle,
               let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: rawType)
         else { return }
@@ -736,7 +747,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             let systemAllowsResume = options.contains(.shouldResume)
             let shouldResume = audioInterruptionState.end(systemAllowsResume: systemAllowsResume)
             let didReactivate = shouldResume
-                ? reactivateAudioSessionForListenPlayback()
+                ? activateBackgroundPlaybackAudioSession()
                 : true
             recordAudioSessionEvent(
                 "interruption=ended systemAllowsResume=\(systemAllowsResume) resume=\(shouldResume) sessionActive=\(didReactivate)"
@@ -750,7 +761,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private func handleAudioRouteChange(_ notification: Notification) {
-        guard playbackContentMode == .audioOnly,
+        guard supportsBackgroundAudioSessionLifecycle,
               let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               AVAudioSession.RouteChangeReason(rawValue: rawReason) == .oldDeviceUnavailable,
               let previousRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
@@ -763,13 +774,13 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private func handleAudioMediaServicesReset() {
-        guard playbackContentMode == .audioOnly, !isTerminated else { return }
+        guard supportsBackgroundAudioSessionLifecycle, !isTerminated else { return }
         let shouldResume = wantsAutoplay
             || isPlaying
             || playbackSnapshot().isPlaying
             || audioInterruptionState.shouldResume
         audioInterruptionState.reset()
-        let didReactivate = reactivateAudioSessionForListenPlayback()
+        let didReactivate = activateBackgroundPlaybackAudioSession()
         wantsAutoplay = shouldResume
         recordAudioSessionEvent(
             "mediaServices=reset resume=\(shouldResume) sessionActive=\(didReactivate)"
@@ -778,7 +789,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     @discardableResult
-    private func reactivateAudioSessionForListenPlayback() -> Bool {
+    private func activateBackgroundPlaybackAudioSession() -> Bool {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playback, mode: .moviePlayback, options: [])
@@ -788,6 +799,12 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             recordAudioSessionEvent("sessionActivation=failed error=\(error.localizedDescription)")
             return false
         }
+    }
+
+    private func ensureBackgroundPlaybackAudioSessionIfPlaying() {
+        let snapshot = playbackSnapshot()
+        guard wantsAutoplay || isPlaying || snapshot.isPlaying else { return }
+        _ = activateBackgroundPlaybackAudioSession()
     }
 
     private func recordAudioSessionEvent(_ message: String) {
@@ -806,6 +823,27 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         default:
             return false
         }
+    }
+
+    private var supportsBackgroundAudioSessionLifecycle: Bool {
+        (playbackContentMode == .audioOnly && backgroundPlaybackMode != .off)
+            || backgroundPlaybackMode == .always
+    }
+
+    func applyBackgroundPlaybackMode(_ mode: BackgroundPlaybackMode) {
+        guard backgroundPlaybackMode != mode, !isTerminated else { return }
+        let previouslySupportedBackgroundLifecycle = supportsBackgroundAudioSessionLifecycle
+        backgroundPlaybackMode = mode
+        let supportsBackgroundLifecycle = supportsBackgroundAudioSessionLifecycle
+
+        if supportsBackgroundLifecycle, !previouslySupportedBackgroundLifecycle {
+            configureAudioSessionNotificationsIfNeeded()
+        } else if !supportsBackgroundLifecycle, previouslySupportedBackgroundLifecycle {
+            audioSessionCancellables.removeAll()
+            audioInterruptionState.reset()
+            shouldResumePlaybackAfterAppBackground = false
+        }
+        syncRemotePlaybackControls(forceNowPlayingTimeUpdate: true)
     }
 
     var canSeek: Bool {
@@ -879,7 +917,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             isPlaying: isPlaying,
             isTerminated: isTerminated,
             hasPlaybackFailure: errorMessage != nil,
-            playbackContentMode: playbackContentMode
+            playbackContentMode: playbackContentMode,
+            backgroundPlaybackMode: backgroundPlaybackMode
         )
     }
 
@@ -1505,7 +1544,8 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private var allowsPlaybackInCurrentApplicationState: Bool {
-        playbackContentMode == .audioOnly
+        (playbackContentMode == .audioOnly && backgroundPlaybackMode != .off)
+            || backgroundPlaybackMode == .always
             || UIApplication.shared.applicationState == .active
             || isPictureInPictureActive
     }
@@ -1642,8 +1682,32 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         guard ActivePlaybackCoordinator.shared.isActive(self) else { return false }
         syncPictureInPictureState()
         guard !isPictureInPictureActive else { return false }
-        if playbackContentMode == .audioOnly {
+        if playbackContentMode == .audioOnly, backgroundPlaybackMode != .off {
+            ensureBackgroundPlaybackAudioSessionIfPlaying()
             syncRemotePlaybackControls(forceNowPlayingTimeUpdate: true)
+            return false
+        }
+        if playbackContentMode == .audioOnly {
+            let snapshot = playbackSnapshot()
+            let shouldPause = wantsAutoplay || isPlaying || snapshot.isPlaying
+            guard shouldPause else { return false }
+            shouldResumePlaybackAfterAppBackground = false
+            pause(
+                retainingAppBackgroundResumeIntent: false,
+                usesAppBackgroundPause: true
+            )
+            PlayerRemoteControlSession.shared.clearIfCurrent(self)
+            return true
+        }
+        if backgroundPlaybackMode == .always {
+            ensureBackgroundPlaybackAudioSessionIfPlaying()
+            syncRemotePlaybackControls(forceNowPlayingTimeUpdate: true)
+            PlayerMetricsLog.record(
+                .resumeDecision,
+                metricsID: metricsID,
+                title: title,
+                message: "appBackgroundContinue mode=always time=\(String(format: "%.2fs", currentTime))"
+            )
             return false
         }
 

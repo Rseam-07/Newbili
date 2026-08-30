@@ -111,6 +111,22 @@ final class HomeBrowseModelsTests: XCTestCase {
 
         store.setHomePresentationStyle(.simple)
         XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .simple)
+
+        store.setHomePresentationStyle(.editorial)
+        XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .editorial)
+    }
+
+    @MainActor
+    func testBackgroundPlaybackDefaultsToListenOnlyAndPersistsAlways() {
+        let suiteName = "HomeBrowseModelsTests.BackgroundPlayback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LibraryStore(userDefaults: defaults)
+        XCTAssertEqual(store.backgroundPlaybackMode, .listenOnly)
+
+        store.setBackgroundPlaybackMode(.always)
+        XCTAssertEqual(LibraryStore(userDefaults: defaults).backgroundPlaybackMode, .always)
     }
 
     @MainActor
@@ -126,6 +142,67 @@ final class HomeBrowseModelsTests: XCTestCase {
         XCTAssertEqual(
             LibraryStore(userDefaults: defaults).dynamicFeedLayoutPreference,
             .doubleColumn
+        )
+    }
+
+    func testTopNavigationCollapsesOnlyAfterScrollThreshold() {
+        XCTAssertFalse(
+            TopNavigationCollapsePolicy.isCollapsed(
+                contentOffsetY: 23.9,
+                contentInsetTop: 0
+            )
+        )
+        XCTAssertFalse(
+            TopNavigationCollapsePolicy.isCollapsed(
+                contentOffsetY: -42,
+                contentInsetTop: 66
+            )
+        )
+        XCTAssertTrue(
+            TopNavigationCollapsePolicy.isCollapsed(
+                contentOffsetY: -41.9,
+                contentInsetTop: 66
+            )
+        )
+    }
+
+    func testTopNavigationCollapsePolicyUsesHysteresis() {
+        XCTAssertTrue(
+            TopNavigationCollapsePolicy.resolvedState(
+                currentlyCollapsed: false,
+                contentOffsetY: 25,
+                contentInsetTop: 0
+            )
+        )
+        XCTAssertTrue(
+            TopNavigationCollapsePolicy.resolvedState(
+                currentlyCollapsed: true,
+                contentOffsetY: 12,
+                contentInsetTop: 0
+            )
+        )
+        XCTAssertFalse(
+            TopNavigationCollapsePolicy.resolvedState(
+                currentlyCollapsed: true,
+                contentOffsetY: 7.9,
+                contentInsetTop: 0
+            )
+        )
+    }
+
+    func testCinematicNavigationUsesSymmetricSideSlots() {
+        XCTAssertEqual(HomeNavigationGeometricCenteringPolicy.sideSlotWidth, 44)
+        XCTAssertEqual(HomeNavigationGeometricCenteringPolicy.navigationWidth, 330)
+    }
+
+    func testEditorialMagazinePlanKeepsFeaturedItemsOutOfMagazineGroups() {
+        XCTAssertEqual(
+            HomeEditorialMagazinePlan.ranges(totalCount: 9, startIndex: 2),
+            [2..<5, 5..<8, 8..<9]
+        )
+        XCTAssertEqual(
+            HomeEditorialMagazinePlan.ranges(totalCount: 2, startIndex: 2),
+            []
         )
     }
 

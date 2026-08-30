@@ -14,6 +14,8 @@ struct MinePlaybackSettingsView: View {
 
     var body: some View {
         Form {
+            MineVideoDetailContentSettingsSection(libraryStore: libraryStore)
+
             MinePlaybackPreferenceSection(
                 libraryStore: libraryStore,
                 playbackPreferenceSummary: AnyView(playbackPreferenceSummary),

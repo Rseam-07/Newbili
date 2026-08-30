@@ -7,10 +7,20 @@ struct MineSettingsSection: View {
     var body: some View {
         Section("设置") {
             MineOverlayNavigationButton {
+                onOpenRoute(.settingsSearch)
+            } label: {
+                SettingsNavigationRow(
+                    title: "搜索设置",
+                    subtitle: "按 PiliPlus 常用名称查找设置与功能",
+                    systemImage: "magnifyingglass"
+                )
+            }
+
+            MineOverlayNavigationButton {
                 onOpenRoute(.interfaceSettings)
             } label: {
                 SettingsNavigationRow(
-                    title: "界面显示",
+                    title: "样式设置",
                     subtitle: interfaceSettingsSummary,
                     systemImage: "paintpalette"
                 )
@@ -20,9 +30,9 @@ struct MineSettingsSection: View {
                 onOpenRoute(.homeAndSearchSettings)
             } label: {
                 SettingsNavigationRow(
-                    title: "首页与搜索",
+                    title: "推荐与搜索设置",
                     subtitle: homeAndSearchSummary,
-                    systemImage: "house"
+                    systemImage: "sparkles"
                 )
             }
 
@@ -30,9 +40,9 @@ struct MineSettingsSection: View {
                 onOpenRoute(.playbackSettings)
             } label: {
                 SettingsNavigationRow(
-                    title: "播放偏好",
+                    title: "视频与播放设置",
                     subtitle: playbackSettingsSummary,
-                    systemImage: "play.rectangle"
+                    systemImage: "video.badge.waveform"
                 )
             }
 
@@ -50,9 +60,19 @@ struct MineSettingsSection: View {
                 onOpenRoute(.privacySettings)
             } label: {
                 SettingsNavigationRow(
-                    title: "隐私",
+                    title: "隐私设置",
                     subtitle: privacySummary,
                     systemImage: "hand.raised"
+                )
+            }
+
+            MineOverlayNavigationButton {
+                onOpenRoute(.appleIntelligenceSettings)
+            } label: {
+                SettingsNavigationRow(
+                    title: "Siri 与 Apple Intelligence",
+                    subtitle: "Siri/快捷指令已接入 · \(AppleIntelligenceAvailabilityService.current().title)",
+                    systemImage: "apple.intelligence"
                 )
             }
 
@@ -95,6 +115,7 @@ struct MineSettingsSection: View {
         var parts = [
             libraryStore.playbackAutoOptimizationMode.title,
             libraryStore.videoDetailAutoplayEnabled ? "详情自动播放" : "详情手动播放",
+            "后台\(libraryStore.backgroundPlaybackMode.title)",
             libraryStore.videoCodecPreference.title,
             libraryStore.dolbyVisionRenderingPolicy.title
         ]

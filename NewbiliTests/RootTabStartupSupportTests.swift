@@ -9,6 +9,12 @@ final class RootTabStartupSupportTests: XCTestCase {
         XCTAssertEqual(RootTabView.mineOverlayRoute(argumentValue: "favorites"), .favorites)
         XCTAssertEqual(RootTabView.mineOverlayRoute(argumentValue: "messages"), .accountMessages)
         XCTAssertEqual(RootTabView.mineOverlayRoute(argumentValue: "playback-settings"), .playbackSettings)
+        XCTAssertEqual(RootTabView.mineOverlayRoute(argumentValue: "settings-search"), .settingsSearch)
+        XCTAssertEqual(RootTabView.mineOverlayRoute(argumentValue: "danmaku-settings"), .danmakuSettings)
+        XCTAssertEqual(
+            RootTabView.mineOverlayRoute(argumentValue: "apple-intelligence-settings"),
+            .appleIntelligenceSettings
+        )
         XCTAssertNil(RootTabView.mineOverlayRoute(argumentValue: "unknown"))
     }
 }

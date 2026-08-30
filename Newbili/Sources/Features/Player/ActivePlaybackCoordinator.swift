@@ -80,6 +80,23 @@ final class ActivePlaybackCoordinator {
         activePlayer
     }
 
+    func applyBackgroundPlaybackMode(_ mode: BackgroundPlaybackMode) {
+        for player in registeredPlayersIncludingActive() {
+            player.applyBackgroundPlaybackMode(mode)
+        }
+    }
+
+    /// Clears visual detail players while preserving listen-mode and active PiP
+    /// sessions that intentionally outlive the navigation stack.
+    func stopVisualPlaybackForNavigation() {
+        let players = registeredPlayersIncludingActive()
+        for player in players
+        where !player.isAudioOnlyPlayback && !player.isPictureInPictureActive {
+            player.stop(reason: .navigation)
+        }
+        cleanupRegisteredPlayers()
+    }
+
     private func registeredPlayersIncludingActive() -> [PlayerStateViewModel] {
         cleanupRegisteredPlayers()
         var players = registeredPlayers.values.compactMap(\.player)

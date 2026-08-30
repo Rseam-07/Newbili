@@ -8,6 +8,8 @@ struct PlayerNativeControlButtonRow: View {
     let isDanmakuEnabled: Bool
     let showsDanmakuButton: Bool
     let showsSendDanmakuButton: Bool
+    let isPictureInPictureSupported: Bool
+    let isPictureInPictureActive: Bool
     let canToggleFullscreen: Bool
     let isFullscreenActive: Bool
     let controlsAccessory: AnyView?
@@ -69,6 +71,16 @@ struct PlayerNativeControlButtonRow: View {
                     )
                 }
 
+                if pictureInPicturePresentation.isVisible {
+                    PlayerNativeGlassIconButton(
+                        systemName: pictureInPicturePresentation.systemName,
+                        accessibilityLabel: pictureInPicturePresentation.accessibilityLabel,
+                        metrics: metrics,
+                        action: actions.onTogglePictureInPicture
+                    )
+                    .accessibilityValue(pictureInPicturePresentation.accessibilityValue)
+                }
+
                 if canToggleFullscreen {
                     PlayerNativeGlassIconButton(
                         systemName: isFullscreenActive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
@@ -92,5 +104,26 @@ struct PlayerNativeControlButtonRow: View {
         layout.isLive
             ? "slider.horizontal.3"
             : (isDanmakuEnabled ? "text.bubble.fill" : "text.bubble")
+    }
+
+    private var pictureInPicturePresentation: PlayerNativePictureInPictureControlPresentation {
+        PlayerNativePictureInPictureControlPresentation(
+            isSupported: isPictureInPictureSupported,
+            isActive: isPictureInPictureActive
+        )
+    }
+}
+
+struct PlayerNativePictureInPictureControlPresentation: Equatable {
+    let isVisible: Bool
+    let systemName: String
+    let accessibilityLabel: String
+    let accessibilityValue: String
+
+    init(isSupported: Bool, isActive: Bool) {
+        isVisible = isSupported
+        systemName = isActive ? "pip.exit" : "pip.enter"
+        accessibilityLabel = isActive ? "关闭画中画" : "开启画中画"
+        accessibilityValue = isActive ? "已开启" : "已关闭"
     }
 }

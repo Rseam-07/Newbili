@@ -72,6 +72,8 @@ struct SurfaceOnlyDanmakuComposerPage: View {
                                     }
                                 }
                         }
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                         .buttonStyle(.plain)
                         .accessibilityLabel("弹幕颜色 \(String(format: "%06X", value))")
                     }

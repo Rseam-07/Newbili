@@ -202,7 +202,15 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
     var onLoadingProgressChange: (@MainActor (Double) -> Void)?
     var onFirstFrame: (@MainActor (TimeInterval) -> Void)?
 
+    var audiovisualBackgroundPlaybackPolicyForTesting: AVPlayerAudiovisualBackgroundPlaybackPolicy {
+        player.audiovisualBackgroundPlaybackPolicy
+    }
+
     init() {
+        // App-level playback policy decides whether a session should pause when
+        // entering the background. Keep AVPlayer from independently pausing a
+        // permitted listen/always/PiP session when its inline layer is hidden.
+        player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
         nativeDolbyVideoOverlay.onReadyForDisplay = { [weak self] in
             self?.handleNativeDolbyVideoOverlayReady()
         }

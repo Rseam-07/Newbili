@@ -3,6 +3,43 @@ import Foundation
 
 typealias DashStream = DASHStream
 
+nonisolated enum BackgroundPlaybackMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case off
+    case listenOnly
+    case always
+
+    static let defaultValue: BackgroundPlaybackMode = .listenOnly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "关闭"
+        case .listenOnly: "仅听视频"
+        case .always: "始终继续"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .off:
+            "进入后台时暂停视频与“听视频”；画中画仍按画中画设置运行。"
+        case .listenOnly:
+            "只有主动切换到“听视频”后才在锁屏或切换 App 时继续。"
+        case .always:
+            "普通视频进入后台后继续播放声音，并提供锁屏进度与播放控制。"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .off: "speaker.slash"
+        case .listenOnly: "headphones"
+        case .always: "waveform.badge.play"
+        }
+    }
+}
+
 struct VideoCodecPreference: Identifiable, Codable, Equatable, Sendable {
     nonisolated static let storageKey = "cc.bili.playback.videoCodecPreference.v1"
     nonisolated static let defaultValue = VideoCodecPreference(codecOrder: [.hevc, .h264])

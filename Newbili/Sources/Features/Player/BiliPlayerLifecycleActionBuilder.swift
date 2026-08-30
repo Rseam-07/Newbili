@@ -1,6 +1,20 @@
 import AVFoundation
 import SwiftUI
 
+enum BiliPlayerDisappearancePolicy {
+    static func shouldSuspend(
+        pausesOnDisappear: Bool,
+        isFullscreenActive: Bool,
+        isAudioOnlyPlayback: Bool,
+        isPictureInPictureActive: Bool
+    ) -> Bool {
+        pausesOnDisappear
+            && !isFullscreenActive
+            && !isAudioOnlyPlayback
+            && !isPictureInPictureActive
+    }
+}
+
 struct BiliPlayerLifecycleActionBuilder {
     let viewModel: PlayerStateViewModel
     let surfaceState: PlayerSurfaceStateModel
@@ -131,8 +145,12 @@ struct BiliPlayerLifecycleActionBuilder {
         playbackProgressCoordinator.endBackgroundTaskIfNeeded()
         guard !viewModel.isTerminated else { return }
         playbackProgressCoordinator.saveProgress(viewModel.currentTime, context: progressContext)
-        guard configuration.pausesOnDisappear else { return }
-        guard !configuration.isFullscreenActive else { return }
+        guard BiliPlayerDisappearancePolicy.shouldSuspend(
+            pausesOnDisappear: configuration.pausesOnDisappear,
+            isFullscreenActive: configuration.isFullscreenActive,
+            isAudioOnlyPlayback: viewModel.isAudioOnlyPlayback,
+            isPictureInPictureActive: viewModel.isPictureInPictureActive
+        ) else { return }
         viewModel.suspendForNavigation()
     }
 

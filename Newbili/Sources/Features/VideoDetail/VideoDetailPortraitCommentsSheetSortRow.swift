@@ -24,6 +24,7 @@ struct PortraitCommentsSheetSortRow: View {
                     .opacity(selectedSort == sort ? 1 : 0.72)
                     .accessibilityLabel(sort.title)
                     .accessibilityValue(selectedSort == sort ? "已选中" : "")
+                    .biliMinimumInteractiveTarget()
                 }
             }
         }

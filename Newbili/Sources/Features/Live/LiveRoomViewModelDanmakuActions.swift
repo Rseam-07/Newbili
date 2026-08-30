@@ -208,7 +208,8 @@ extension LiveRoomViewModel {
                 fontSize: 24,
                 color: 0xE5E7EB,
                 text: text,
-                senderName: senderName?.isEmpty == false ? senderName : nil
+                senderName: senderName?.isEmpty == false ? senderName : nil,
+                senderIdentifier: message.senderIdentifier
             )
         }
         liveDanmakuRenderStore.prependHistoryItems(items, retainingLimit: 240)

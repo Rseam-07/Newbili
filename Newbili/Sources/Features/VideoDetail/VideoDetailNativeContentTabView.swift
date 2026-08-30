@@ -2,6 +2,7 @@ import SwiftUI
 
 struct VideoDetailNativeContentTabView<Content: View>: View {
     @Environment(\.appThemeTintColor) private var appTintColor
+    @EnvironmentObject private var libraryStore: LibraryStore
     @Binding var selection: VideoDetailContentTab
     let layoutWidth: CGFloat
     let topInset: CGFloat
@@ -25,17 +26,19 @@ struct VideoDetailNativeContentTabView<Content: View>: View {
                 Label(VideoDetailContentTab.detail.title, systemImage: VideoDetailContentTab.detail.systemImage)
             }
 
-            Tab(value: VideoDetailContentTab.comments) {
-                VideoDetailNativeContentTabPage(
-                    tab: .comments,
-                    layoutWidth: layoutWidth,
-                    topInset: topInset,
-                    scrollAdjustment: scrollAdjustment,
-                    onScrollOffsetChange: onScrollOffsetChange,
-                    content: content
-                )
-            } label: {
-                Label(VideoDetailContentTab.comments.title, systemImage: VideoDetailContentTab.comments.systemImage)
+            if libraryStore.showsVideoCommentsInVideoDetail {
+                Tab(value: VideoDetailContentTab.comments) {
+                    VideoDetailNativeContentTabPage(
+                        tab: .comments,
+                        layoutWidth: layoutWidth,
+                        topInset: topInset,
+                        scrollAdjustment: scrollAdjustment,
+                        onScrollOffsetChange: onScrollOffsetChange,
+                        content: content
+                    )
+                } label: {
+                    Label(VideoDetailContentTab.comments.title, systemImage: VideoDetailContentTab.comments.systemImage)
+                }
             }
         }
         .tint(appTintColor)
@@ -43,5 +46,13 @@ struct VideoDetailNativeContentTabView<Content: View>: View {
         .toolbarBackground(.automatic, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .background(VideoDetailTheme.background)
+        .onChange(of: libraryStore.showsVideoCommentsInVideoDetail, initial: true) { _, showsComments in
+            let resolvedSelection = VideoDetailContentVisibilityPolicy.resolvedSelection(
+                selection,
+                showsComments: showsComments
+            )
+            guard resolvedSelection != selection else { return }
+            selection = resolvedSelection
+        }
     }
 }

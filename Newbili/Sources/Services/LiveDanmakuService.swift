@@ -1221,6 +1221,7 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
         let mode: Int
         let fontSize: Double
         let senderName: String?
+        let senderIdentifier: String?
         let inlineEmotes: [String: BiliInlineEmote]
 
         init(
@@ -1229,6 +1230,7 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             mode: Int,
             fontSize: Double,
             senderName: String? = nil,
+            senderIdentifier: String? = nil,
             inlineEmotes: [String: BiliInlineEmote] = [:]
         ) {
             self.text = text
@@ -1236,6 +1238,7 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             self.mode = mode
             self.fontSize = fontSize
             self.senderName = senderName
+            self.senderIdentifier = senderIdentifier
             self.inlineEmotes = inlineEmotes
         }
     }
@@ -2523,6 +2526,7 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
                 color: payload.color,
                 text: trimmedText,
                 senderName: payload.senderName,
+                senderIdentifier: payload.senderIdentifier,
                 inlineEmotes: payload.inlineEmotes
             )
         ]
@@ -2584,6 +2588,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             fontSize: 25,
             senderName: danmakuSenderName(in: info)
                 ?? senderName(in: object["data"] as? [String: Any]),
+            senderIdentifier: danmakuSenderIdentifier(in: info)
+                ?? senderIdentifier(in: object["data"] as? [String: Any]),
             inlineEmotes: liveDanmakuInlineEmotes(in: info, text: normalizedText)
         )
     }
@@ -2605,8 +2611,16 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             color: color,
             mode: 5,
             fontSize: 25,
-            senderName: senderName(in: data)
+            senderName: senderName(in: data),
+            senderIdentifier: senderIdentifier(in: data)
         )
+    }
+
+    private static func danmakuSenderIdentifier(in info: [Any]) -> String? {
+        guard info.indices.contains(2), let user = info[2] as? [Any], !user.isEmpty else {
+            return nil
+        }
+        return normalizedSenderIdentifier(user[0])
     }
 
     private static func danmakuSenderName(in info: [Any]) -> String? {
@@ -2728,7 +2742,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
                 color: 0xE5E7EB,
                 mode: 1,
                 fontSize: 24,
-                senderName: senderName
+                senderName: senderName,
+                senderIdentifier: senderIdentifier(in: data)
             )
         }
         guard let senderName,
@@ -2739,7 +2754,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             color: 0xE5E7EB,
             mode: 1,
             fontSize: 24,
-            senderName: senderName
+            senderName: senderName,
+            senderIdentifier: senderIdentifier(in: data)
         )
     }
 
@@ -2773,7 +2789,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             color: 0xFDE68A,
             mode: 1,
             fontSize: 24,
-            senderName: senderName
+            senderName: senderName,
+            senderIdentifier: senderIdentifier(in: data)
         )
     }
 
@@ -2799,7 +2816,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             color: 0xF9A8D4,
             mode: 1,
             fontSize: 24,
-            senderName: senderName
+            senderName: senderName,
+            senderIdentifier: senderIdentifier(in: data)
         )
     }
 
@@ -2823,7 +2841,8 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             color: 0xFCA5A5,
             mode: 5,
             fontSize: 24,
-            senderName: senderName
+            senderName: senderName,
+            senderIdentifier: senderIdentifier(in: data)
         )
     }
 
@@ -2838,12 +2857,14 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             ?? firstString(in: nestedData, keys: keys)
         else { return nil }
         let senderName = senderName(in: data) ?? senderName(in: nestedData)
+        let senderIdentifier = senderIdentifier(in: data) ?? senderIdentifier(in: nestedData)
         return LiveMessagePayload(
             text: textWithoutLeadingSenderName(text, senderName: senderName),
             color: color,
             mode: 1,
             fontSize: 24,
-            senderName: senderName
+            senderName: senderName,
+            senderIdentifier: senderIdentifier
         )
     }
 
@@ -2952,6 +2973,40 @@ nonisolated final class LiveDanmakuService: @unchecked Sendable {
             return userName
         }
         return nil
+    }
+
+    private static func senderIdentifier(in dictionary: [String: Any]?) -> String? {
+        guard let dictionary else { return nil }
+        for key in ["uid", "mid", "user_id", "userId"] {
+            if let identifier = normalizedSenderIdentifier(dictionary[key]) {
+                return identifier
+            }
+        }
+
+        for key in ["user", "user_info", "userInfo", "uinfo", "base", "data"] {
+            guard let nestedDictionary = dictionary[key] as? [String: Any],
+                  let identifier = senderIdentifier(in: nestedDictionary)
+            else { continue }
+            return identifier
+        }
+        return nil
+    }
+
+    private static func normalizedSenderIdentifier(_ value: Any?) -> String? {
+        let identifier: String?
+        if let value = value as? String {
+            identifier = value
+        } else if let value = value as? NSNumber {
+            identifier = value.stringValue
+        } else if let value = value as? Int {
+            identifier = String(value)
+        } else {
+            identifier = nil
+        }
+        guard let identifier else { return nil }
+        let normalized = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.contains(where: \Character.isNumber), normalized != "0" else { return nil }
+        return normalized
     }
 
     private static func textWithoutLeadingSenderName(

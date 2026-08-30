@@ -34,6 +34,7 @@ struct CommentsSectionHeader: View {
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .biliMinimumInteractiveTarget()
                 }
             }
         }

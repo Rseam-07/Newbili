@@ -2,12 +2,19 @@ import Foundation
 
 extension VideoDetailViewModel {
     func loadInitialCommentsIfNeeded() async {
+        guard VideoDetailContentVisibilityPolicy.automaticallyLoadsComments(
+            hasCommentTarget: commentTarget != nil,
+            preferenceEnabled: libraryStore.showsVideoCommentsInVideoDetail
+        ) else { return }
         guard comments.isEmpty, !commentState.isLoading else { return }
         await loadInitialComments()
     }
 
     func beginInitialCommentsLoadIfNeeded(waitForPlaybackStart: Bool = true) {
-        guard commentTarget != nil else {
+        guard VideoDetailContentVisibilityPolicy.automaticallyLoadsComments(
+            hasCommentTarget: commentTarget != nil,
+            preferenceEnabled: libraryStore.showsVideoCommentsInVideoDetail
+        ) else {
             if comments.isEmpty, !commentState.isLoading {
                 commentState = .idle
             }
@@ -43,7 +50,10 @@ extension VideoDetailViewModel {
     }
 
     func loadInitialComments() async {
-        guard commentTarget != nil else {
+        guard VideoDetailContentVisibilityPolicy.automaticallyLoadsComments(
+            hasCommentTarget: commentTarget != nil,
+            preferenceEnabled: libraryStore.showsVideoCommentsInVideoDetail
+        ) else {
             if comments.isEmpty {
                 commentState = .idle
             }

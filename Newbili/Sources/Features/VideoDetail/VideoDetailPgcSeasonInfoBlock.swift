@@ -5,7 +5,12 @@ struct VideoDetailPgcSeasonInfoBlock: View {
     let detail: VideoItem
 
     @Environment(\.appThemeTintColor) private var appTintColor
-    @State private var isDescriptionExpanded = false
+    @EnvironmentObject private var libraryStore: LibraryStore
+    @State private var descriptionExpansionOverride: Bool?
+
+    private var isDescriptionExpanded: Bool {
+        descriptionExpansionOverride ?? libraryStore.expandsVideoDescriptionByDefault
+    }
 
     private var episodeCount: Int {
         season.selectableEpisodes.count
@@ -69,7 +74,7 @@ struct VideoDetailPgcSeasonInfoBlock: View {
                     if needsDescriptionExpansion {
                         Button(isDescriptionExpanded ? "收起简介" : "展开简介") {
                             withAnimation(.snappy(duration: 0.22)) {
-                                isDescriptionExpanded.toggle()
+                                descriptionExpansionOverride = !isDescriptionExpanded
                             }
                         }
                         .font(.subheadline.weight(.semibold))

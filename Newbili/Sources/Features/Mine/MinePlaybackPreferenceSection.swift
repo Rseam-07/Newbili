@@ -21,6 +21,9 @@ struct MinePlaybackPreferenceSection<ProbeSummary: View>: View {
             videoDetailAutoplayToggle
             nativePlaybackControlsToggle
             pictureInPictureToggle
+            backgroundPlaybackModePicker
+            MineDanmakuTapInteractionToggle(libraryStore: libraryStore)
+            danmakuSettingsLink
             playbackHistorySyncThresholdPicker
             preferredVideoQualityPicker
             cellularPreferredVideoQualityPicker
@@ -32,7 +35,7 @@ struct MinePlaybackPreferenceSection<ProbeSummary: View>: View {
         } header: {
             Text("播放体验")
         } footer: {
-            Text("关闭详情自动播放后，进入视频详情页会先停在首帧，需手动点播放。播放满 \(libraryStore.playbackHistorySyncThresholdSeconds) 秒后同步观看记录并用于下次续播；未满不会上报。")
+            Text("关闭详情自动播放后，进入视频详情页会先停在首帧，需手动点播放。后台播放会复用当前播放会话和锁屏控制，不会重新请求视频。播放满 \(libraryStore.playbackHistorySyncThresholdSeconds) 秒后同步观看记录并用于下次续播；未满不会上报。")
         }
 
         Section {
@@ -112,6 +115,36 @@ struct MinePlaybackPreferenceSection<ProbeSummary: View>: View {
             set: { libraryStore.setPictureInPictureEnabled($0) }
         )) {
             Label("画中画播放", systemImage: "pip")
+        }
+    }
+
+    private var backgroundPlaybackModePicker: some View {
+        Picker(selection: Binding(
+            get: { libraryStore.backgroundPlaybackMode },
+            set: { libraryStore.setBackgroundPlaybackMode($0) }
+        )) {
+            ForEach(BackgroundPlaybackMode.allCases) { mode in
+                Label(mode.title, systemImage: mode.systemImage)
+                    .tag(mode)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Label("后台播放", systemImage: "waveform.badge.play")
+                Text(libraryStore.backgroundPlaybackMode.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .pickerStyle(.navigationLink)
+    }
+
+    private var danmakuSettingsLink: some View {
+        NavigationLink(value: MineOverlayRoute.danmakuSettings) {
+            SettingsNavigationRow(
+                title: "弹幕设置",
+                subtitle: "区域、文字、透明度、速度与密度",
+                systemImage: "text.bubble"
+            )
         }
     }
 

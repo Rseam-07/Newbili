@@ -8,58 +8,10 @@ extension DanmakuSettingsSheet {
         return "弹幕已关闭，播放时不会显示滚动评论。"
     }
 
-    var fontScaleBinding: Binding<Double> {
+    var settingsBinding: Binding<DanmakuSettings> {
         Binding(
-            get: { store.danmakuSettings.fontScale },
-            set: { newValue in
-                var settings = store.danmakuSettings
-                settings.fontScale = newValue
-                updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    var opacityBinding: Binding<Double> {
-        Binding(
-            get: { store.danmakuSettings.opacity },
-            set: { newValue in
-                var settings = store.danmakuSettings
-                settings.opacity = newValue
-                updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    var displayAreaBinding: Binding<DanmakuDisplayArea> {
-        Binding(
-            get: { store.danmakuSettings.displayArea },
-            set: { newValue in
-                var settings = store.danmakuSettings
-                settings.displayArea = newValue
-                updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    var hidesDanmakuInPortraitBinding: Binding<Bool> {
-        Binding(
-            get: { store.danmakuSettings.hidesInPortrait },
-            set: { newValue in
-                var settings = store.danmakuSettings
-                settings.hidesInPortrait = newValue
-                updateDanmakuSettings(settings)
-            }
-        )
-    }
-
-    var fontWeightBinding: Binding<DanmakuFontWeightOption> {
-        Binding(
-            get: { store.danmakuSettings.fontWeight },
-            set: { newValue in
-                var settings = store.danmakuSettings
-                settings.fontWeight = newValue
-                updateDanmakuSettings(settings)
-            }
+            get: { store.danmakuSettings },
+            set: updateDanmakuSettings
         )
     }
 }

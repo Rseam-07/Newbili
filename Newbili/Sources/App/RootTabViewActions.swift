@@ -56,6 +56,56 @@ extension RootTabView {
         }
     }
 
+    func consumePendingAppIntentRouteIfNeeded() {
+        guard let request = appIntentRouteInbox.pendingRequest else { return }
+
+        switch request.route {
+        case .home:
+            resetRootNavigationForAppIntent(selectedTab: .home)
+        case .history:
+            openMineRouteFromAppIntent(.history)
+        case .watchLater:
+            openMineRouteFromAppIntent(.watchLater)
+        case .favorites:
+            openMineRouteFromAppIntent(.favorites)
+        case .video(let bvid):
+            if audioMiniPlayerCoordinator.snapshot?.video.bvid.caseInsensitiveCompare(bvid) == .orderedSame {
+                _ = audioMiniPlayerCoordinator.prepareForDetailOpen()
+            }
+            resetRootNavigationForAppIntent(selectedTab: .home)
+            openVideo(Self.seedVideo(bvid: bvid))
+        }
+
+        appIntentRouteInbox.acknowledge(request.id)
+    }
+
+    private func openMineRouteFromAppIntent(_ route: MineOverlayRoute) {
+        resetRootNavigationForAppIntent(selectedTab: .mine)
+        mineViewModelHolder.configure(
+            api: dependencies.api,
+            sessionStore: dependencies.sessionStore,
+            accountMessageService: dependencies.accountMessageService
+        )
+        openMineOverlayRoute(route)
+    }
+
+    private func resetRootNavigationForAppIntent(selectedTab: AppTab) {
+        if bottomMode == .video {
+            beginDefinitiveVideoClose()
+        } else if !rootNavigationPath.isEmpty {
+            ActivePlaybackCoordinator.shared.stopVisualPlaybackForNavigation()
+        }
+
+        AppOrientationLock.restoreRootOrientations()
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            rootNavigationPath = NavigationPath()
+            self.selectedTab = selectedTab
+        }
+        rootTabBarRestoreRequestID &+= 1
+    }
+
     func openAppURL(_ url: URL) {
         guard AppLinkRouter.canHandle(url) else { return }
 
@@ -167,16 +217,19 @@ extension RootTabView {
     }
 
     func openVideo(_ video: VideoItem) {
-        audioMiniPlayerCoordinator.stopUnlessPreparedForDetailOpen(video)
+        let reusesPreparedDetailSession = audioMiniPlayerCoordinator
+            .stopUnlessPreparedForDetailOpen(video)
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: video.bvid, title: video.title)
         if bottomMode == .video {
-            pushVideo(video)
+            pushVideo(video, reusesPreparedDetailSession: reusesPreparedDetailSession)
             return
         }
 
-        beginPlaybackPreload(for: video)
-        if !rootNavigationPath.isEmpty {
+        if !reusesPreparedDetailSession {
+            beginPlaybackPreload(for: video)
+        }
+        if !reusesPreparedDetailSession, !rootNavigationPath.isEmpty {
             ActivePlaybackCoordinator.shared.pauseActivePlaybackForNavigation()
         }
 
@@ -227,11 +280,16 @@ extension RootTabView {
         openVideo(video)
     }
 
-    func pushVideo(_ video: VideoItem) {
+    func pushVideo(
+        _ video: VideoItem,
+        reusesPreparedDetailSession: Bool = false
+    ) {
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: video.bvid, title: video.title)
-        ActivePlaybackCoordinator.shared.pauseActivePlaybackForNavigation()
-        beginPlaybackPreload(for: video)
+        if !reusesPreparedDetailSession {
+            ActivePlaybackCoordinator.shared.pauseActivePlaybackForNavigation()
+            beginPlaybackPreload(for: video)
+        }
         withAnimation(.smooth(duration: 0.28)) {
             didConsumeStartupVideo = true
             isClosingVideo = false

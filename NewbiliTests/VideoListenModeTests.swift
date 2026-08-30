@@ -863,7 +863,7 @@ final class VideoListenModeTests: XCTestCase {
         }
 
         let routeVideo = try XCTUnwrap(coordinator.prepareForDetailOpen())
-        coordinator.stopUnlessPreparedForDetailOpen(routeVideo)
+        XCTAssertTrue(coordinator.stopUnlessPreparedForDetailOpen(routeVideo))
         let restored = try XCTUnwrap(coordinator.takePreparedDetailViewModel(
             for: routeVideo,
             api: viewModel.api,
@@ -876,6 +876,45 @@ final class VideoListenModeTests: XCTestCase {
         XCTAssertTrue(restored === viewModel)
         XCTAssertTrue(restored.stablePlayerViewModel === player)
         XCTAssertTrue(restored.playbackSession === viewModel.playbackSession)
+    }
+
+    @MainActor
+    func testPreparedMiniPlayerDetailOpenDoesNotClaimAnotherVideo() throws {
+        let defaults = makeUserDefaults()
+        let libraryStore = LibraryStore(userDefaults: defaults)
+        let video = makeVideo(bvid: "BV-mini-session-source", pages: [])
+        let viewModel = makeViewModel(
+            video: video,
+            libraryStore: libraryStore,
+            playbackSessionStore: VideoListenPlaybackSessionStore()
+        )
+        let variant = reusableTestVariant()
+        let player = PlayerStateViewModel(
+            videoURL: variant.videoURL,
+            audioURL: variant.audioURL,
+            title: "听视频移交目标校验",
+            referer: "https://www.bilibili.com",
+            playbackContentMode: .audioOnly,
+            engine: PlayerLifecycleEngineSpy(isPlaying: true)
+        )
+        viewModel.playbackContentMode = .audioOnly
+        viewModel.playVariants = [variant]
+        viewModel.selectedPlayVariant = variant
+        viewModel.stablePlayerViewModel = player
+        viewModel.stablePlayerIdentity = viewModel.playerIdentity(for: variant)
+
+        let coordinator = AudioMiniPlayerCoordinator()
+        coordinator.adopt(viewModel)
+        defer {
+            coordinator.release(viewModel, stopsPlayback: false)
+            player.stop()
+        }
+
+        _ = try XCTUnwrap(coordinator.prepareForDetailOpen())
+        let anotherVideo = makeVideo(bvid: "BV-mini-session-other", pages: [])
+
+        XCTAssertFalse(coordinator.stopUnlessPreparedForDetailOpen(anotherVideo))
+        XCTAssertNil(coordinator.snapshot)
     }
 
     @MainActor

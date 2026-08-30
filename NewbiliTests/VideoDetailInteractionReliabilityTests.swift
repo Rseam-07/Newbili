@@ -157,6 +157,23 @@ final class VideoDetailInteractionReliabilityTests: XCTestCase {
         )
     }
 
+    func testHoldProgressKeepsACancelledTouchSuppressedUntilRelease() {
+        XCTAssertTrue(
+            HoldProgressReleasePolicy.shouldSuppressTap(
+                didCommit: false,
+                hasPendingSuppression: false,
+                ignoredCurrentTouch: true
+            )
+        )
+        XCTAssertFalse(
+            HoldProgressReleasePolicy.shouldSuppressTap(
+                didCommit: false,
+                hasPendingSuppression: false,
+                ignoredCurrentTouch: false
+            )
+        )
+    }
+
     func testTripleResultDecodesUGCAndPGCResponseShapes() throws {
         let ugc = try JSONDecoder().decode(
             VideoTripleMutationResult.self,

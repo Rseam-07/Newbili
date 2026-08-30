@@ -6,11 +6,14 @@ enum MineOverlayRoute: Hashable {
     case history
     case favorites
     case watchLater
+    case settingsSearch
     case interfaceSettings
     case homeAndSearchSettings
     case playbackSettings
+    case danmakuSettings
     case contentFilterSettings
     case privacySettings
+    case appleIntelligenceSettings
 }
 
 struct MineOverlayNavigationButton<Label: View>: View {

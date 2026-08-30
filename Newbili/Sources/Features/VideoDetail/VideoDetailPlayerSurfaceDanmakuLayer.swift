@@ -6,7 +6,7 @@ struct VideoDetailPlayerSurfaceDanmakuLayer: View {
     let usesLandscapePlaybackChrome: Bool
     let isLayoutTransitioning: Bool
     let onPlaybackTime: (TimeInterval, Bool) -> Void
-    let onSelectItem: (DanmakuItem) -> Void
+    let quickActions: DanmakuQuickActionConfiguration?
 
     var body: some View {
         VideoDetailDanmakuOverlay(
@@ -16,7 +16,7 @@ struct VideoDetailPlayerSurfaceDanmakuLayer: View {
             usesLandscapePlaybackChrome: usesLandscapePlaybackChrome,
             isLayoutTransitioning: isLayoutTransitioning,
             onPlaybackTime: onPlaybackTime,
-            onSelectItem: onSelectItem
+            quickActions: quickActions
         )
     }
 }
