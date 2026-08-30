@@ -32,12 +32,23 @@ Carthage/Build/
 *.dSYM/
 *.log
 
-# Android / Gradle
-android/.gradle/
-android/local.properties
-android/**/build/
+# Android / Flutter / Gradle
+AndroidFlutter/.dart_tool/
+AndroidFlutter/.flutter-plugins
+AndroidFlutter/.flutter-plugins-dependencies
+AndroidFlutter/.packages
+AndroidFlutter/.pub/
+AndroidFlutter/.fvm/
+AndroidFlutter/android/.gradle/
+AndroidFlutter/android/local.properties
+AndroidFlutter/android/key.properties
+AndroidFlutter/android/**/build/
+AndroidFlutter/build/
+AndroidFlutter/dist/
+AndroidFlutter/*.jks
 *.aab
 *.apk
+*.idsig
 
 # Signing, secrets, and local-only config
 .env
@@ -74,6 +85,8 @@ Packages/FFmpegKit/Sources/*.xcframework/
 !Newbili/Assets.xcassets/AppIconDark.appiconset/*.png
 !Newbili/Assets.xcassets/LaunchLogo.imageset/*.png
 !Brand/NewbiliIcon/*.png
+!AndroidFlutter/assets/**/*.png
+!AndroidFlutter/android/**/*.png
 
 # macOS
 .DS_Store

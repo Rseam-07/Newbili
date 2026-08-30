@@ -6,6 +6,14 @@ on:
     branches:
       - main
       - master
+    paths:
+      - Newbili/**
+      - NewbiliTests/**
+      - Newbili.xcodeproj/**
+      - Config/**
+      - Brand/**
+      - Scripts/*ipa*.sh
+      - .github/workflows/unsigned-ipa.yml
 
 jobs:
   build:

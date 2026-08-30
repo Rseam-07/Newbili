@@ -4,12 +4,12 @@
 
 # Newbili
 
-Newbili（简称 **nb**）是一个以 SwiftUI、UIKit 和 AVFoundation 为主、并开始提供 Compose Android 客户端的第三方项目。项目目标是在尽量覆盖 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) 功能与接口行为的同时，用原生控件、响应式导航与 Liquid Glass 设计语言重新实现手机和平板体验。
+Newbili（简称 **nb**）是一个面向 iPhone、iPad 与 Android 的第三方客户端。iOS/iPadOS 由 SwiftUI、UIKit 和 AVFoundation 实现；Android 基于完整的 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) Flutter 功能底座，以 Fluent UI、Material 3 和分级 Liquid Glass 重新装修手机与平板体验。
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.4%2B-lightgrey.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-5%20%2F%206-orange.svg)](https://www.swift.org/)
-[![Android](https://img.shields.io/badge/Android-Compose-3DDC84.svg)](android/)
+[![Android](https://img.shields.io/badge/Android%2012%2B-Flutter%20%2B%20MD3-3DDC84.svg)](AndroidFlutter/)
 
 项目主页：[github.com/Rseam-07/Newbili](https://github.com/Rseam-07/Newbili) · 维护者：[Serge（@Rseam-07）](https://github.com/Rseam-07)
 
@@ -29,7 +29,9 @@ Newbili（简称 **nb**）是一个以 SwiftUI、UIKit 和 AVFoundation 为主�
 
 Newbili 仍在持续补齐 PiliPlus 的长尾功能。PGC 高级筛选与完整追番管理、离线下载、WebDAV、DLNA、完整专栏/音频、动态发布和私信高级能力尚未全部达到一比一覆盖；请以 [功能对照基线](UPSTREAM_PARITY_2026-08-19.md) 为准，避免把“已有入口”误认为“完整闭环”。
 
-Android 端位于 [`android/`](android/)，当前已落地 Compose 响应式导航、宽屏侧栏、窄屏底栏、首页/动态自适应布局和 AndroidLiquidGlass/Backdrop。Android 的账号、网络、播放器和完整业务能力仍处于迁移阶段，不与当前 iOS 完成度等同。
+Android 端位于 [`AndroidFlutter/`](AndroidFlutter/)，直接从 PiliPlus `44680b8a486a0518f366a2c9bff6242506cf8783`（2.1.2 系列，2026-08-30）演进，保留其完整业务路由、网络模型、登录、多账号、推荐/热门/动态、视频与直播播放器、弹幕、评论、下载、DLNA、后台音频和画中画。Newbili 的改动集中在主题、公共组件、响应式导航、首页焦点推荐、播放器控制层、触控命中区和性能分级，不以删功能换性能。
+
+Android 视觉借鉴 [BiliBili-UWP](https://github.com/Richasy/BiliBili-UWP) 的 Fluent 分层、亚克力与 Master–Detail 思路，并针对移动端重组：手机保留底部主导航和横向二级频道，平板使用 Navigation Rail，只有大横屏才启用辅助详情栏。Liquid Glass 使用 Flutter `BackdropFilter` 与自研 capability tier 实现；Android 13+ 为增强档，Android 12/12L 为基础模糊档，低内存或省电模式自动退化为静态 MD3 材质。该实现参考 AndroidLiquidGlass 的渲染原则，但没有把 Compose PlatformView 塞进 Flutter 滚动列表。
 
 ## 播放器设计
 
@@ -52,6 +54,8 @@ Android 端位于 [`android/`](android/)，当前已落地 Compose 响应式导�
 - Xcode 27.0 beta 或更新版本（构建 Design Generation 27 分层图标）
 - iOS / iPadOS 26.4+
 - Swift 5 语言模式，兼容 Swift 6 工具链
+- Android Studio / Android SDK 37、JDK 17
+- Flutter 3.47.2（Android）
 
 打开 `Newbili.xcodeproj`，选择 `Newbili` scheme 即可运行。命令行示例：
 
@@ -78,6 +82,16 @@ xcodebuild test \
 ```
 
 测试覆盖服务解码、账号会话、播放器恢复、HLS Bridge、弹幕、评论、稍后再看、PGC 路由和主要设置持久化。登录态接口仍需使用测试账号在真机上做端到端验证。
+
+Android 静态检查与测试：
+
+```bash
+cd AndroidFlutter
+flutter analyze --no-pub --no-fatal-infos
+flutter test --no-pub
+```
+
+Android 的完整构建步骤、Flutter 补丁和 ABI 产物说明见 [`AndroidFlutter/README.md`](AndroidFlutter/README.md)。
 
 ## 构建未签名 IPA
 
@@ -108,10 +122,10 @@ Newbili/                 App 源码、资源与分层主图标
 NewbiliTests/            单元与回归测试
 Newbili.xcodeproj/       Xcode 工程与共享 Scheme
 Brand/NewbiliIcon/       图标 SVG、PNG 和 Icon Composer 源工程
-android/                  Compose Android 客户端与 Gradle 工程
+AndroidFlutter/           完整 PiliPlus Flutter Android 衍生客户端
 Config/                  非敏感构建配置
-Scripts/                 构建、签名与验证脚本
-.github/workflows/       未签名 IPA 自动构建
+Scripts/                 iOS/Android 构建、签名与验证脚本
+.github/workflows/       未签名 IPA 与 Android Debug APK 自动构建
 ```
 
 项目不依赖 CocoaPods 或 Swift Package；运行时主要使用 SwiftUI、UIKit、AVFoundation、AVKit、VideoToolbox、Metal、Network、WebKit、AuthenticationServices、PhotosUI、Compression 与系统 zlib。
@@ -122,13 +136,14 @@ Newbili 的原生实现由本仓库维护，但功能语义、接口行为、交
 
 | 项目 | 在 Newbili 中的作用 | 许可证/说明 |
 | --- | --- | --- |
-| [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) | 最主要的功能、接口参数与行为对照上游 | GPL-3.0 |
+| [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) | Android 完整功能底座；同时是 iOS 功能、接口参数与行为对照上游 | GPL-3.0；Android 为修改后的衍生源码 |
 | [PiliPalaX](https://github.com/orz12/PiliPalaX) | PiliPlus 的上游演进链路 | GPL-3.0 |
 | [PiliPala](https://github.com/guozhigq/pilipala) | PiliPalaX / PiliPlus 的原始上游链路 | GPL-3.0 |
 | [AniShelf](https://github.com/samuelhe52/AniShelf) | 番剧、动漫与影视页面的沉浸背景、海报卡片和信息层级设计参考 | Apache-2.0；Newbili 已按自身导航与播放链路重新实现 |
 | [MiniBili-WEB](https://github.com/ResistanceTo/MiniBili-WEB) | Apple 平台产品呈现与界面参考 | MIT |
 | [PiliPod](https://github.com/BPTPW/PiliPod) | Swift 原生客户端与播放器交互参考 | GPL-3.0 |
-| [AndroidLiquidGlass / Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Android Compose 液态玻璃底层效果 | Apache-2.0；Newbili 自行实现高层控件 |
+| [BiliBili-UWP](https://github.com/Richasy/BiliBili-UWP) | Fluent 分层、亚克力及宽屏 Master–Detail 的设计参考 | GPL-3.0；Newbili 针对移动端重新实现 |
+| [AndroidLiquidGlass / Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Android 液态玻璃渲染与性能分层参考 | Apache-2.0；Flutter 实现未直接链接 Compose 库 |
 | [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) | 公开接口文档与字段语义参考 | 仓库未声明标准开源许可证；仅作资料引用 |
 | [BilibiliSponsorBlock](https://github.com/hanydd/BilibiliSponsorBlock) | SponsorBlock 分段查询/上报 API 与社区数据 | GPL-3.0；数据/API 条款以其项目为准 |
 | [SponsorBlock](https://github.com/ajayyy/SponsorBlock) | SponsorBlock 原始理念和协议上游 | GPL-3.0；数据库/API 另有条款 |
@@ -140,7 +155,7 @@ Newbili 的原生实现由本仓库维护，但功能语义、接口行为、交
 
 ## 隐私与安全
 
-- 登录态保存在设备 Keychain；调试日志应避免输出完整 Cookie 和 Token。
+- iOS 登录态保存在 Keychain；Android 账号 Hive box 使用随机密钥加密，密钥再由 Android Keystore 包装。调试日志应避免输出完整 Cookie 和 Token。
 - `.gitignore` 排除 IPA、证书、描述文件、私钥、环境文件、构建目录和本地配置。
 - 提交或发布前应运行密钥扫描并检查 Git 历史；仅删除工作区文件不能撤回已经推送的凭据。
 - 若凭据曾出现在公开位置，请立即在对应服务吊销/刷新，而不是只从代码中删除。
