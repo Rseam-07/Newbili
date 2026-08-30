@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootMineNavigationDestination: View {
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
     let route: MineOverlayRoute
     @ObservedObject var holder: MineViewModelHolder
     @ObservedObject var libraryStore: LibraryStore
@@ -51,7 +52,14 @@ struct RootMineNavigationDestination: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .scrollContentBackground(interfaceStyle.isFluent ? .hidden : .visible)
+        .background {
+            if interfaceStyle.isFluent {
+                AppInterfaceCanvasBackground()
+            } else {
+                Color(uiColor: .systemBackground).ignoresSafeArea()
+            }
+        }
         .background(
             VideoDetailSystemBackGestureBridge(
                 onNavigationGestureBegan: {},

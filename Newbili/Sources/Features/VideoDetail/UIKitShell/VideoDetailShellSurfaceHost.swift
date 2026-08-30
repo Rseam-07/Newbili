@@ -495,6 +495,7 @@ private struct PlayerOverlayHostRoot: View {
 
 private struct SurfaceOnlyPlayerOverlayRoot: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let viewModel: PlayerStateViewModel
     let detailViewModel: VideoDetailViewModel
     @ObservedObject var libraryStore: LibraryStore
@@ -534,6 +535,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
     @State private var isDanmakuComposerPresented = false
     @State private var selectedDanmakuItem: DanmakuItem?
     @State private var selectedDanmakuInitiallyLiked = false
+    @State private var isManualPlaybackRevealCoverVisible = false
 
     init(
         viewModel: PlayerStateViewModel,
@@ -625,6 +627,13 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                     .zIndex(0.5)
                 }
 
+                if isManualPlaybackRevealCoverVisible {
+                    Color.black
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                        .zIndex(0.75)
+                }
+
                 if shouldKeepChromeMounted {
                     Group {
                         BiliPlayerSurfaceGestureLayerHost(
@@ -703,6 +712,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
 
                 if showsCenterPlaybackControl, !usesNativePlaybackControls {
                     centerPlaybackControl
+                        .transition(centerPlaybackControlTransition)
                         .zIndex(5)
                 }
 
@@ -728,6 +738,10 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
+        .animation(
+            AppMotion.feedback(reduceMotion: reduceMotion),
+            value: showsCenterPlaybackControl
+        )
         .background {
             PlaybackDetailPlayerReadinessProbe(
                 playerViewModel: viewModel,
@@ -751,9 +765,22 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             }
         }
         .onChange(of: ObjectIdentifier(viewModel)) { _, _ in
+            isManualPlaybackRevealCoverVisible = false
             guard usesNarrowObservation else { return }
             context.lifecycleActions.onPlayerChanged()
             experimentState.recordPlayerRebind()
+        }
+        .onChange(of: surfaceState.isCurrentPlaybackSurfaceReady) { _, isReady in
+            guard isReady, isManualPlaybackRevealCoverVisible else { return }
+            withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.22)) {
+                isManualPlaybackRevealCoverVisible = false
+            }
+        }
+        .onChange(of: surfaceState.errorMessage) { _, errorMessage in
+            guard errorMessage != nil, isManualPlaybackRevealCoverVisible else { return }
+            withAnimation(.easeOut(duration: 0.12)) {
+                isManualPlaybackRevealCoverVisible = false
+            }
         }
         .onChange(of: isLandscape) { _, isLandscape in
             // 旋转控件预热会在 bare transition 中短暂翻转该值，不能把它当成
@@ -914,6 +941,11 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             accessibilityLabel: "播放",
             metrics: centerPlaybackControlMetrics
         ) {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isManualPlaybackRevealCoverVisible = !surfaceState.isCurrentPlaybackSurfaceReady
+            }
             viewModel.play()
             playbackControlsVisibility.showAndSchedule(
                 showsPlaybackControls: keepsChromeMounted,
@@ -921,6 +953,12 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
             )
         }
         .biliLiquidGlassForeground(shadowOpacity: 0.20)
+    }
+
+    private var centerPlaybackControlTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .scale(scale: 0.84).combined(with: .opacity)
     }
 
     private var centerPlaybackControlMetrics: PlayerNativeControlMetrics {

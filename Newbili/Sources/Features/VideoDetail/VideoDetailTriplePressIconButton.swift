@@ -6,20 +6,37 @@ struct VideoDetailTriplePressIconButton: View {
 
     let isLiked: Bool
     let isDisabled: Bool
-    let likeAction: () -> Void
-    let tripleAction: () -> Void
+    let likeAction: (@escaping (VideoDetailSummaryCardLikeOutcome) -> Void) -> Void
+    let tripleAction: (@escaping (VideoDetailSummaryCardTripleOutcome) -> Void) -> Void
+
+    @State private var likeSuccessPulse = false
+    @State private var showsTripleSuccess = false
+    @State private var feedbackTask: Task<Void, Never>?
 
     var body: some View {
         HoldProgressButton(
             isDisabled: isDisabled,
-            tapAction: likeAction,
-            holdAction: tripleAction,
+            tapAction: performLike,
+            holdAction: performTriple,
             milestoneFeedback: { _ in Haptics.light() },
             commitFeedback: Haptics.medium
         ) {
-            VideoDetailActionStripIconLabel(
-                systemImage: "hand.thumbsup.fill",
-                foregroundStyle: isLiked ? appTintColor : .primary
+            ZStack {
+                VideoDetailActionStripIconLabel(
+                    systemImage: "hand.thumbsup.fill",
+                    foregroundStyle: isLiked ? appTintColor : .primary
+                )
+                .scaleEffect(reduceMotion || !likeSuccessPulse ? 1 : 1.18)
+
+                Circle()
+                    .stroke(appTintColor.opacity(0.48), lineWidth: 2)
+                    .frame(width: 30, height: 30)
+                    .scaleEffect(reduceMotion || !likeSuccessPulse ? 0.94 : 1.16)
+                    .opacity(likeSuccessPulse ? 1 : 0)
+            }
+            .animation(
+                AppMotion.confirmation(reduceMotion: reduceMotion),
+                value: likeSuccessPulse
             )
         } progressIndicator: { progress in
             VideoDetailTriplePressProgressIndicator(
@@ -36,9 +53,80 @@ struct VideoDetailTriplePressIconButton: View {
         .accessibilityHint("按住直到进度完成会点赞、投币并收藏；中途松手只会点赞")
         .accessibilityAction(named: "一键三连") {
             guard !isDisabled else { return }
-            tripleAction()
+            performTriple()
+        }
+        .overlay(alignment: .top) {
+            if showsTripleSuccess {
+                Label("三连成功", systemImage: "checkmark.circle.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(appTintColor)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay {
+                        Capsule().strokeBorder(appTintColor.opacity(0.22), lineWidth: 0.6)
+                    }
+                    .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+                    .offset(y: -38)
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .scale(scale: 0.86, anchor: .bottom).combined(with: .opacity)
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
+        .onDisappear {
+            feedbackTask?.cancel()
+            feedbackTask = nil
         }
         .zIndex(10)
+    }
+
+    private func performLike() {
+        likeAction { outcome in
+            guard outcome == .liked else { return }
+            presentLikeSuccess()
+        }
+    }
+
+    private func performTriple() {
+        tripleAction { outcome in
+            guard outcome == .completed else { return }
+            presentTripleSuccess()
+        }
+    }
+
+    private func presentLikeSuccess() {
+        feedbackTask?.cancel()
+        showsTripleSuccess = false
+        withAnimation(AppMotion.confirmation(reduceMotion: reduceMotion)) {
+            likeSuccessPulse = true
+        }
+        feedbackTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.14)) {
+                likeSuccessPulse = false
+            }
+            feedbackTask = nil
+        }
+    }
+
+    private func presentTripleSuccess() {
+        feedbackTask?.cancel()
+        likeSuccessPulse = false
+        withAnimation(AppMotion.confirmation(reduceMotion: reduceMotion)) {
+            showsTripleSuccess = true
+        }
+        feedbackTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.16)) {
+                showsTripleSuccess = false
+            }
+            feedbackTask = nil
+        }
     }
 }
 

@@ -19,6 +19,16 @@ nonisolated enum HomeFeedImagePrefetchPolicy {
         return max(0, visibleIndex + lead)
     }
 
+    static func lookaheadWindowStartIndex(
+        visibleIndex: Int,
+        layout: HomeFeedLayout,
+        isConservative: Bool
+    ) -> Int {
+        let windowSize = max(1, lookaheadLimit(layout: layout, isConservative: isConservative))
+        let visibleWindowStart = max(0, visibleIndex) / windowSize * windowSize
+        return lookaheadStartIndex(visibleIndex: visibleWindowStart, layout: layout)
+    }
+
     static func lookaheadLimit(layout: HomeFeedLayout, isConservative: Bool) -> Int {
         guard !isConservative else { return 3 }
         return usesDoubleColumn(layout) ? 6 : 5

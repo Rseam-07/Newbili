@@ -44,6 +44,109 @@ final class HomeFeedImagePrefetchPolicyTests: XCTestCase {
         )
     }
 
+    func testLookaheadWindowAvoidsReschedulingForEveryVisibleCard() {
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 0,
+                layout: .singleColumn,
+                isConservative: false
+            ),
+            3
+        )
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 4,
+                layout: .singleColumn,
+                isConservative: false
+            ),
+            3
+        )
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 5,
+                layout: .singleColumn,
+                isConservative: false
+            ),
+            8
+        )
+    }
+
+    func testDoubleColumnLookaheadUsesSixCardWindows() {
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 0,
+                layout: .doubleColumn,
+                isConservative: false
+            ),
+            4
+        )
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 5,
+                layout: .doubleColumn,
+                isConservative: false
+            ),
+            4
+        )
+        XCTAssertEqual(
+            HomeFeedImagePrefetchPolicy.lookaheadWindowStartIndex(
+                visibleIndex: 6,
+                layout: .doubleColumn,
+                isConservative: false
+            ),
+            10
+        )
+    }
+
+    func testEmptyLookaheadPlanClearsItsWindowSoHydratedCoversCanRetry() {
+        let profile = HomeFeedCoverPrefetchProfile.fallback(for: .singleColumn)
+        let attempted = HomeFeedImageLookaheadRequest(
+            feedRootBVID: "BV-root",
+            startIndex: 3,
+            profile: profile,
+            windowContentIdentity: ["BV-a\u{1F}"]
+        )
+
+        XCTAssertNil(
+            HomeFeedImageLookaheadRequest.clearingAttemptIfCurrent(
+                current: attempted,
+                attempted: attempted
+            )
+        )
+
+        let newerRequest = HomeFeedImageLookaheadRequest(
+            feedRootBVID: "BV-root",
+            startIndex: 8,
+            profile: profile,
+            windowContentIdentity: ["BV-b\u{1F}https://example.com/b.jpg"]
+        )
+        XCTAssertEqual(
+            HomeFeedImageLookaheadRequest.clearingAttemptIfCurrent(
+                current: newerRequest,
+                attempted: attempted
+            ),
+            newerRequest
+        )
+    }
+
+    func testHydratedCoverChangesLookaheadRequestWithinTheSameWindow() {
+        let profile = HomeFeedCoverPrefetchProfile.fallback(for: .singleColumn)
+        let pending = HomeFeedImageLookaheadRequest(
+            feedRootBVID: "BV-root",
+            startIndex: 3,
+            profile: profile,
+            windowContentIdentity: ["BV-a\u{1F}"]
+        )
+        let hydrated = HomeFeedImageLookaheadRequest(
+            feedRootBVID: "BV-root",
+            startIndex: 3,
+            profile: profile,
+            windowContentIdentity: ["BV-a\u{1F}https://example.com/a.jpg"]
+        )
+
+        XCTAssertNotEqual(pending, hydrated)
+    }
+
     func testBorderedSingleColumnProfileMatchesRenderedCoverDimensions() throws {
         let profile = HomeFeedCoverPrefetchProfile.make(
             layout: .borderedSingleColumn,

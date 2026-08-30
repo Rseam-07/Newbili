@@ -27,7 +27,7 @@ struct MineSettingsSearchView: View {
             title: "样式设置",
             subtitle: "主题、字号、底栏、帧率与图片显示",
             systemImage: "paintpalette",
-            keywords: ["界面显示", "外观", "深色模式", "Liquid Glass", "液态玻璃", "iPad", "120Hz", "图标"]
+            keywords: ["界面显示", "外观", "深色模式", "Liquid Glass", "液态玻璃", "Fluent", "Fluent UI", "重启生效", "iPad", "120Hz", "图标"]
         ),
         MineSettingsSearchItem(
             route: .homeAndSearchSettings,

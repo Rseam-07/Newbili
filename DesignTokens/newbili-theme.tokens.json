@@ -1,0 +1,132 @@
+{
+  "$description": "Canonical cross-platform Fluent token contract for Newbili. Platform adapters map semantic roles to native SwiftUI and Compose primitives.",
+  "$extensions": {
+    "cc.newbili.contract": {
+      "version": 1,
+      "platforms": ["ios", "android"],
+      "colorRoleMapping": {
+        "canvas": {
+          "ios": "systemGroupedBackground",
+          "android": "surface"
+        },
+        "surface": {
+          "ios": "systemBackground",
+          "android": "surfaceContainer"
+        },
+        "raisedSurface": {
+          "ios": "secondarySystemBackground",
+          "android": "surfaceContainerHigh"
+        },
+        "contentPrimary": {
+          "ios": "label",
+          "android": "onSurface"
+        },
+        "contentSecondary": {
+          "ios": "secondaryLabel",
+          "android": "onSurfaceVariant"
+        }
+      }
+    }
+  },
+  "global": {
+    "spacing": {
+      "$type": "dimension",
+      "size20": {
+        "$value": { "value": 2, "unit": "px" }
+      },
+      "size40": {
+        "$value": { "value": 4, "unit": "px" }
+      },
+      "size80": {
+        "$value": { "value": 8, "unit": "px" }
+      },
+      "size120": {
+        "$value": { "value": 12, "unit": "px" }
+      },
+      "size160": {
+        "$value": { "value": 16, "unit": "px" }
+      },
+      "size240": {
+        "$value": { "value": 24, "unit": "px" }
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "size100": {
+        "$value": { "value": 10, "unit": "px" }
+      },
+      "size140": {
+        "$value": { "value": 14, "unit": "px" }
+      },
+      "size200": {
+        "$value": { "value": 20, "unit": "px" }
+      }
+    },
+    "motionDuration": {
+      "$type": "duration",
+      "fast": {
+        "$value": { "value": 150, "unit": "ms" }
+      },
+      "gentle": {
+        "$value": { "value": 250, "unit": "ms" }
+      },
+      "slow": {
+        "$value": { "value": 300, "unit": "ms" }
+      }
+    },
+    "motionCurve": {
+      "$type": "cubicBezier",
+      "standard": {
+        "$value": [0.33, 0, 0.67, 1]
+      }
+    }
+  },
+  "semantic": {
+    "spacing": {
+      "$type": "dimension",
+      "xxs": { "$value": "{global.spacing.size20}" },
+      "xs": { "$value": "{global.spacing.size40}" },
+      "small": { "$value": "{global.spacing.size80}" },
+      "medium": { "$value": "{global.spacing.size120}" },
+      "large": { "$value": "{global.spacing.size160}" },
+      "xlarge": { "$value": "{global.spacing.size240}" }
+    },
+    "shape": {
+      "$type": "dimension",
+      "controlRadius": { "$value": "{global.radius.size100}" },
+      "surfaceRadius": { "$value": "{global.radius.size140}" },
+      "overlayRadius": { "$value": "{global.radius.size200}" }
+    },
+    "motion": {
+      "feedbackDuration": {
+        "$type": "duration",
+        "$value": "{global.motionDuration.fast}"
+      },
+      "enterDuration": {
+        "$type": "duration",
+        "$value": "{global.motionDuration.gentle}"
+      },
+      "exitDuration": {
+        "$type": "duration",
+        "$value": "{global.motionDuration.fast}"
+      },
+      "containerDuration": {
+        "$type": "duration",
+        "$value": "{global.motionDuration.slow}"
+      },
+      "standardCurve": {
+        "$type": "cubicBezier",
+        "$value": "{global.motionCurve.standard}"
+      }
+    },
+    "minimumTouchTarget": {
+      "$type": "dimension",
+      "ios": {
+        "$value": { "value": 44, "unit": "px" }
+      },
+      "android": {
+        "$value": { "value": 48, "unit": "px" }
+      }
+    }
+  }
+}

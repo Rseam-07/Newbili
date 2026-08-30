@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appInterfaceStyle) private var appInterfaceStyle
     @EnvironmentObject var dependencies: AppDependencies
     @EnvironmentObject var libraryStore: LibraryStore
     @StateObject var runtimeSettings = RootRuntimeSettingsStore()
@@ -56,7 +57,13 @@ struct RootTabView: View {
             openAppURL(url)
             return .handled
         })
-        .background(NavigationChromeInstaller(isStandardChromeEnabled: bottomMode == .video))
+        .background {
+            AppInterfaceCanvasBackground()
+            NavigationChromeInstaller(
+                isStandardChromeEnabled: bottomMode == .video,
+                interfaceStylePreference: appInterfaceStyle
+            )
+        }
         .animation(.smooth(duration: 0.28), value: bottomMode)
         .preferredColorScheme(runtimeSettings.appearanceMode.preferredColorScheme)
         .sheet(item: $inAppBrowserItem) { item in
@@ -158,7 +165,12 @@ struct RootTabView: View {
             }
             .tabBarMinimizeBehavior(rootTabBarMinimizeBehavior)
             .restoresRootTabBarWhenRequested(requestID: rootTabBarRestoreRequestID)
-            .background(RootTabBarAppearanceInstaller(tintColorHex: libraryStore.appTintColorHex))
+            .background(
+                RootTabBarAppearanceInstaller(
+                    tintColorHex: libraryStore.appTintColorHex,
+                    interfaceStylePreference: appInterfaceStyle
+                )
+            )
         }
     }
 

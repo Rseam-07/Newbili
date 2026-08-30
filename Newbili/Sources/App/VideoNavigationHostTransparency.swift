@@ -13,8 +13,11 @@ enum AppNavigationChrome {
         navigationBar.tintColor = .label
     }
 
-    static func applyStandard(to navigationBar: UINavigationBar) {
-        let appearance = standardAppearance()
+    static func applyStandard(
+        to navigationBar: UINavigationBar,
+        interfaceStylePreference: AppLiquidGlassStylePreference = .current
+    ) {
+        let appearance = standardAppearance(interfaceStylePreference: interfaceStylePreference)
         navigationBar.standardAppearance = appearance
         navigationBar.scrollEdgeAppearance = appearance
         navigationBar.compactAppearance = appearance
@@ -66,12 +69,25 @@ enum AppNavigationChrome {
         navigationBar.tintColor = .label
     }
 
-    private static func standardAppearance() -> UINavigationBarAppearance {
+    private static func standardAppearance(
+        interfaceStylePreference: AppLiquidGlassStylePreference = .current
+    ) -> UINavigationBarAppearance {
         let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = .systemBackground
-        appearance.backgroundEffect = nil
-        appearance.shadowColor = .separator.withAlphaComponent(0.22)
+        if interfaceStylePreference.isFluent {
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemMaterial)
+            appearance.backgroundColor = UIColor { traitCollection in
+                traitCollection.userInterfaceStyle == .dark
+                    ? UIColor.secondarySystemBackground.withAlphaComponent(0.90)
+                    : UIColor.systemBackground.withAlphaComponent(0.92)
+            }
+            appearance.shadowColor = .separator.withAlphaComponent(0.30)
+        } else {
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = .systemBackground
+            appearance.backgroundEffect = nil
+            appearance.shadowColor = .separator.withAlphaComponent(0.22)
+        }
         appearance.titleTextAttributes = [
             .foregroundColor: UIColor.label
         ]

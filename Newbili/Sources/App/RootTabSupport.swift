@@ -61,6 +61,7 @@ extension View {
 
 struct NavigationChromeInstaller: UIViewControllerRepresentable {
     let isStandardChromeEnabled: Bool
+    let interfaceStylePreference: AppLiquidGlassStylePreference
 
     func makeUIViewController(context _: Context) -> Controller {
         Controller()
@@ -68,11 +69,13 @@ struct NavigationChromeInstaller: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: Controller, context _: Context) {
         uiViewController.isStandardChromeEnabled = isStandardChromeEnabled
+        uiViewController.interfaceStylePreference = interfaceStylePreference
         uiViewController.apply()
     }
 
     final class Controller: UIViewController {
         var isStandardChromeEnabled = false
+        var interfaceStylePreference: AppLiquidGlassStylePreference = .current
 
         override func loadView() {
             view = ClearPassthroughView()
@@ -96,7 +99,10 @@ struct NavigationChromeInstaller: UIViewControllerRepresentable {
         func apply() {
             guard isStandardChromeEnabled else { return }
             guard let navigationController = enclosingNavigationController() else { return }
-            AppNavigationChrome.applyStandard(to: navigationController.navigationBar)
+            AppNavigationChrome.applyStandard(
+                to: navigationController.navigationBar,
+                interfaceStylePreference: interfaceStylePreference
+            )
         }
 
         private func applySoon() {
@@ -121,6 +127,7 @@ struct NavigationChromeInstaller: UIViewControllerRepresentable {
 
 struct RootTabBarAppearanceInstaller: UIViewControllerRepresentable {
     let tintColorHex: String
+    let interfaceStylePreference: AppLiquidGlassStylePreference
 
     func makeUIViewController(context _: Context) -> Controller {
         Controller()
@@ -129,15 +136,18 @@ struct RootTabBarAppearanceInstaller: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: Controller, context _: Context) {
         controller.tintColorHex = tintColorHex
         controller.selectedColor = AppThemeTintColor.uiColor(for: tintColorHex)
+        controller.interfaceStylePreference = interfaceStylePreference
         controller.applySoon()
     }
 
     final class Controller: UIViewController {
         var selectedColor = AppThemeTintColor.uiColor(for: AppThemeTintColor.defaultHex)
         var tintColorHex = AppThemeTintColor.defaultHex
+        var interfaceStylePreference: AppLiquidGlassStylePreference = .current
         private weak var appliedTabBar: UITabBar?
         private var appliedTintColorHex: String?
         private var appliedInterfaceStyle: UIUserInterfaceStyle?
+        private var appliedStylePreference: AppLiquidGlassStylePreference?
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
@@ -161,19 +171,30 @@ struct RootTabBarAppearanceInstaller: UIViewControllerRepresentable {
             guard force
                 || appliedTabBar !== tabBar
                 || appliedTintColorHex != tintColorHex
-                || appliedInterfaceStyle != interfaceStyle else {
+                || appliedInterfaceStyle != interfaceStyle
+                || appliedStylePreference != interfaceStylePreference else {
                 return
             }
 
             let appearance = UITabBarAppearance()
             appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            appearance.backgroundColor = UIColor { traitCollection in
-                traitCollection.userInterfaceStyle == .dark
-                    ? UIColor.black.withAlphaComponent(0.18)
-                    : UIColor.systemBackground.withAlphaComponent(0.16)
+            if interfaceStylePreference.isFluent {
+                appearance.backgroundEffect = UIBlurEffect(style: .systemMaterial)
+                appearance.backgroundColor = UIColor { traitCollection in
+                    traitCollection.userInterfaceStyle == .dark
+                        ? UIColor.secondarySystemBackground.withAlphaComponent(0.88)
+                        : UIColor.systemBackground.withAlphaComponent(0.90)
+                }
+                appearance.shadowColor = UIColor.separator.withAlphaComponent(0.24)
+            } else {
+                appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+                appearance.backgroundColor = UIColor { traitCollection in
+                    traitCollection.userInterfaceStyle == .dark
+                        ? UIColor.black.withAlphaComponent(0.18)
+                        : UIColor.systemBackground.withAlphaComponent(0.16)
+                }
+                appearance.shadowColor = UIColor.label.withAlphaComponent(0.04)
             }
-            appearance.shadowColor = UIColor.label.withAlphaComponent(0.04)
 
             let normalColor = UIColor.secondaryLabel.withAlphaComponent(0.82)
             configure(appearance.stackedLayoutAppearance, normalColor: normalColor, selectedColor: selectedColor)
@@ -187,13 +208,16 @@ struct RootTabBarAppearanceInstaller: UIViewControllerRepresentable {
             tabBar.isTranslucent = true
             tabBar.backgroundColor = .clear
             tabBar.layer.shadowColor = UIColor.black.cgColor
-            tabBar.layer.shadowOpacity = interfaceStyle == .dark ? 0.14 : 0.05
-            tabBar.layer.shadowRadius = 14
+            tabBar.layer.shadowOpacity = interfaceStylePreference.isFluent
+                ? (interfaceStyle == .dark ? 0.22 : 0.10)
+                : (interfaceStyle == .dark ? 0.14 : 0.05)
+            tabBar.layer.shadowRadius = interfaceStylePreference.isFluent ? 8 : 14
             tabBar.layer.shadowOffset = CGSize(width: 0, height: -2)
 
             appliedTabBar = tabBar
             appliedTintColorHex = tintColorHex
             appliedInterfaceStyle = interfaceStyle
+            appliedStylePreference = interfaceStylePreference
         }
 
         private func configure(

@@ -5,8 +5,10 @@ import UIKit
 @MainActor
 struct NewbiliApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    private let launchInterfaceStyle: AppLiquidGlassStylePreference
 
     init() {
+        launchInterfaceStyle = AppLiquidGlassStylePreference.stored()
         URLCache.shared = URLCache(
             memoryCapacity: 96 * 1024 * 1024,
             diskCapacity: 768 * 1024 * 1024
@@ -16,7 +18,7 @@ struct NewbiliApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainInterfaceHost()
+            MainInterfaceHost(launchInterfaceStyle: launchInterfaceStyle)
                 .background(LaunchWindowBackgroundInstaller())
         }
     }
@@ -42,10 +44,12 @@ private struct LaunchWindowBackgroundInstaller: UIViewRepresentable {
 
 private struct MainInterfaceHost: View {
     @StateObject private var dependencies = AppDependencies()
+    let launchInterfaceStyle: AppLiquidGlassStylePreference
 
     var body: some View {
         RootTabView()
             .scrollIndicators(.hidden, axes: .vertical)
+            .environment(\.appInterfaceStyle, launchInterfaceStyle)
             .environmentObject(dependencies)
             .environmentObject(dependencies.sessionStore)
             .environmentObject(dependencies.libraryStore)

@@ -1,9 +1,30 @@
 import Foundation
 
-struct HomeFeedImageLookaheadRequest: Equatable {
+nonisolated struct HomeFeedImageLookaheadRequest: Equatable {
     let feedRootBVID: String
     let startIndex: Int
     let profile: HomeFeedCoverPrefetchProfile
+    let windowContentIdentity: [String]
+
+    static func contentIdentity(
+        for videos: [VideoItem],
+        startIndex: Int,
+        limit: Int
+    ) -> [String] {
+        guard limit > 0, startIndex < videos.count else { return [] }
+        let lowerBound = max(0, startIndex)
+        let upperBound = min(videos.count, lowerBound + limit)
+        return videos[lowerBound..<upperBound].map { video in
+            "\(video.bvid)\u{1F}\(video.pic ?? "")"
+        }
+    }
+
+    static func clearingAttemptIfCurrent(
+        current: Self?,
+        attempted: Self
+    ) -> Self? {
+        current == attempted ? nil : current
+    }
 }
 
 @MainActor

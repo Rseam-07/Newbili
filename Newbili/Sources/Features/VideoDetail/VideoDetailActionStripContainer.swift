@@ -5,8 +5,8 @@ struct VideoDetailActionStripContainer: View {
     @ObservedObject var store: VideoDetailInteractionRenderStore
     let contentWidth: CGFloat
     let onFollow: () -> Void
-    let onLike: () -> Void
-    let onTriple: () -> Void
+    let onLike: (@escaping (VideoDetailSummaryCardLikeOutcome) -> Void) -> Void
+    let onTriple: (@escaping (VideoDetailSummaryCardTripleOutcome) -> Void) -> Void
     let onCoin: () -> Void
     let onFavorite: () -> Void
     let onWatchLater: () -> Void

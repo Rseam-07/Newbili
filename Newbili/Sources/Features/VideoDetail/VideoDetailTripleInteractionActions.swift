@@ -2,16 +2,17 @@ import Foundation
 
 extension VideoDetailViewModel {
     @discardableResult
-    func triple() async -> Bool {
+    func triple() async -> VideoDetailSummaryCardTripleOutcome {
         guard let aid = detail.aid, aid > 0 else {
             interactionMessage = "没有找到视频 AV 号，无法一键三连"
-            return false
+            return .failed
         }
-        if interactionState.isLiked,
-           interactionState.isCoined,
-           interactionState.isFavorited {
+        let wasAlreadyCompleted = interactionState.isLiked
+            && interactionState.isCoined
+            && interactionState.isFavorited
+        if wasAlreadyCompleted {
             interactionMessage = "已经完成三连"
-            return true
+            return .alreadyCompleted
         }
 
         let bvid = detail.bvid
@@ -64,6 +65,13 @@ extension VideoDetailViewModel {
                 ? "三连成功"
                 : "互动已同步，硬币或收藏未能完成"
         }
-        return succeeded
+        let isNowCompleted = interactionState.isLiked
+            && interactionState.isCoined
+            && interactionState.isFavorited
+        return VideoDetailSummaryCardFeedbackPolicy.tripleOutcome(
+            wasAlreadyCompleted: false,
+            succeeded: succeeded,
+            isNowCompleted: isNowCompleted
+        )
     }
 }

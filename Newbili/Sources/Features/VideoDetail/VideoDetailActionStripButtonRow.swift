@@ -6,8 +6,8 @@ struct VideoDetailActionStripButtonRow: View {
     let model: VideoDetailActionStripModel
     let layout: VideoDetailActionStripLayout
     let onFollow: () -> Void
-    let onLike: () -> Void
-    let onTriple: () -> Void
+    let onLike: (@escaping (VideoDetailSummaryCardLikeOutcome) -> Void) -> Void
+    let onTriple: (@escaping (VideoDetailSummaryCardTripleOutcome) -> Void) -> Void
     let onCoin: () -> Void
     let onFavorite: () -> Void
     let onWatchLater: () -> Void

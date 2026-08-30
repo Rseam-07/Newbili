@@ -84,7 +84,7 @@ struct MineSettingsSection: View {
             .filter(\.participatesInRootTabVisibilitySettings)
             .map(\.title)
             .joined(separator: "、")
-        return "\(libraryStore.appearanceMode.title) · \(tabs)"
+        return "\(libraryStore.liquidGlassStylePreference.title) · \(libraryStore.appearanceMode.title) · \(tabs)"
     }
 
     private var homeAndSearchSummary: String {

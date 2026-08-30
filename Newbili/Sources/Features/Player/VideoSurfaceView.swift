@@ -2,6 +2,46 @@ import AVKit
 import SwiftUI
 import UIKit
 
+nonisolated struct VideoSurfaceRepresentableConfiguration: Equatable {
+    let prefersNativePlaybackControls: Bool
+    let isPictureInPictureEnabled: Bool
+    let disablesImplicitLayoutAnimations: Bool
+    let usesLiveSurfaceDuringLayoutTransition: Bool
+    let isLayoutTransitioningForSurfaceHandoff: Bool
+}
+
+nonisolated struct VideoSurfaceUpdatePlan: Equatable {
+    let needsSurfaceBinding: Bool
+    let needsPictureInPictureUpdate: Bool
+    let needsLayoutRefresh: Bool
+
+    static func resolve(
+        previous: VideoSurfaceRepresentableConfiguration?,
+        next: VideoSurfaceRepresentableConfiguration,
+        isBoundToCurrentViewModel: Bool,
+        isPreparingForSurfaceDetach: Bool
+    ) -> Self {
+        let bindingPreferenceChanged = previous?.prefersNativePlaybackControls
+            != next.prefersNativePlaybackControls
+        let needsSurfaceBinding = !isBoundToCurrentViewModel
+            || isPreparingForSurfaceDetach
+            || bindingPreferenceChanged
+        let needsPictureInPictureUpdate = needsSurfaceBinding
+            || previous?.isPictureInPictureEnabled != next.isPictureInPictureEnabled
+        let layoutConfigurationChanged = previous?.disablesImplicitLayoutAnimations
+            != next.disablesImplicitLayoutAnimations
+            || previous?.usesLiveSurfaceDuringLayoutTransition
+                != next.usesLiveSurfaceDuringLayoutTransition
+            || previous?.isLayoutTransitioningForSurfaceHandoff
+                != next.isLayoutTransitioningForSurfaceHandoff
+        return Self(
+            needsSurfaceBinding: needsSurfaceBinding,
+            needsPictureInPictureUpdate: needsPictureInPictureUpdate,
+            needsLayoutRefresh: needsSurfaceBinding || previous == nil || layoutConfigurationChanged
+        )
+    }
+}
+
 struct VideoSurfaceView: UIViewRepresentable {
     @ObservedObject var viewModel: PlayerStateViewModel
     let prefersNativePlaybackControls: Bool
@@ -10,14 +50,21 @@ struct VideoSurfaceView: UIViewRepresentable {
     var usesLiveSurfaceDuringLayoutTransition = false
     var isLayoutTransitioningForSurfaceHandoff: Bool?
 
+    private var representableConfiguration: VideoSurfaceRepresentableConfiguration {
+        VideoSurfaceRepresentableConfiguration(
+            prefersNativePlaybackControls: prefersNativePlaybackControls,
+            isPictureInPictureEnabled: isPictureInPictureEnabled,
+            disablesImplicitLayoutAnimations: disablesImplicitLayoutAnimations,
+            usesLiveSurfaceDuringLayoutTransition: usesLiveSurfaceDuringLayoutTransition,
+            isLayoutTransitioningForSurfaceHandoff: isLayoutTransitioningForSurfaceHandoff
+                ?? disablesImplicitLayoutAnimations
+        )
+    }
+
     func makeUIView(context _: Context) -> VideoSurfaceContainerView {
         let view = VideoSurfaceContainerView()
         view.backgroundColor = .black
-        view.disablesImplicitLayoutAnimations = disablesImplicitLayoutAnimations
-        view.configureSurfaceHandoff(
-            usesLiveSurfaceDuringLayoutTransition: usesLiveSurfaceDuringLayoutTransition,
-            isLayoutTransitioning: isLayoutTransitioningForSurfaceHandoff ?? disablesImplicitLayoutAnimations
-        )
+        view.applyRepresentableConfiguration(representableConfiguration)
         view.configureBoundsRefresh(for: viewModel)
         view.setPictureInPictureEnabled(isPictureInPictureEnabled)
         view.setPlayerViewModel(viewModel, prefersNativePlaybackControls: prefersNativePlaybackControls)
@@ -31,34 +78,52 @@ struct VideoSurfaceView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: VideoSurfaceContainerView, context _: Context) {
-        uiView.disablesImplicitLayoutAnimations = disablesImplicitLayoutAnimations
-        uiView.configureSurfaceHandoff(
-            usesLiveSurfaceDuringLayoutTransition: usesLiveSurfaceDuringLayoutTransition,
-            isLayoutTransitioning: isLayoutTransitioningForSurfaceHandoff ?? disablesImplicitLayoutAnimations
-        )
         guard !viewModel.isTerminated else {
             uiView.detachPlayerSurface()
             return
         }
-        if uiView.isPreparingForSurfaceDetach {
+
+        let nextConfiguration = representableConfiguration
+        let wasPreparingForSurfaceDetach = uiView.isPreparingForSurfaceDetach
+        let plan = VideoSurfaceUpdatePlan.resolve(
+            previous: uiView.appliedRepresentableConfiguration,
+            next: nextConfiguration,
+            isBoundToCurrentViewModel: uiView.isBound(to: viewModel),
+            isPreparingForSurfaceDetach: wasPreparingForSurfaceDetach
+        )
+        uiView.applyRepresentableConfiguration(nextConfiguration)
+
+        if wasPreparingForSurfaceDetach {
             guard uiView.cancelPendingSurfaceDetachIfPossible(for: viewModel) else { return }
         }
-        uiView.configureBoundsRefresh(for: viewModel)
-        uiView.setPictureInPictureEnabled(isPictureInPictureEnabled)
-        uiView.setPlayerViewModel(viewModel, prefersNativePlaybackControls: prefersNativePlaybackControls)
-        viewModel.setPictureInPictureEnabled(isPictureInPictureEnabled)
-        viewModel.attachSurface(
-            uiView,
-            prefersNativePlaybackControls: prefersNativePlaybackControls,
-            preservesReadinessDuringSurfaceHandoff: uiView.isLiveSurfaceHandoffActive
-        )
-        viewModel.endSurfaceMigrationHold()
-        uiView.setNeedsLayout()
-        uiView.invalidateVideoLayout()
-        if disablesImplicitLayoutAnimations || usesLiveSurfaceDuringLayoutTransition {
-            uiView.scheduleCoordinatedSurfaceLayoutRefresh(for: viewModel)
-        } else {
-            uiView.cancelCoordinatedSurfaceLayoutRefresh()
+
+        if plan.needsPictureInPictureUpdate {
+            uiView.setPictureInPictureEnabled(isPictureInPictureEnabled)
+            viewModel.setPictureInPictureEnabled(isPictureInPictureEnabled)
+        }
+
+        if plan.needsSurfaceBinding {
+            uiView.configureBoundsRefresh(for: viewModel)
+            uiView.setPlayerViewModel(
+                viewModel,
+                prefersNativePlaybackControls: prefersNativePlaybackControls
+            )
+            viewModel.attachSurface(
+                uiView,
+                prefersNativePlaybackControls: prefersNativePlaybackControls,
+                preservesReadinessDuringSurfaceHandoff: uiView.isLiveSurfaceHandoffActive
+            )
+            viewModel.endSurfaceMigrationHold()
+        }
+
+        if plan.needsLayoutRefresh {
+            uiView.setNeedsLayout()
+            uiView.invalidateVideoLayout()
+            if disablesImplicitLayoutAnimations || usesLiveSurfaceDuringLayoutTransition {
+                uiView.scheduleCoordinatedSurfaceLayoutRefresh(for: viewModel)
+            } else {
+                uiView.cancelCoordinatedSurfaceLayoutRefresh()
+            }
         }
     }
 
@@ -119,6 +184,7 @@ final class VideoSurfaceContainerView: UIView {
     private var coordinatedSurfaceLayoutTask: Task<Void, Never>?
     private var deferredSurfaceDetachTask: Task<Void, Never>?
     private var deferredBoundSurfaceLayoutRefreshTask: Task<Void, Never>?
+    private(set) var appliedRepresentableConfiguration: VideoSurfaceRepresentableConfiguration?
 
     var isLiveSurfaceHandoffActive: Bool {
         usesLiveSurfaceDuringLayoutTransition && isLayoutTransitioningForSurfaceHandoff
@@ -130,6 +196,15 @@ final class VideoSurfaceContainerView: UIView {
 
     var isPreparingForSurfaceDetach: Bool {
         isPendingSurfaceDetach
+    }
+
+    func applyRepresentableConfiguration(_ configuration: VideoSurfaceRepresentableConfiguration) {
+        appliedRepresentableConfiguration = configuration
+        disablesImplicitLayoutAnimations = configuration.disablesImplicitLayoutAnimations
+        configureSurfaceHandoff(
+            usesLiveSurfaceDuringLayoutTransition: configuration.usesLiveSurfaceDuringLayoutTransition,
+            isLayoutTransitioning: configuration.isLayoutTransitioningForSurfaceHandoff
+        )
     }
 
     func cancelPendingSurfaceDetachIfPossible(for viewModel: PlayerStateViewModel) -> Bool {

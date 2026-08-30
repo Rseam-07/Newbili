@@ -231,13 +231,19 @@ private struct BiliLiquidGlassForegroundModifier: ViewModifier {
 }
 
 private struct BiliGlassEffectModifier<GlassShape: Shape>: ViewModifier {
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let tint: Color
     let interactive: Bool
     let shape: GlassShape
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if interfaceStyle.isFluent {
+            fluentSurface(content)
+        } else if #available(iOS 26, *) {
             content.glassEffect(
                 .regular
                     .tint(tint)
@@ -248,15 +254,45 @@ private struct BiliGlassEffectModifier<GlassShape: Shape>: ViewModifier {
             content.background(.ultraThinMaterial, in: shape)
         }
     }
+
+    private func fluentSurface(_ content: Content) -> some View {
+        let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
+        return content
+            .background(reduceTransparency ? AnyShapeStyle(palette.surface) : AnyShapeStyle(.regularMaterial), in: shape)
+            .background(palette.raisedSurface.opacity(0.78), in: shape)
+            .overlay {
+                shape.stroke(
+                    interactive ? palette.strongStroke : palette.subtleStroke,
+                    lineWidth: contrast == .increased ? 1.5 : 1
+                )
+            }
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.20 : 0.09), radius: 8, x: 0, y: 4)
+    }
 }
 
 private struct BiliRegularGlassEffectModifier<GlassShape: Shape>: ViewModifier {
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let interactive: Bool
     let shape: GlassShape
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if interfaceStyle.isFluent {
+            let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
+            content
+                .background(reduceTransparency ? AnyShapeStyle(palette.surface) : AnyShapeStyle(.regularMaterial), in: shape)
+                .background(palette.raisedSurface.opacity(0.82), in: shape)
+                .overlay {
+                    shape.stroke(
+                        interactive ? palette.strongStroke : palette.subtleStroke,
+                        lineWidth: contrast == .increased ? 1.5 : 1
+                    )
+                }
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.18 : 0.08), radius: 7, x: 0, y: 3)
+        } else if #available(iOS 26, *) {
             content.glassEffect(
                 .regular
                     .tint(Color(.systemBackground).opacity(0.18))
@@ -270,7 +306,10 @@ private struct BiliRegularGlassEffectModifier<GlassShape: Shape>: ViewModifier {
 }
 
 private struct BiliBottomTabGlassEffectModifier<GlassShape: InsettableShape>: ViewModifier {
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let interactive: Bool
     let shape: GlassShape
 
@@ -282,7 +321,19 @@ private struct BiliBottomTabGlassEffectModifier<GlassShape: InsettableShape>: Vi
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        if interfaceStyle.isFluent {
+            let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
+            content
+                .background(reduceTransparency ? AnyShapeStyle(palette.surface) : AnyShapeStyle(.regularMaterial), in: shape)
+                .background(palette.raisedSurface.opacity(0.88), in: shape)
+                .overlay {
+                    shape.strokeBorder(
+                        palette.subtleStroke,
+                        lineWidth: contrast == .increased ? 1.5 : 1
+                    )
+                }
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.10), radius: 8, x: 0, y: 4)
+        } else if #available(iOS 26, *) {
             content
                 .glassEffect(
                     .regular
@@ -305,11 +356,15 @@ private struct BiliBottomTabGlassEffectModifier<GlassShape: InsettableShape>: Vi
 }
 
 private struct BiliGlassButtonStyleModifier: ViewModifier {
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
     let prominent: Bool
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if prominent {
+        if interfaceStyle.isFluent {
+            content
+                .buttonStyle(AppFluentButtonStyle(prominent: prominent))
+        } else if prominent {
             content
                 .buttonStyle(.glassProminent)
         } else {
@@ -322,6 +377,7 @@ private struct BiliGlassButtonStyleModifier: ViewModifier {
 struct TopScrollEdgeEffect: ViewModifier {
     @Environment(\.rootNavigationTitleHidden) private var rootNavigationTitleHidden
     @Environment(\.scrollEdgeEffectPreference) private var scrollEdgeEffectPreference
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let hidesRootNavigationTitle: Bool
 
     @ViewBuilder
@@ -337,8 +393,12 @@ struct TopScrollEdgeEffect: ViewModifier {
                         contentInsetTop: 0
                     )
                     guard rootNavigationTitleHidden.wrappedValue != isHidden else { return }
-                    withAnimation(.smooth(duration: 0.18)) {
+                    if reduceMotion {
                         rootNavigationTitleHidden.wrappedValue = isHidden
+                    } else {
+                        withAnimation(.smooth(duration: 0.18)) {
+                            rootNavigationTitleHidden.wrappedValue = isHidden
+                        }
                     }
                 }
         } else {

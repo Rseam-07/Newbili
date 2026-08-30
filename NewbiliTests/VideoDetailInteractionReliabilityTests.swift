@@ -3,6 +3,65 @@ import XCTest
 @testable import bili
 
 final class VideoDetailInteractionReliabilityTests: XCTestCase {
+    func testLikeFeedbackOnlyTreatsANewLikeAsSuccess() {
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.likeOutcome(
+                targetState: true,
+                succeeded: true
+            ),
+            .liked
+        )
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.likeOutcome(
+                targetState: false,
+                succeeded: true
+            ),
+            .unliked
+        )
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.likeOutcome(
+                targetState: true,
+                succeeded: false
+            ),
+            .failed
+        )
+    }
+
+    func testTripleFeedbackRejectsAlreadyCompleteAndPartialResults() {
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.tripleOutcome(
+                wasAlreadyCompleted: false,
+                succeeded: true,
+                isNowCompleted: true
+            ),
+            .completed
+        )
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.tripleOutcome(
+                wasAlreadyCompleted: true,
+                succeeded: true,
+                isNowCompleted: true
+            ),
+            .alreadyCompleted
+        )
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.tripleOutcome(
+                wasAlreadyCompleted: false,
+                succeeded: true,
+                isNowCompleted: false
+            ),
+            .partial
+        )
+        XCTAssertEqual(
+            VideoDetailSummaryCardFeedbackPolicy.tripleOutcome(
+                wasAlreadyCompleted: false,
+                succeeded: false,
+                isNowCompleted: false
+            ),
+            .failed
+        )
+    }
+
     func testManualPageSelectionPreservesExplicitCID() {
         XCTAssertTrue(
             VideoDetailPlaybackHistorySelectionPolicy.preservesManualPage(

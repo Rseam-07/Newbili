@@ -49,6 +49,7 @@ struct HomeFeedNavigationChrome: ViewModifier {
 
 private struct HomeCenteredNavigationChrome: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @Binding var selection: HomePrimarySection
     let onSelect: (HomePrimarySection) -> Void
     let accountMessageViewModel: AccountMessageCenterViewModel?
@@ -81,13 +82,21 @@ private struct HomeCenteredNavigationChrome: ViewModifier {
                         }
                     }
                     .transition(
-                        reduceMotion
+                        reduceMotion || interfaceStyle.isFluent
                             ? .opacity
                             : .move(edge: .top).combined(with: .opacity)
                     )
                 }
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: isCollapsed)
+            .animation(navigationAnimation, value: isCollapsed)
+    }
+
+    private var navigationAnimation: Animation? {
+        guard !reduceMotion else { return nil }
+        if interfaceStyle.isFluent {
+            return AppMotion.topLevel(reduceMotion: false)
+        }
+        return .smooth(duration: 0.24)
     }
 }
 
