@@ -29,6 +29,80 @@ nonisolated struct DanmakuTextColorPalette: Equatable, Sendable {
     }
 }
 
+@MainActor
+final class DanmakuTextLabel: UILabel {
+    private(set) var renderedForegroundColor: UIColor = .white
+    private(set) var renderedOutlineColor: UIColor = .black
+    private(set) var renderedOutlineWidth: CGFloat = 0
+
+    private var fillText: NSAttributedString?
+    private var outlineText: NSAttributedString?
+
+    func apply(
+        text: String,
+        font: UIFont,
+        foregroundColor: UIColor,
+        outlineColor: UIColor,
+        outlineWidth: CGFloat
+    ) {
+        attributedText = nil
+        self.font = font
+        textColor = foregroundColor
+        self.text = text
+        accessibilityLabel = text
+        renderedForegroundColor = foregroundColor
+        renderedOutlineColor = outlineColor
+        renderedOutlineWidth = max(0, outlineWidth)
+
+        fillText = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: font,
+                .foregroundColor: foregroundColor
+            ]
+        )
+        if renderedOutlineWidth > 0.01 {
+            let strokePercentage = renderedOutlineWidth / max(font.pointSize, 1) * 100
+            outlineText = NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: font,
+                    .foregroundColor: UIColor.clear,
+                    .strokeColor: outlineColor,
+                    .strokeWidth: strokePercentage
+                ]
+            )
+        } else {
+            outlineText = nil
+        }
+        setNeedsDisplay()
+    }
+
+    override func drawText(in rect: CGRect) {
+        guard let fillText else {
+            super.drawText(in: rect)
+            return
+        }
+
+        let textSize = fillText.size()
+        let origin = CGPoint(
+            x: round(rect.midX - textSize.width / 2),
+            y: round(rect.midY - textSize.height / 2)
+        )
+        outlineText?.draw(at: origin)
+        fillText.draw(at: origin)
+    }
+
+    func prepareForReuse() {
+        fillText = nil
+        outlineText = nil
+        text = nil
+        attributedText = nil
+        accessibilityLabel = nil
+        setNeedsDisplay()
+    }
+}
+
 nonisolated enum DanmakuMotionTiming {
     static func remainingDuration(
         totalDuration: TimeInterval,
@@ -351,7 +425,7 @@ final class DanmakuAnimationOverlayView: UIView {
     private struct ActiveEntry {
         let id: String
         let item: DanmakuItem
-        let label: UILabel
+        let label: DanmakuTextLabel
         let completion: DanmakuAnimationCompletionDelegate?
         let createdAt: CFTimeInterval
         let animationGeneration: Int
@@ -401,7 +475,7 @@ final class DanmakuAnimationOverlayView: UIView {
     private var displayLink: CADisplayLink?
     private var activeEntries: [String: ActiveEntry] = [:]
     private var retirementCandidateIDs: [String] = []
-    private var reusableLabels: [UILabel] = []
+    private var reusableLabels: [DanmakuTextLabel] = []
     private var scrollingLaneStates: [Int: LaneState] = [:]
     private var textSizeCache: [TextMeasurementKey: CGSize] = [:]
     private var textSizeCacheOrder: [TextMeasurementKey] = []
@@ -1369,7 +1443,7 @@ final class DanmakuAnimationOverlayView: UIView {
         }
     }
 
-    private func configure(_ label: UILabel, for item: DanmakuItem, font: UIFont, size: CGSize) {
+    private func configure(_ label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont, size: CGSize) {
         label.font = font
         label.textAlignment = .center
         label.numberOfLines = 1
@@ -1392,45 +1466,34 @@ final class DanmakuAnimationOverlayView: UIView {
         }
     }
 
-    private func applyTextStyle(to label: UILabel, for item: DanmakuItem, font: UIFont) {
+    private func applyTextStyle(to label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont) {
         let palette = DanmakuTextColorPalette.resolved(from: item.color)
         let foregroundColor = UIColor.danmakuRGB(palette.foregroundRGB)
             .withAlphaComponent(settings.opacity)
-        label.textColor = foregroundColor
-        guard settings.strokeWidth > 0.01 else {
-            label.attributedText = nil
-            label.text = item.text
-            return
-        }
-
-        let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
         let outlineColor = UIColor.danmakuRGB(palette.outlineRGB)
             .withAlphaComponent(settings.opacity)
-        label.attributedText = NSAttributedString(
-            string: item.text,
-            attributes: [
-                .font: font,
-                .foregroundColor: foregroundColor,
-                .strokeColor: outlineColor,
-                .strokeWidth: strokePercentage
-            ]
+        label.apply(
+            text: item.text,
+            font: font,
+            foregroundColor: foregroundColor,
+            outlineColor: outlineColor,
+            outlineWidth: CGFloat(settings.strokeWidth)
         )
     }
 
-    private func dequeueLabel() -> UILabel {
+    private func dequeueLabel() -> DanmakuTextLabel {
         if let label = reusableLabels.popLast() {
             label.layer.removeAllAnimations()
             return label
         }
-        let label = UILabel()
+        let label = DanmakuTextLabel()
         label.backgroundColor = .clear
         label.isOpaque = false
         return label
     }
 
-    private func recycle(_ label: UILabel) {
-        label.text = nil
-        label.attributedText = nil
+    private func recycle(_ label: DanmakuTextLabel) {
+        label.prepareForReuse()
         label.layer.removeAllAnimations()
         label.removeFromSuperview()
         guard reusableLabels.count < 72 else { return }
@@ -1448,7 +1511,7 @@ final class DanmakuAnimationOverlayView: UIView {
         }
     }
 
-    private func removeActiveLabel(id: String, label: UILabel, shouldRecycle: Bool) {
+    private func removeActiveLabel(id: String, label: DanmakuTextLabel, shouldRecycle: Bool) {
         guard let entry = activeEntries[id], entry.label === label else { return }
         entry.completion?.cancel()
         activeEntries[id] = nil
@@ -1462,7 +1525,7 @@ final class DanmakuAnimationOverlayView: UIView {
 
     private func completeActiveLabelAnimation(
         id: String,
-        label: UILabel,
+        label: DanmakuTextLabel,
         animationGeneration: Int,
         didFinishNaturally: Bool
     ) {

@@ -18,8 +18,26 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
         )
     }
 
+    func testReportedVideoProtobufSampleParsesAsWhiteDanmaku() throws {
+        let payload = try XCTUnwrap(
+            Data(
+                base64Encoded: "Cm4IgL6X0JLg8K8eEJyyAxgBIBko////BzIHMWI0MjhiMjoV6YKj5bCx5LiN5piv5pys5Lq65LqGQKSBy9QGSApiEzIxODg2ODIzNTM2OTI3NjE4NTZogIBAogEBMKoBATDIAQHQAZ+GsISaAdgBAQ=="
+            )
+        )
+        let item = try XCTUnwrap(
+            DanmakuSegmentProtobufParser(cid: 41_348_236_063, segmentIndex: 1)
+                .parse(data: payload)
+                .first
+        )
+
+        XCTAssertEqual(item.text, "那就不是本人了")
+        XCTAssertEqual(item.time, 55.58, accuracy: 0.001)
+        XCTAssertEqual(item.color, 0xFF_FF_FF)
+        XCTAssertEqual(item.fontSize, 25)
+    }
+
     @MainActor
-    func testAttributedDanmakuRetainsItsServerColorInsteadOfRenderingAllBlack() throws {
+    func testDanmakuLabelRetainsItsServerColorInsteadOfRenderingAllBlack() throws {
         let view = DanmakuAnimationOverlayView(frame: CGRect(x: 0, y: 0, width: 390, height: 220))
         view.layoutIfNeeded()
         view.apply(
@@ -40,8 +58,8 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
         )
 
         let labels = Dictionary(
-            uniqueKeysWithValues: view.subviews.compactMap { subview -> (String, UILabel)? in
-                guard let label = subview as? UILabel, let text = label.attributedText?.string else {
+            uniqueKeysWithValues: view.subviews.compactMap { subview -> (String, DanmakuTextLabel)? in
+                guard let label = subview as? DanmakuTextLabel, let text = label.text else {
                     return nil
                 }
                 return (text, label)
@@ -49,17 +67,48 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
         )
         let redLabel = try XCTUnwrap(labels["红色弹幕"])
         let blueLabel = try XCTUnwrap(labels["蓝色弹幕"])
-        let redAttributes = try XCTUnwrap(redLabel.attributedText?.attributes(at: 0, effectiveRange: nil))
-        let blueAttributes = try XCTUnwrap(blueLabel.attributedText?.attributes(at: 0, effectiveRange: nil))
-        let redForeground = try XCTUnwrap(redAttributes[.foregroundColor] as? UIColor)
-        let redOutline = try XCTUnwrap(redAttributes[.strokeColor] as? UIColor)
-        let blueForeground = try XCTUnwrap(blueAttributes[.foregroundColor] as? UIColor)
-        let blueOutline = try XCTUnwrap(blueAttributes[.strokeColor] as? UIColor)
 
-        XCTAssertTrue(redForeground.isApproximatelyRGB(red: 1, green: 0, blue: 0))
-        XCTAssertTrue(redOutline.isApproximatelyRGB(red: 0, green: 0, blue: 0))
-        XCTAssertTrue(blueForeground.isApproximatelyRGB(red: 0, green: 0, blue: 1))
-        XCTAssertTrue(blueOutline.isApproximatelyRGB(red: 1, green: 1, blue: 1))
+        XCTAssertTrue(redLabel.renderedForegroundColor.isApproximatelyRGB(red: 1, green: 0, blue: 0))
+        XCTAssertTrue(redLabel.renderedOutlineColor.isApproximatelyRGB(red: 0, green: 0, blue: 0))
+        XCTAssertTrue(blueLabel.renderedForegroundColor.isApproximatelyRGB(red: 0, green: 0, blue: 1))
+        XCTAssertTrue(blueLabel.renderedOutlineColor.isApproximatelyRGB(red: 1, green: 1, blue: 1))
+    }
+
+    @MainActor
+    func testRealWhiteDanmakuStillContainsWhitePixelsWithMaximumOutline() throws {
+        let view = DanmakuAnimationOverlayView(frame: CGRect(x: 0, y: 0, width: 390, height: 220))
+        var settings = DanmakuSettings.default
+        settings.opacity = 1
+        settings.strokeWidth = 5
+        view.layoutIfNeeded()
+        view.apply(
+            items: [
+                DanmakuItem(
+                    id: "real-sample",
+                    time: 1,
+                    mode: 5,
+                    fontSize: 25,
+                    color: 0xFF_FF_FF,
+                    text: "那就不是本人了"
+                )
+            ],
+            itemsRevision: 1,
+            currentTime: 2,
+            isPlaying: false,
+            playbackRate: 1,
+            isEnabled: true,
+            hasPresentedPlayback: true,
+            isLoadShedding: false,
+            settings: settings,
+            topInset: 8,
+            bottomInset: 54
+        )
+
+        let label = try XCTUnwrap(view.subviews.compactMap { $0 as? UILabel }.first)
+        let colorCounts = try rasterColorCounts(in: label)
+
+        XCTAssertGreaterThan(colorCounts.nearWhite, 20, "白色填充不能被黑色描边吞掉")
+        XCTAssertGreaterThan(colorCounts.nearBlack, 20, "白色弹幕仍需保留深色轮廓")
     }
 
     func testQuickActionLayoutStaysInsideLandscapeAndIPadBounds() {
@@ -300,6 +349,54 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
     @MainActor
     private func renderedTexts(in view: DanmakuAnimationOverlayView) -> [String] {
         view.subviews.compactMap { ($0 as? UILabel)?.text }
+    }
+
+    @MainActor
+    private func rasterColorCounts(in label: UILabel) throws -> (nearWhite: Int, nearBlack: Int) {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: label.bounds.size, format: format).image { context in
+            label.layer.render(in: context.cgContext)
+        }
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let width = cgImage.width
+        let height = cgImage.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+
+        return try pixels.withUnsafeMutableBytes { buffer in
+            let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
+                | CGImageAlphaInfo.premultipliedLast.rawValue
+            let context = try XCTUnwrap(
+                CGContext(
+                    data: buffer.baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width * 4,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: bitmapInfo
+                )
+            )
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+            var nearWhite = 0
+            var nearBlack = 0
+            let bytes = buffer.bindMemory(to: UInt8.self)
+            for index in stride(from: 0, to: bytes.count, by: 4) {
+                let red = bytes[index]
+                let green = bytes[index + 1]
+                let blue = bytes[index + 2]
+                let alpha = bytes[index + 3]
+                guard alpha > 128 else { continue }
+                if red > 220, green > 220, blue > 220 {
+                    nearWhite += 1
+                } else if red < 40, green < 40, blue < 40 {
+                    nearBlack += 1
+                }
+            }
+            return (nearWhite, nearBlack)
+        }
     }
 }
 
