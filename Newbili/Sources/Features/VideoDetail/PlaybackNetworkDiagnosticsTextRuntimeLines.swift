@@ -39,7 +39,7 @@ extension PlaybackNetworkDiagnosticsTextBuilder {
         lines.append("省电模式：\(playbackEnvironment.isLowPowerModeEnabled ? "开启" : "关闭")")
         lines.append("温控限制：\(playbackEnvironment.isThermallyConstrained ? "已触发" : "未触发")")
         lines.append("AVPlayer 启动链路优化：已启用")
-        lines.append("PiliPlus 风格 AV1 取流：已启用")
+        lines.append("AV1 兼容取流：已启用")
     }
 
     func appendErrorLines(to lines: inout [String]) {

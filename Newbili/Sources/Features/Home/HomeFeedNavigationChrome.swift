@@ -7,6 +7,7 @@ struct HomeFeedNavigationChrome: ViewModifier {
     let isModeSwitcherExperimentEnabled: Bool
     let prefersCinematicChrome: Bool
     let onOpenAccountMessages: () -> Void
+    @State private var isHeaderCollapsed = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -14,6 +15,12 @@ struct HomeFeedNavigationChrome: ViewModifier {
             content: content,
             usesCinematicChrome: prefersCinematicChrome
         )
+        .onChange(of: primarySection) { _, _ in
+            isHeaderCollapsed = false
+        }
+        .onChange(of: prefersCinematicChrome) { _, _ in
+            isHeaderCollapsed = false
+        }
     }
 
     @ViewBuilder
@@ -23,16 +30,16 @@ struct HomeFeedNavigationChrome: ViewModifier {
                 .hiddenRootNavigationTitle("首页")
         } else if isModeSwitcherExperimentEnabled {
             content
+                .hiddenRootNavigationTitle("首页")
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    HomeCollapsibleNavigationModeBar(
+                    HomeAdaptiveNavigationHeader(
                         selection: $primarySection,
-                        onSelect: onSelectSection
+                        onSelect: onSelectSection,
+                        accountMessageViewModel: accountMessageViewModel,
+                        onOpenAccountMessages: onOpenAccountMessages
                     )
                 }
-                .rootNavigationTitle("首页") {
-                    accountMessageButton(isCinematic: false)
-                }
-                .nativeTopNavigationChrome()
+                .environment(\.rootNavigationTitleHidden, $isHeaderCollapsed)
         } else {
             content
                 .rootNavigationTitle("首页") {
@@ -44,50 +51,59 @@ struct HomeFeedNavigationChrome: ViewModifier {
                 .nativeTopNavigationChrome()
         }
     }
-
-    @ViewBuilder
-    private func accountMessageButton(isCinematic: Bool) -> some View {
-        if let accountMessageViewModel {
-            HomeAccountMessageButton(
-                viewModel: accountMessageViewModel,
-                isCinematic: isCinematic,
-                action: onOpenAccountMessages
-            )
-        } else {
-            HomeAccountMessageButtonContent(
-                hasUnread: false,
-                isCinematic: isCinematic,
-                action: onOpenAccountMessages
-            )
-        }
-    }
-
 }
 
 struct HomeCinematicNavigationHeader: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var sessionStore: SessionStore
     @Binding var selection: HomePrimarySection
+    let containerWidth: CGFloat
     let onSelect: (HomePrimarySection) -> Void
     let accountMessageViewModel: AccountMessageCenterViewModel?
     let onOpenAccountMessages: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "play.tv.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .accessibilityLabel("Newbili 首页")
+        Group {
+            if !HomeNavigationHeaderLayoutPolicy.usesStackedLayout(
+                containerWidth: containerWidth,
+                usesAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            ) {
+                ZStack {
+                    HomeNavigationModeControl(
+                        selection: $selection,
+                        onSelect: onSelect,
+                        isCinematic: true
+                    )
+                    .frame(width: HomeNavigationHeaderLayoutPolicy.centerControlWidth)
 
-            HomeNavigationModeControl(
-                selection: $selection,
-                onSelect: onSelect,
-                isCinematic: true
-            )
-            .frame(width: 330, alignment: .leading)
+                    HStack(spacing: 14) {
+                        cinematicGreeting
+                            .frame(
+                                width: wideSideSlotWidth,
+                                alignment: .leading
+                            )
+                        Spacer(minLength: HomeNavigationHeaderLayoutPolicy.centerControlWidth)
+                        accountMessageButton
+                            .frame(width: wideSideSlotWidth, alignment: .trailing)
+                    }
+                }
+            } else {
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        cinematicGreeting
+                        Spacer(minLength: 12)
+                        accountMessageButton
+                    }
 
-            Spacer(minLength: 10)
-            accountMessageButton
+                    HomeNavigationModeControl(
+                        selection: $selection,
+                        onSelect: onSelect,
+                        isCinematic: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
         }
         .safeAreaPadding(.horizontal, 18)
         .padding(.top, verticalSizeClass == .compact ? 18 : 12)
@@ -95,21 +111,33 @@ struct HomeCinematicNavigationHeader: View {
         .background(HomeCinematicNavigationScrim())
     }
 
-    @ViewBuilder
-    private var accountMessageButton: some View {
-        if let accountMessageViewModel {
-            HomeAccountMessageButton(
-                viewModel: accountMessageViewModel,
+    private var cinematicGreeting: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "play.tv.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
+
+            HomeGreetingLabel(
+                displayName: sessionStore.user?.uname,
                 isCinematic: true,
-                action: onOpenAccountMessages
-            )
-        } else {
-            HomeAccountMessageButtonContent(
-                hasUnread: false,
-                isCinematic: true,
-                action: onOpenAccountMessages
+                showsSubtitle: verticalSizeClass != .compact
             )
         }
+        .foregroundStyle(.white)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var accountMessageButton: some View {
+        HomeAccountMessageButtonHost(
+            viewModel: accountMessageViewModel,
+            isCinematic: true,
+            action: onOpenAccountMessages
+        )
+    }
+
+    private var wideSideSlotWidth: CGFloat {
+        HomeNavigationHeaderLayoutPolicy.sideSlotWidth(containerWidth: containerWidth)
     }
 }
 
@@ -125,44 +153,49 @@ private struct HomeCinematicNavigationScrim: View {
     }
 }
 
-private struct HomeCollapsibleNavigationModeBar: View {
+private struct HomeAdaptiveNavigationHeader: View {
     @Environment(\.rootNavigationTitleHidden) private var rootNavigationTitleHidden
+    @EnvironmentObject private var sessionStore: SessionStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Binding var selection: HomePrimarySection
     let onSelect: (HomePrimarySection) -> Void
+    let accountMessageViewModel: AccountMessageCenterViewModel?
+    let onOpenAccountMessages: () -> Void
 
     var body: some View {
         Group {
             if !rootNavigationTitleHidden.wrappedValue {
-                HomeNavigationModeControl(
-                    selection: $selection,
-                    onSelect: onSelect,
-                    isCinematic: false
-                )
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                VStack(spacing: 7) {
+                    HStack(spacing: 12) {
+                        HomeGreetingLabel(
+                            displayName: sessionStore.user?.uname,
+                            isCinematic: false,
+                            showsSubtitle: verticalSizeClass != .compact
+                        )
+
+                        Spacer(minLength: 12)
+                        accountMessageButton
+                    }
+
+                    HomeNavigationModeControl(
+                        selection: $selection,
+                        onSelect: onSelect,
+                        isCinematic: false
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .safeAreaPadding(.horizontal, 16)
+                .padding(.top, verticalSizeClass == .compact ? 2 : 5)
+                .padding(.bottom, 9)
                 .background {
                     if reduceTransparency {
-                        Capsule()
-                            .fill(Color(.systemBackground))
+                        Color(.systemBackground)
                     } else {
-                        Capsule()
-                            .fill(.thinMaterial)
+                        HomeNavigationBackdrop()
                     }
                 }
-                .overlay {
-                    Capsule()
-                        .strokeBorder(
-                            Color.primary.opacity(colorSchemeContrast == .increased ? 0.38 : 0.08),
-                            lineWidth: colorSchemeContrast == .increased ? 1.25 : 0.5
-                        )
-                }
-                .shadow(color: .black.opacity(reduceTransparency ? 0.10 : 0.06), radius: 9, y: 3)
-                .padding(.horizontal, 14)
-                .padding(.top, 2)
-                .padding(.bottom, 7)
                 .transition(
                     reduceMotion
                         ? .opacity
@@ -170,8 +203,80 @@ private struct HomeCollapsibleNavigationModeBar: View {
                 )
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .background(Color.clear)
+    }
+
+    private var accountMessageButton: some View {
+        HomeAccountMessageButtonHost(
+            viewModel: accountMessageViewModel,
+            isCinematic: false,
+            action: onOpenAccountMessages
+        )
+    }
+}
+
+private struct HomeNavigationBackdrop: View {
+    @Environment(\.appThemeTintColor) private var appTintColor
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(.systemBackground).opacity(0.98),
+                    Color(.systemBackground).opacity(0.82),
+                    .clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [appTintColor.opacity(0.14), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 240
+            )
+        }
+        .mask {
+            LinearGradient(
+                colors: [.black, .black, .black.opacity(0.82), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct HomeGreetingLabel: View {
+    let displayName: String?
+    let isCinematic: Bool
+    let showsSubtitle: Bool
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 15 * 60)) { context in
+            let greeting = HomeGreetingContent.make(
+                date: context.date,
+                displayName: displayName
+            )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(greeting.title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(isCinematic ? Color.white : Color.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                if showsSubtitle {
+                    Text(greeting.subtitle)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(isCinematic ? Color.white.opacity(0.66) : Color.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 
@@ -198,39 +303,73 @@ extension View {
 }
 
 private struct HomeNavigationModeControl: View {
+    @Environment(\.appThemeTintColor) private var appTintColor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: HomePrimarySection
     let onSelect: (HomePrimarySection) -> Void
     let isCinematic: Bool
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 4) {
-                ForEach(HomePrimarySection.allCases) { section in
-                    Button {
-                        onSelect(section)
-                    } label: {
-                        Text(section.title)
-                            .font(.subheadline.weight(selection == section ? .bold : .medium))
-                            .foregroundStyle(foregroundStyle(for: section))
-                            .padding(.horizontal, 11)
-                            .frame(height: 38)
-                            .background {
-                                if selection == section {
-                                    Capsule()
-                                        .fill(isCinematic ? .white.opacity(0.16) : .primary.opacity(0.11))
-                                }
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+        ViewThatFits(in: .horizontal) {
+            modeItems
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    modeItems
+                        .padding(.horizontal, 2)
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: selection, initial: true) { _, newSelection in
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
+                        proxy.scrollTo(newSelection, anchor: .center)
                     }
-                    .buttonStyle(.plain)
-                    .id(section)
                 }
             }
-            .padding(.horizontal, 2)
         }
-        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
         .accessibilityElement(children: .contain)
+        .sensoryFeedback(.selection, trigger: selection)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.10) : .spring(response: 0.32, dampingFraction: 0.90),
+            value: selection
+        )
+    }
+
+    private var modeItems: some View {
+        HStack(spacing: 3) {
+            ForEach(HomePrimarySection.allCases) { section in
+                Button {
+                    onSelect(section)
+                } label: {
+                    Text(section.title)
+                        .font(.subheadline.weight(selection == section ? .bold : .medium))
+                        .foregroundStyle(foregroundStyle(for: section))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background {
+                            if selection == section {
+                                Capsule()
+                                    .fill(selectionFill)
+                                    .overlay {
+                                        Capsule()
+                                            .strokeBorder(selectionStroke, lineWidth: 0.7)
+                                    }
+                                    .shadow(
+                                        color: isCinematic ? .black.opacity(0.16) : appTintColor.opacity(0.10),
+                                        radius: 7,
+                                        y: 2
+                                    )
+                                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(HomeNavigationButtonStyle())
+                .id(section)
+            }
+        }
     }
 
     private func foregroundStyle(for section: HomePrimarySection) -> Color {
@@ -238,6 +377,25 @@ private struct HomeNavigationModeControl: View {
             return .white.opacity(selection == section ? 1 : 0.66)
         }
         return selection == section ? .primary : .secondary
+    }
+
+    private var selectionFill: Color {
+        isCinematic ? .white.opacity(0.17) : appTintColor.opacity(0.14)
+    }
+
+    private var selectionStroke: Color {
+        isCinematic ? .white.opacity(0.22) : appTintColor.opacity(0.20)
+    }
+}
+
+private struct HomeNavigationButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .animation(AppMotion.feedback(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
 
@@ -280,6 +438,29 @@ private struct HomeAccountMessageButton: View {
     }
 }
 
+private struct HomeAccountMessageButtonHost: View {
+    let viewModel: AccountMessageCenterViewModel?
+    let isCinematic: Bool
+    let action: () -> Void
+
+    @ViewBuilder
+    var body: some View {
+        if let viewModel {
+            HomeAccountMessageButton(
+                viewModel: viewModel,
+                isCinematic: isCinematic,
+                action: action
+            )
+        } else {
+            HomeAccountMessageButtonContent(
+                hasUnread: false,
+                isCinematic: isCinematic,
+                action: action
+            )
+        }
+    }
+}
+
 private struct HomeAccountMessageButtonContent: View {
     @Environment(\.appThemeTintColor) private var appTintColor
     let hasUnread: Bool
@@ -301,7 +482,7 @@ private struct HomeAccountMessageButtonContent: View {
         .buttonBorderShape(.circle)
         .controlSize(.mini)
         .biliGlassButtonStyle()
-        .frame(width: 34, height: 34)
+        .frame(width: 44, height: 44)
         .contentShape(Circle())
         .accessibilityLabel("账号消息")
         .accessibilityValue(hasUnread ? "有未读消息" : "全部已读")

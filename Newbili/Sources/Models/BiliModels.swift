@@ -5510,6 +5510,19 @@ nonisolated struct DynamicAuthor: Decodable, Hashable {
     }
 }
 
+nonisolated struct SpecialFollowedUploader: Decodable, Hashable, Sendable {
+    let mid: Int
+
+    enum CodingKeys: String, CodingKey {
+        case mid
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mid = container.decodeLossyIntIfPresent(forKey: .mid) ?? 0
+    }
+}
+
 nonisolated struct DynamicModuleDynamic: Decodable, Hashable {
     let desc: DynamicText?
     let major: DynamicMajor?

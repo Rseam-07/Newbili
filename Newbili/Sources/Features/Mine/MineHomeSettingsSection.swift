@@ -31,7 +31,7 @@ struct MineHomeSettingsSection: View {
             }
 
             Text(realtimeAmbientBlurEnabled
-                 ? "使用完整实时模糊绘制新版首页、番剧和影视背景光晕；影像杂志始终使用低开销 OLED 背景。"
+                 ? "使用完整实时模糊绘制新版首页、番剧和影视背景光晕。"
                  : "改用低开销渐变光晕；仅在你主动关闭时改变背景效果。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -45,12 +45,6 @@ struct MineHomeSettingsSection: View {
                 }
             } label: {
                 Label("首页布局", systemImage: "rectangle.grid.1x2")
-            }
-
-            if libraryStore.homePresentationStyle == .editorial {
-                Text("单列会展开为纵向影像流；双列会使用一大两小的编辑网格。有边框样式会增加清晰的内容分隔。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             Picker(selection: Binding(

@@ -9,14 +9,18 @@ extension PlaybackNetworkDiagnosticsTextBuilder {
         lines.append("启动取流来源：\(PlaybackNetworkDiagnosticFormat.startupPlayURLTitle(for: session))")
         lines.append("启动档位：\(PlaybackNetworkDiagnosticFormat.startupQualityTitle(session.startupQuality))")
         lines.append("目标档位：\(PlaybackNetworkDiagnosticFormat.startupQualityTitle(session.startupTargetQuality))")
-        lines.append("PiliPlus 风格 AV1 取流：已启用")
+        lines.append("AV1 兼容取流：已启用")
         lines.append("HLS Route：\(PlaybackNetworkDiagnosticFormat.startupRoutePlanTitle(for: session))")
         if session.startupRoutePrebuildState != nil {
             lines.append("Route 预构建：\(PlaybackNetworkDiagnosticFormat.startupRoutePrebuildTitle(for: session))")
         }
         lines.append("启动包：\(PlaybackNetworkDiagnosticFormat.startupPackageTitle(for: session))")
         lines.append("首片预热：\(PlaybackNetworkDiagnosticFormat.startupRangeWarmTitle(for: session))")
-        appendOptional("首帧调度", session.startupSchedulerMessage, to: &lines)
+        appendOptional(
+            "首帧调度",
+            PiliPlusStylePlayURLSelectionExperiment.userVisibleDiagnosticMessage(session.startupSchedulerMessage),
+            to: &lines
+        )
         appendOptional("播放反馈", session.networkMessage, to: &lines)
         appendOptional("首帧分段", session.startupBreakdownMessage, to: &lines)
         appendOptional("启动阶段空档", session.startupGapMessage, to: &lines)

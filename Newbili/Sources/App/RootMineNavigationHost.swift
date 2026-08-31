@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct RootMineNavigationDestination: View {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
     let route: MineOverlayRoute
     @ObservedObject var holder: MineViewModelHolder
     @ObservedObject var libraryStore: LibraryStore
@@ -33,8 +32,12 @@ struct RootMineNavigationDestination: View {
                 } else {
                     ProgressView()
                 }
+            case .markedAnime:
+                MarkedAnimeListView(libraryStore: libraryStore)
             case .settingsSearch:
                 MineSettingsSearchView(libraryStore: libraryStore)
+            case .notificationSettings:
+                MineNotificationSettingsView(libraryStore: libraryStore)
             case .interfaceSettings:
                 MineInterfaceSettingsView(libraryStore: libraryStore)
             case .homeAndSearchSettings:
@@ -52,14 +55,7 @@ struct RootMineNavigationDestination: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scrollContentBackground(interfaceStyle.isFluent ? .hidden : .visible)
-        .background {
-            if interfaceStyle.isFluent {
-                AppInterfaceCanvasBackground()
-            } else {
-                Color(uiColor: .systemBackground).ignoresSafeArea()
-            }
-        }
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .background(
             VideoDetailSystemBackGestureBridge(
                 onNavigationGestureBegan: {},

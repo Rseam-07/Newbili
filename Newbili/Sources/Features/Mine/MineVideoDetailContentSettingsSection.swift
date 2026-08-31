@@ -40,7 +40,7 @@ struct MineVideoDetailContentSettingsSection: View {
         } header: {
             Text("视频详情")
         } footer: {
-            Text("对齐 PiliPlus 的常用详情页开关；隐藏内容时会同步停止对应的自动加载，减少无用请求。")
+            Text("汇总常用详情页开关；隐藏内容时会同步停止对应的自动加载，减少无用请求。")
         }
     }
 

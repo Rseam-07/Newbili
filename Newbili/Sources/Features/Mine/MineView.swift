@@ -2,7 +2,6 @@ import Combine
 import SwiftUI
 
 struct MineView: View {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @EnvironmentObject private var dependencies: AppDependencies
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var libraryStore: LibraryStore
@@ -31,14 +30,7 @@ struct MineView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scrollContentBackground(interfaceStyle.isFluent ? .hidden : .visible)
-        .background {
-            if interfaceStyle.isFluent {
-                AppInterfaceCanvasBackground()
-            } else {
-                Color(.systemBackground)
-            }
-        }
+        .background(Color(.systemBackground))
         .rootNavigationTitle("我的")
         .nativeTopNavigationChrome()
         .environment(\.scrollEdgeEffectPreference, libraryStore.scrollEdgeEffectPreference)

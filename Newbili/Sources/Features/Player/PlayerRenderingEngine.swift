@@ -1583,7 +1583,7 @@ enum PlayerPerformanceCopyTextFormatter {
             "  playURLSource: \(session.startupPlayURLSource ?? "-")",
             "  playURLVariants: \(session.startupPlayURLVariantCount.map(String.init) ?? "-")",
             "  startupPathOptimization: \(AVPlayerStartupPathOptimizationExperiment.diagnosticStateTitle(for: session.avPlayerStartupPathOptimizationExperimentEnabled))",
-            "  piliPlusStyleAV1PlayURLSelection: \(PiliPlusStylePlayURLSelectionExperiment.diagnosticStateTitle(for: session.piliPlusStylePlayURLSelectionExperimentEnabled))",
+            "  adaptiveAV1PlayURLSelection: \(PiliPlusStylePlayURLSelectionExperiment.diagnosticStateTitle(for: session.piliPlusStylePlayURLSelectionExperimentEnabled))",
             "  prepare: \(millisecondsText(session.prepareMilliseconds))",
             "  quality: \(session.startupQuality.map(String.init) ?? "-")",
             "  codec: \(session.startupCodec ?? latestSampleValue(session.recentStartupSamples, \.codec) ?? "-")",
@@ -1605,7 +1605,9 @@ enum PlayerPerformanceCopyTextFormatter {
         }
         if let startupSchedulerMessage = session.startupSchedulerMessage {
             lines.append("startupScheduler:")
-            lines.append("  \(startupSchedulerMessage)")
+            lines.append(
+                "  \(PiliPlusStylePlayURLSelectionExperiment.userVisibleDiagnosticMessage(startupSchedulerMessage) ?? startupSchedulerMessage)"
+            )
         }
         if let manifestStageMessage = session.manifestStageMessage {
             lines.append("manifestStage:")

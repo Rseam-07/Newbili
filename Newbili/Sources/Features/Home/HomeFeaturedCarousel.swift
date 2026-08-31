@@ -335,7 +335,7 @@ private struct HomeFeaturedSlide: View {
     private var sourceTitle: String {
         if item.source == .popular { return "B站热门" }
         if mode == .popular { return "全站焦点" }
-        return position == 0 ? "每日精选" : "为你推荐"
+        return "为你推荐"
     }
 
     private var metadata: String {

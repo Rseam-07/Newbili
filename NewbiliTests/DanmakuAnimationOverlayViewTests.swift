@@ -3,6 +3,65 @@ import UIKit
 @testable import bili
 
 final class DanmakuAnimationOverlayViewTests: XCTestCase {
+    func testTextPalettePreservesServerRGBAndChoosesAContrastingOutline() {
+        XCTAssertEqual(
+            DanmakuTextColorPalette.resolved(from: 0xAB_FF_00_00),
+            DanmakuTextColorPalette(foregroundRGB: 0xFF_00_00, outlineRGB: 0x00_00_00)
+        )
+        XCTAssertEqual(
+            DanmakuTextColorPalette.resolved(from: 0x00_00_00),
+            DanmakuTextColorPalette(foregroundRGB: 0x00_00_00, outlineRGB: 0xFF_FF_FF)
+        )
+        XCTAssertEqual(
+            DanmakuTextColorPalette.resolved(from: 0xFF_FF_FF),
+            DanmakuTextColorPalette(foregroundRGB: 0xFF_FF_FF, outlineRGB: 0x00_00_00)
+        )
+    }
+
+    @MainActor
+    func testAttributedDanmakuRetainsItsServerColorInsteadOfRenderingAllBlack() throws {
+        let view = DanmakuAnimationOverlayView(frame: CGRect(x: 0, y: 0, width: 390, height: 220))
+        view.layoutIfNeeded()
+        view.apply(
+            items: [
+                DanmakuItem(id: "red", time: 1, mode: 5, fontSize: 25, color: 0xFF_00_00, text: "红色弹幕"),
+                DanmakuItem(id: "blue", time: 1, mode: 4, fontSize: 25, color: 0x00_00_FF, text: "蓝色弹幕")
+            ],
+            itemsRevision: 1,
+            currentTime: 2,
+            isPlaying: false,
+            playbackRate: 1,
+            isEnabled: true,
+            hasPresentedPlayback: true,
+            isLoadShedding: false,
+            settings: .default,
+            topInset: 8,
+            bottomInset: 54
+        )
+
+        let labels = Dictionary(
+            uniqueKeysWithValues: view.subviews.compactMap { subview -> (String, UILabel)? in
+                guard let label = subview as? UILabel, let text = label.attributedText?.string else {
+                    return nil
+                }
+                return (text, label)
+            }
+        )
+        let redLabel = try XCTUnwrap(labels["红色弹幕"])
+        let blueLabel = try XCTUnwrap(labels["蓝色弹幕"])
+        let redAttributes = try XCTUnwrap(redLabel.attributedText?.attributes(at: 0, effectiveRange: nil))
+        let blueAttributes = try XCTUnwrap(blueLabel.attributedText?.attributes(at: 0, effectiveRange: nil))
+        let redForeground = try XCTUnwrap(redAttributes[.foregroundColor] as? UIColor)
+        let redOutline = try XCTUnwrap(redAttributes[.strokeColor] as? UIColor)
+        let blueForeground = try XCTUnwrap(blueAttributes[.foregroundColor] as? UIColor)
+        let blueOutline = try XCTUnwrap(blueAttributes[.strokeColor] as? UIColor)
+
+        XCTAssertTrue(redForeground.isApproximatelyRGB(red: 1, green: 0, blue: 0))
+        XCTAssertTrue(redOutline.isApproximatelyRGB(red: 0, green: 0, blue: 0))
+        XCTAssertTrue(blueForeground.isApproximatelyRGB(red: 0, green: 0, blue: 1))
+        XCTAssertTrue(blueOutline.isApproximatelyRGB(red: 1, green: 1, blue: 1))
+    }
+
     func testQuickActionLayoutStaysInsideLandscapeAndIPadBounds() {
         let container = CGRect(x: 0, y: 0, width: 1_024, height: 420)
         let result = DanmakuQuickActionLayout.frame(
@@ -241,5 +300,21 @@ final class DanmakuAnimationOverlayViewTests: XCTestCase {
     @MainActor
     private func renderedTexts(in view: DanmakuAnimationOverlayView) -> [String] {
         view.subviews.compactMap { ($0 as? UILabel)?.text }
+    }
+}
+
+private extension UIColor {
+    func isApproximatelyRGB(red: CGFloat, green: CGFloat, blue: CGFloat) -> Bool {
+        var actualRed: CGFloat = 0
+        var actualGreen: CGFloat = 0
+        var actualBlue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&actualRed, green: &actualGreen, blue: &actualBlue, alpha: &alpha) else {
+            return false
+        }
+        return abs(actualRed - red) < 0.01
+            && abs(actualGreen - green) < 0.01
+            && abs(actualBlue - blue) < 0.01
+            && alpha > 0
     }
 }

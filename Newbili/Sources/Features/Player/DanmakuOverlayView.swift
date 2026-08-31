@@ -2,6 +2,33 @@ import Combine
 import SwiftUI
 import UIKit
 
+nonisolated struct DanmakuTextColorPalette: Equatable, Sendable {
+    let foregroundRGB: UInt32
+    let outlineRGB: UInt32
+
+    static func resolved(from rawRGB: UInt32) -> Self {
+        let foregroundRGB = rawRGB & 0x00FF_FFFF
+        let red = Double((foregroundRGB >> 16) & 0xFF) / 255
+        let green = Double((foregroundRGB >> 8) & 0xFF) / 255
+        let blue = Double(foregroundRGB & 0xFF) / 255
+        let luminance = 0.2126 * linearComponent(red)
+            + 0.7152 * linearComponent(green)
+            + 0.0722 * linearComponent(blue)
+        let blackContrast = (luminance + 0.05) / 0.05
+        let whiteContrast = 1.05 / (luminance + 0.05)
+        return Self(
+            foregroundRGB: foregroundRGB,
+            outlineRGB: blackContrast >= whiteContrast ? 0x00_00_00 : 0xFF_FF_FF
+        )
+    }
+
+    private static func linearComponent(_ component: Double) -> Double {
+        component <= 0.04045
+            ? component / 12.92
+            : pow((component + 0.055) / 1.055, 2.4)
+    }
+}
+
 nonisolated enum DanmakuMotionTiming {
     static func remainingDuration(
         totalDuration: TimeInterval,
@@ -1347,23 +1374,7 @@ final class DanmakuAnimationOverlayView: UIView {
         label.textAlignment = .center
         label.numberOfLines = 1
         label.lineBreakMode = .byClipping
-        let foregroundColor = UIColor.danmakuRGB(item.color).withAlphaComponent(settings.opacity)
-        if settings.strokeWidth > 0.01 {
-            let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
-            label.attributedText = NSAttributedString(
-                string: item.text,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: foregroundColor,
-                    .strokeColor: foregroundColor,
-                    .strokeWidth: strokePercentage
-                ]
-            )
-        } else {
-            label.attributedText = nil
-            label.text = item.text
-            label.textColor = foregroundColor
-        }
+        applyTextStyle(to: label, for: item, font: font)
         label.alpha = 1
         label.layer.opacity = 1
         label.frame = CGRect(origin: .zero, size: size)
@@ -1377,25 +1388,33 @@ final class DanmakuAnimationOverlayView: UIView {
         for entry in activeEntries.values {
             let label = entry.label
             let font = label.font ?? UIFont.systemFont(ofSize: fontSize(for: entry.item))
-            let foregroundColor = UIColor.danmakuRGB(entry.item.color)
-                .withAlphaComponent(settings.opacity)
-            if settings.strokeWidth > 0.01 {
-                let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
-                label.attributedText = NSAttributedString(
-                    string: entry.item.text,
-                    attributes: [
-                        .font: font,
-                        .foregroundColor: foregroundColor,
-                        .strokeColor: foregroundColor,
-                        .strokeWidth: strokePercentage
-                    ]
-                )
-            } else {
-                label.attributedText = nil
-                label.text = entry.item.text
-                label.textColor = foregroundColor
-            }
+            applyTextStyle(to: label, for: entry.item, font: font)
         }
+    }
+
+    private func applyTextStyle(to label: UILabel, for item: DanmakuItem, font: UIFont) {
+        let palette = DanmakuTextColorPalette.resolved(from: item.color)
+        let foregroundColor = UIColor.danmakuRGB(palette.foregroundRGB)
+            .withAlphaComponent(settings.opacity)
+        label.textColor = foregroundColor
+        guard settings.strokeWidth > 0.01 else {
+            label.attributedText = nil
+            label.text = item.text
+            return
+        }
+
+        let strokePercentage = -(settings.strokeWidth / Double(max(font.pointSize, 1))) * 100
+        let outlineColor = UIColor.danmakuRGB(palette.outlineRGB)
+            .withAlphaComponent(settings.opacity)
+        label.attributedText = NSAttributedString(
+            string: item.text,
+            attributes: [
+                .font: font,
+                .foregroundColor: foregroundColor,
+                .strokeColor: outlineColor,
+                .strokeWidth: strokePercentage
+            ]
+        )
     }
 
     private func dequeueLabel() -> UILabel {

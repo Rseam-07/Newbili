@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MineAccountLibrarySection: View {
     @ObservedObject var accountMessageViewModel: AccountMessageCenterViewModel
+    @ObservedObject var libraryStore: LibraryStore
     let isLoggedIn: Bool
     let onOpenRoute: (MineOverlayRoute) -> Void
 
@@ -43,6 +44,23 @@ struct MineAccountLibrarySection: View {
                 AccountLibraryButtonRow(
                     title: "稍后再看",
                     systemImage: "bookmark"
+                )
+            }
+
+            MineOverlayNavigationButton {
+                onOpenRoute(.markedAnime)
+            } label: {
+                AccountLibraryButtonRow(
+                    title: "我的追更",
+                    systemImage: "sparkles.tv",
+                    badgeText: libraryStore.markedAnimeSnapshots.isEmpty
+                        ? nil
+                        : String(libraryStore.markedAnimeSnapshots.count),
+                    badgeAccessibilityLabel: libraryStore.markedAnimeSnapshots.isEmpty
+                        ? nil
+                        : UpdateNotificationAccessibilityText.markedAnimeCount(
+                            libraryStore.markedAnimeSnapshots.count
+                        )
                 )
             }
         } header: {

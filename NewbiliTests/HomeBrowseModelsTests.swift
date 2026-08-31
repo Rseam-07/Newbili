@@ -100,48 +100,53 @@ final class HomeBrowseModelsTests: XCTestCase {
         XCTAssertNil(HomePrimarySection.cinema.feedMode)
     }
 
-    @MainActor
-    func testHomePresentationStyleDefaultsToImmersiveAndPersistsSimpleMode() {
-        let suiteName = "HomeBrowseModelsTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let store = LibraryStore(userDefaults: defaults)
-        XCTAssertEqual(store.homePresentationStyle, .immersive)
-
-        store.setHomePresentationStyle(.simple)
-        XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .simple)
-
-        store.setHomePresentationStyle(.editorial)
-        XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .editorial)
-    }
-
-    @MainActor
-    func testBackgroundPlaybackDefaultsToListenOnlyAndPersistsAlways() {
-        let suiteName = "HomeBrowseModelsTests.BackgroundPlayback.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let store = LibraryStore(userDefaults: defaults)
-        XCTAssertEqual(store.backgroundPlaybackMode, .listenOnly)
-
-        store.setBackgroundPlaybackMode(.always)
-        XCTAssertEqual(LibraryStore(userDefaults: defaults).backgroundPlaybackMode, .always)
-    }
-
-    @MainActor
-    func testDynamicFeedLayoutDefaultsToAutomaticAndPersistsTwoColumns() {
-        let suiteName = "HomeBrowseModelsTests.DynamicLayout.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let store = LibraryStore(userDefaults: defaults)
-        XCTAssertEqual(store.dynamicFeedLayoutPreference, .automatic)
-
-        store.setDynamicFeedLayoutPreference(.doubleColumn)
+    func testHomeGreetingAdaptsToTimeWithoutInventingAGuestName() {
         XCTAssertEqual(
-            LibraryStore(userDefaults: defaults).dynamicFeedLayoutPreference,
-            .doubleColumn
+            HomeGreetingContent.make(hour: 7, displayName: nil),
+            HomeGreetingContent(
+                title: "早上好",
+                subtitle: "新一天，从喜欢的内容开始"
+            )
+        )
+        XCTAssertEqual(
+            HomeGreetingContent.make(hour: 20, displayName: "  Conrad  "),
+            HomeGreetingContent(
+                title: "晚上好，Conrad",
+                subtitle: "今晚想看点什么？"
+            )
+        )
+    }
+
+    func testHomeGreetingCoversNoonAfternoonAndLateNightBoundaries() {
+        XCTAssertEqual(HomeGreetingContent.make(hour: 10, displayName: nil).title, "中午好")
+        XCTAssertEqual(HomeGreetingContent.make(hour: 13, displayName: nil).title, "下午好")
+        XCTAssertEqual(HomeGreetingContent.make(hour: 23, displayName: nil).title, "夜深了")
+        XCTAssertEqual(HomeGreetingContent.make(hour: -3, displayName: "  ").title, "夜深了")
+    }
+
+    func testHomeNavigationHeaderUsesAStableGeometricCenter() {
+        XCTAssertTrue(
+            HomeNavigationHeaderLayoutPolicy.usesStackedLayout(
+                containerWidth: 819,
+                usesAccessibilitySize: false
+            )
+        )
+        XCTAssertFalse(
+            HomeNavigationHeaderLayoutPolicy.usesStackedLayout(
+                containerWidth: 820,
+                usesAccessibilitySize: false
+            )
+        )
+        XCTAssertTrue(
+            HomeNavigationHeaderLayoutPolicy.usesStackedLayout(
+                containerWidth: 1_366,
+                usesAccessibilitySize: true
+            )
+        )
+        XCTAssertEqual(
+            HomeNavigationHeaderLayoutPolicy.sideSlotWidth(containerWidth: 820),
+            211,
+            accuracy: 0.01
         )
     }
 
@@ -190,19 +195,62 @@ final class HomeBrowseModelsTests: XCTestCase {
         )
     }
 
-    func testCinematicNavigationUsesSymmetricSideSlots() {
-        XCTAssertEqual(HomeNavigationGeometricCenteringPolicy.sideSlotWidth, 44)
-        XCTAssertEqual(HomeNavigationGeometricCenteringPolicy.navigationWidth, 330)
+    @MainActor
+    func testHomePresentationStyleDefaultsToImmersiveAndPersistsSimpleMode() {
+        let suiteName = "HomeBrowseModelsTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LibraryStore(userDefaults: defaults)
+        XCTAssertEqual(HomePresentationStyle.allCases, [.immersive, .simple])
+        XCTAssertEqual(store.homePresentationStyle, .immersive)
+
+        store.setHomePresentationStyle(.simple)
+        XCTAssertEqual(LibraryStore(userDefaults: defaults).homePresentationStyle, .simple)
     }
 
-    func testEditorialMagazinePlanKeepsFeaturedItemsOutOfMagazineGroups() {
+    @MainActor
+    func testRetiredEditorialHomeStyleMigratesBackToImmersive() {
+        let suiteName = "HomeBrowseModelsTests.RetiredEditorial.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("editorial", forKey: "cc.bili.home.presentationStyle.v1")
+
+        let store = LibraryStore(userDefaults: defaults)
+
+        XCTAssertEqual(store.homePresentationStyle, .immersive)
         XCTAssertEqual(
-            HomeEditorialMagazinePlan.ranges(totalCount: 9, startIndex: 2),
-            [2..<5, 5..<8, 8..<9]
+            defaults.string(forKey: "cc.bili.home.presentationStyle.v1"),
+            HomePresentationStyle.immersive.rawValue
         )
+    }
+
+    @MainActor
+    func testBackgroundPlaybackDefaultsToListenOnlyAndPersistsAlways() {
+        let suiteName = "HomeBrowseModelsTests.BackgroundPlayback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LibraryStore(userDefaults: defaults)
+        XCTAssertEqual(store.backgroundPlaybackMode, .listenOnly)
+
+        store.setBackgroundPlaybackMode(.always)
+        XCTAssertEqual(LibraryStore(userDefaults: defaults).backgroundPlaybackMode, .always)
+    }
+
+    @MainActor
+    func testDynamicFeedLayoutDefaultsToAutomaticAndPersistsTwoColumns() {
+        let suiteName = "HomeBrowseModelsTests.DynamicLayout.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LibraryStore(userDefaults: defaults)
+        XCTAssertEqual(store.dynamicFeedLayoutPreference, .automatic)
+
+        store.setDynamicFeedLayoutPreference(.doubleColumn)
         XCTAssertEqual(
-            HomeEditorialMagazinePlan.ranges(totalCount: 2, startIndex: 2),
-            []
+            LibraryStore(userDefaults: defaults).dynamicFeedLayoutPreference,
+            .doubleColumn
         )
     }
 

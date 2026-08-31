@@ -6,7 +6,9 @@ enum MineOverlayRoute: Hashable {
     case history
     case favorites
     case watchLater
+    case markedAnime
     case settingsSearch
+    case notificationSettings
     case interfaceSettings
     case homeAndSearchSettings
     case playbackSettings

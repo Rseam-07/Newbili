@@ -35,6 +35,7 @@ struct MineContentView: View {
 
             MineAccountLibrarySection(
                 accountMessageViewModel: accountMessageViewModel,
+                libraryStore: libraryStore,
                 isLoggedIn: sessionStore.isLoggedIn,
                 onOpenRoute: onOpenRoute
             )

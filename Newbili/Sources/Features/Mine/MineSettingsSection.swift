@@ -11,8 +11,18 @@ struct MineSettingsSection: View {
             } label: {
                 SettingsNavigationRow(
                     title: "搜索设置",
-                    subtitle: "按 PiliPlus 常用名称查找设置与功能",
+                    subtitle: "按名称、用途或关键词查找设置与功能",
                     systemImage: "magnifyingglass"
+                )
+            }
+
+            MineOverlayNavigationButton {
+                onOpenRoute(.notificationSettings)
+            } label: {
+                SettingsNavigationRow(
+                    title: "更新通知与追更",
+                    subtitle: notificationSettingsSummary,
+                    systemImage: "bell.badge"
                 )
             }
 
@@ -84,7 +94,12 @@ struct MineSettingsSection: View {
             .filter(\.participatesInRootTabVisibilitySettings)
             .map(\.title)
             .joined(separator: "、")
-        return "\(libraryStore.liquidGlassStylePreference.title) · \(libraryStore.appearanceMode.title) · \(tabs)"
+        return "\(libraryStore.appearanceMode.title) · \(tabs)"
+    }
+
+    private var notificationSettingsSummary: String {
+        let seriesCount = libraryStore.markedAnimeSnapshots.count
+        return "UP 更新：\(libraryStore.followedUploaderNotificationLevel.title) · 追更 \(seriesCount) 项"
     }
 
     private var homeAndSearchSummary: String {

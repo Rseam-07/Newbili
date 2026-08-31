@@ -78,6 +78,7 @@ final class AVPlayerStartupPathOptimizationExperimentTests: XCTestCase {
         session.avPlayerStartupPathOptimizationExperimentEnabled = true
         session.piliPlusStylePlayURLSelectionExperimentEnabled = true
         session.startupGapMessage = "open>detail 20ms | detail>url 45ms | url>player 8ms"
+        session.startupSchedulerMessage = "piliPlusStylePlayURL strategy=piliPlusTargetFirstCompatibilityRescueV18"
         session.playURLMilliseconds = 181
 
         let copy = PlayerPerformanceCopyTextFormatter.performanceCopyText(
@@ -86,7 +87,8 @@ final class AVPlayerStartupPathOptimizationExperimentTests: XCTestCase {
         )
 
         XCTAssertTrue(copy.contains("startupPathOptimization: on"))
-        XCTAssertTrue(copy.contains("piliPlusStyleAV1PlayURLSelection: on"))
+        XCTAssertTrue(copy.contains("adaptiveAV1PlayURLSelection: on"))
+        XCTAssertTrue(copy.contains("newbiliStylePlayURL strategy=newbiliTargetFirstCompatibilityRescueV18"))
         XCTAssertTrue(copy.contains("startupGaps:\n  open>detail 20ms | detail>url 45ms | url>player 8ms"))
         let fullLog = PlayerPerformanceCopyTextFormatter.performanceLogCopyText(
             sessions: [session],
@@ -94,14 +96,25 @@ final class AVPlayerStartupPathOptimizationExperimentTests: XCTestCase {
         )
         XCTAssertTrue(fullLog.contains("Newbili 播放性能日志"))
         XCTAssertTrue(fullLog.contains("startupPathOptimization: on"))
-        XCTAssertTrue(fullLog.contains("piliPlusStyleAV1PlayURLSelection: on"))
+        XCTAssertTrue(fullLog.contains("adaptiveAV1PlayURLSelection: on"))
         XCTAssertEqual(
             AVPlayerStartupPathOptimizationExperiment.sampleGroupStateTitle(for: nil),
             "启动链路：旧样本未知"
         )
         XCTAssertEqual(
             PiliPlusStylePlayURLSelectionExperiment.sampleGroupStateTitle(for: nil),
-            "PiliPlus AV1 取流：旧样本未知"
+            "AV1 兼容取流：旧样本未知"
+        )
+        XCTAssertFalse(copy.localizedCaseInsensitiveContains("piliplus"))
+        XCTAssertFalse(fullLog.localizedCaseInsensitiveContains("piliplus"))
+    }
+
+    func testHistoricalSchedulerDiagnosticsAreRebrandedBeforeDisplay() {
+        XCTAssertEqual(
+            PiliPlusStylePlayURLSelectionExperiment.userVisibleDiagnosticMessage(
+                "piliPlusStylePlayURL strategy=piliPlusTargetFirstCompatibilityRescueV18"
+            ),
+            "newbiliStylePlayURL strategy=newbiliTargetFirstCompatibilityRescueV18"
         )
     }
 

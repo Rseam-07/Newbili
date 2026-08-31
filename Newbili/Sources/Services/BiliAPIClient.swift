@@ -4,6 +4,15 @@ import OSLog
 import QuartzCore
 import Security
 
+nonisolated enum DynamicFeedFetchPolicy: Equatable, Sendable {
+    case preferFreshDiskSnapshot
+    case networkOnly
+
+    var readsFreshDiskSnapshot: Bool {
+        self == .preferFreshDiskSnapshot
+    }
+}
+
 nonisolated final class BiliNetworkMetricsRecorder: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let logger = Logger(subsystem: "cc.bili", category: "NetworkMetrics")
 
@@ -1274,27 +1283,6 @@ nonisolated final class BiliAPIClient {
             await state.clearVideoListTask(for: taskKey)
             throw error
         }
-    }
-
-    func fetchHomeActivityBanners(placementID: Int = 4_694) async throws -> [HomeActivityBanner] {
-        let response: BiliResponse<[String: [HomeActivityBanner]]> = try await get(
-            base: baseURL,
-            path: "/x/web-show/res/locs",
-            query: [
-                "pf": "0",
-                "ids": String(placementID)
-            ],
-            responseCachePolicy: .brief
-        )
-        guard response.code == 0 else {
-            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
-        }
-        return (response.payload?[String(placementID)] ?? [])
-            .filter(\.isEligibleEditorialActivity)
-            .sorted { lhs, rhs in
-                if lhs.position != rhs.position { return lhs.position < rhs.position }
-                return lhs.id < rhs.id
-            }
     }
 
     func fetchRankingVideos(regionID: Int) async throws -> [VideoItem] {
@@ -6750,7 +6738,10 @@ nonisolated final class BiliAPIClient {
         return response.payload?.trending?.list ?? []
     }
 
-    func fetchDynamicFeed(offset: String? = nil) async throws -> DynamicFeedData {
+    func fetchDynamicFeed(
+        offset: String? = nil,
+        fetchPolicy: DynamicFeedFetchPolicy = .preferFreshDiskSnapshot
+    ) async throws -> DynamicFeedData {
         let snapshot = await requestSnapshot(purpose: .dynamicFeed)
         guard snapshot.isLoggedIn else { throw BiliAPIError.missingSESSDATA }
         var query = [
@@ -6768,7 +6759,8 @@ nonisolated final class BiliAPIClient {
             && ResourceLoadingExperiment.isFeatureEnabled(.dynamicDiskSnapshot)
             ? DynamicFeedDiskSnapshotStore.accountIdentity(for: snapshot.currentUserMID)
             : nil
-        if let diskSnapshotIdentity,
+        if fetchPolicy.readsFreshDiskSnapshot,
+           let diskSnapshotIdentity,
            let cachedData = await DynamicFeedDiskSnapshotStore.shared.freshData(
                for: diskSnapshotIdentity
            ) {
@@ -6798,6 +6790,26 @@ nonisolated final class BiliAPIClient {
             snapshot: snapshot,
             diskSnapshotIdentity: diskSnapshotIdentity
         )
+    }
+
+    func fetchSpecialFollowedUploaderMIDs() async throws -> Set<Int> {
+        let snapshot = await requestSnapshot(purpose: .dynamicFeed)
+        guard snapshot.isLoggedIn else { throw BiliAPIError.missingSESSDATA }
+        let response: BiliResponse<[SpecialFollowedUploader]> = try await get(
+            base: baseURL,
+            path: "/x/relation/tag",
+            query: [
+                "tagid": "-10",
+                "pn": "1",
+                "ps": "500"
+            ],
+            cookieHeader: snapshot.cookieHeader,
+            responseCachePolicy: .brief
+        )
+        guard response.code == 0 else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return Set((response.payload ?? []).map(\.mid).filter { $0 > 0 })
     }
 
     private func fetchDynamicFeedFromNetwork(

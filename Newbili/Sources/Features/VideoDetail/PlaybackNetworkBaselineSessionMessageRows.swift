@@ -9,7 +9,12 @@ struct PlaybackNetworkBaselineSessionMessageRows: View {
         PlaybackNetworkOptionalMultilineRow(title: "最近续播验证", value: session.resumeRecoveryMessage)
         PlaybackNetworkOptionalMultilineRow(title: "最近恢复", value: session.seekRecoveryMessage)
         PlaybackNetworkOptionalMultilineRow(title: "最近播放恢复", value: session.playbackRecoveryMessage)
-        PlaybackNetworkOptionalMultilineRow(title: "首帧调度", value: session.startupSchedulerMessage)
+        PlaybackNetworkOptionalMultilineRow(
+            title: "首帧调度",
+            value: PiliPlusStylePlayURLSelectionExperiment.userVisibleDiagnosticMessage(
+                session.startupSchedulerMessage
+            )
+        )
         PlaybackNetworkOptionalMultilineRow(title: "AccessLog", value: session.accessLogMessage)
         PlaybackNetworkOptionalMultilineRow(title: "最近倍速", value: session.speedBoostMessage)
         PlaybackNetworkOptionalMultilineRow(title: "质量补充", value: session.qualitySupplementMessage)

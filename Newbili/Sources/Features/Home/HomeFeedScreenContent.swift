@@ -12,7 +12,6 @@ struct HomeFeedScreenContent: View {
     @State var viewportState = HomeFeedViewportState()
     @State var actionStore = HomeFeedScreenActionStore()
     @State private var primarySection = HomePrimarySection.recommend
-    @State private var usesCinematicNavigationChrome = false
 
     init(
         viewModel: HomeViewModel,
@@ -41,7 +40,6 @@ struct HomeFeedScreenContent: View {
                         libraryStore: dependencies.libraryStore,
                         viewportState: $viewportState,
                         detailPath: $detailPath,
-                        usesCinematicNavigationChrome: $usesCinematicNavigationChrome,
                         primarySection: $primarySection,
                         onSelectPrimarySection: selectPrimarySection,
                         accountMessageViewModel: accountMessageViewModel,
@@ -83,7 +81,10 @@ struct HomeFeedScreenContent: View {
     private var prefersCinematicChrome: Bool {
         libraryStore.homePresentationStyle == .immersive
             && primarySection.feedMode != nil
-            && usesCinematicNavigationChrome
+            && HomeCinematicWideLayoutPolicy.usesCinematicShelves(
+                containerWidth: viewportState.feedContainerWidth,
+                viewportHeight: viewportState.viewportHeight
+            )
     }
 
     private func selectPrimarySection(_ section: HomePrimarySection) {

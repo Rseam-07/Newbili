@@ -133,6 +133,8 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var sponsorBlockEnabled: Bool
     @Published private(set) var sponsorBlockPreferences: SponsorBlockPreferences
     @Published private(set) var markedAnimeBVIDs: Set<String>
+    @Published private(set) var markedAnimeSnapshots: [MarkedAnimeSnapshot]
+    @Published private(set) var followedUploaderNotificationLevel: FollowedUploaderNotificationLevel
     @Published private(set) var pictureInPictureEnabled: Bool
     @Published private(set) var backgroundPlaybackMode: BackgroundPlaybackMode
     @Published private(set) var usesNativePlaybackControls: Bool
@@ -160,7 +162,6 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var multiAccountExperimentEnabled: Bool
     @Published private(set) var minimizesTabBarOnScroll: Bool
     @Published private(set) var scrollEdgeEffectPreference: AppScrollEdgeEffectPreference
-    @Published private(set) var liquidGlassStylePreference: AppLiquidGlassStylePreference
     @Published private(set) var remoteImageQualityPreference: RemoteImageQualityPreference
     @Published private(set) var videoCoverBadgeShadowOpacity: Double
     @Published private(set) var videoCoverBottomScrimEnabled: Bool
@@ -219,6 +220,8 @@ final class LibraryStore: ObservableObject {
     private static let sponsorBlockEnabledKey = "cc.bili.playback.sponsorBlockEnabled.v1"
     private static let sponsorBlockPreferencesKey = "cc.bili.playback.sponsorBlockPreferences.v1"
     private static let markedAnimeBVIDsKey = "cc.bili.videoDetail.markedAnimeBVIDs.v1"
+    private static let markedAnimeSnapshotsKey = "cc.newbili.notifications.markedAnimeSnapshots.v2"
+    private static let followedUploaderNotificationLevelKey = "cc.newbili.notifications.followedUploaderLevel.v1"
     private static let pictureInPictureEnabledKey = "cc.bili.playback.pictureInPictureEnabled.v1"
     private static let backgroundPlaybackModeKey = "cc.bili.playback.backgroundPlaybackMode.v1"
     private static let usesNativePlaybackControlsKey = "cc.bili.playback.usesNativePlaybackControls.v1"
@@ -248,7 +251,6 @@ final class LibraryStore: ObservableObject {
     private static let multiAccountExperimentEnabledKey = "cc.bili.account.multiAccountExperimentEnabled.v1"
     private static let minimizesTabBarOnScrollKey = "cc.bili.display.minimizesTabBarOnScroll.v1"
     private static let scrollEdgeEffectPreferenceKey = "cc.bili.display.scrollEdgeEffectPreference.v1"
-    private static let liquidGlassStylePreferenceKey = AppLiquidGlassStylePreference.storageKey
     private static let remoteImageQualityPreferenceKey = RemoteImageQualityPreference.storageKey
     private static let videoCoverBadgeShadowOpacityKey = VideoCoverBadgeShadow.storageKey
     private static let videoCoverBottomScrimEnabledKey = VideoCoverBottomScrimSettings.storageKey
@@ -382,6 +384,7 @@ final class LibraryStore: ObservableObject {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        RetiredAppInterfaceStylePreference.migrate(in: userDefaults)
         self.appearanceMode = AppAppearanceMode(
             rawValue: userDefaults.string(forKey: Self.appearanceModeKey) ?? ""
         ) ?? .system
@@ -505,10 +508,44 @@ final class LibraryStore: ObservableObject {
         } else {
             self.sponsorBlockPreferences = .default
         }
-        self.markedAnimeBVIDs = Set(
+        let legacyMarkedAnimeBVIDs = Set(
             (userDefaults.stringArray(forKey: Self.markedAnimeBVIDsKey) ?? [])
                 .compactMap(Self.normalizedBVID)
         )
+        var restoredMarkedAnimeSnapshots = if let data = userDefaults.data(forKey: Self.markedAnimeSnapshotsKey),
+                                              let snapshots = try? JSONDecoder().decode([MarkedAnimeSnapshot].self, from: data) {
+            snapshots
+        } else {
+            [MarkedAnimeSnapshot]()
+        }
+        let restoredBVIDs = Set(restoredMarkedAnimeSnapshots.map(\.bvid))
+        let missingLegacyBVIDs: [String] = legacyMarkedAnimeBVIDs
+            .subtracting(restoredBVIDs)
+            .sorted()
+        let migratedLegacySnapshots: [MarkedAnimeSnapshot] = missingLegacyBVIDs.map { bvid in
+            MarkedAnimeSnapshot(legacyBVID: bvid)
+        }
+        restoredMarkedAnimeSnapshots.append(contentsOf: migratedLegacySnapshots)
+        let normalizedMarkedAnimeSnapshots: [MarkedAnimeSnapshot] = restoredMarkedAnimeSnapshots
+            .filter { Self.normalizedBVID($0.bvid) != nil }
+            .reduce(into: [String: MarkedAnimeSnapshot]()) { result, snapshot in
+                result[snapshot.bvid] = snapshot
+            }
+            .values
+            .sorted { $0.markedAt > $1.markedAt }
+        let normalizedMarkedAnimeBVIDs = Set(normalizedMarkedAnimeSnapshots.map(\.bvid))
+        self.markedAnimeSnapshots = normalizedMarkedAnimeSnapshots
+        self.markedAnimeBVIDs = normalizedMarkedAnimeBVIDs
+        self.followedUploaderNotificationLevel = FollowedUploaderNotificationLevel(
+            rawValue: userDefaults.string(forKey: Self.followedUploaderNotificationLevelKey) ?? ""
+        ) ?? .off
+        if restoredMarkedAnimeSnapshots.count != normalizedMarkedAnimeSnapshots.count
+            || legacyMarkedAnimeBVIDs != normalizedMarkedAnimeBVIDs {
+            userDefaults.set(normalizedMarkedAnimeBVIDs.sorted(), forKey: Self.markedAnimeBVIDsKey)
+        }
+        if let data = try? JSONEncoder().encode(normalizedMarkedAnimeSnapshots) {
+            userDefaults.set(data, forKey: Self.markedAnimeSnapshotsKey)
+        }
         self.pictureInPictureEnabled = userDefaults.object(forKey: Self.pictureInPictureEnabledKey) as? Bool ?? false
         self.backgroundPlaybackMode = BackgroundPlaybackMode(
             rawValue: userDefaults.string(forKey: Self.backgroundPlaybackModeKey) ?? ""
@@ -566,9 +603,6 @@ final class LibraryStore: ObservableObject {
         self.scrollEdgeEffectPreference = AppScrollEdgeEffectPreference(
             rawValue: userDefaults.string(forKey: Self.scrollEdgeEffectPreferenceKey) ?? ""
         ) ?? .soft
-        self.liquidGlassStylePreference = AppLiquidGlassStylePreference(
-            storedRawValue: userDefaults.string(forKey: Self.liquidGlassStylePreferenceKey)
-        )
         self.remoteImageQualityPreference = RemoteImageQualityPreference.stored(in: userDefaults)
         self.videoCoverBadgeShadowOpacity = VideoCoverBadgeShadow.normalized(
             userDefaults.object(forKey: Self.videoCoverBadgeShadowOpacityKey) as? Double
@@ -592,9 +626,13 @@ final class LibraryStore: ObservableObject {
         self.homeRefreshTriggerDistance = Self.normalizedHomeRefreshDistance(
             userDefaults.object(forKey: Self.homeRefreshTriggerDistanceKey) as? Double ?? Self.defaultHomeRefreshTriggerDistance
         )
+        let storedHomePresentationStyle = userDefaults.string(forKey: Self.homePresentationStyleKey)
         self.homePresentationStyle = HomePresentationStyle(
-            rawValue: userDefaults.string(forKey: Self.homePresentationStyleKey) ?? ""
+            rawValue: storedHomePresentationStyle ?? ""
         ) ?? Self.defaultHomePresentationStyle
+        if storedHomePresentationStyle == "editorial" {
+            userDefaults.set(Self.defaultHomePresentationStyle.rawValue, forKey: Self.homePresentationStyleKey)
+        }
         self.homeFeedLayout = HomeFeedLayout(
             rawValue: userDefaults.string(forKey: Self.homeFeedLayoutKey) ?? ""
         ) ?? Self.defaultHomeFeedLayout
@@ -1139,11 +1177,52 @@ final class LibraryStore: ObservableObject {
     func setVideoMarkedAsAnime(_ bvid: String, isMarked: Bool) {
         guard let normalizedBVID = Self.normalizedBVID(bvid) else { return }
         if isMarked {
-            markedAnimeBVIDs.insert(normalizedBVID)
+            guard !markedAnimeBVIDs.contains(normalizedBVID) else { return }
+            markedAnimeSnapshots.insert(MarkedAnimeSnapshot(legacyBVID: normalizedBVID), at: 0)
         } else {
-            markedAnimeBVIDs.remove(normalizedBVID)
+            markedAnimeSnapshots.removeAll { $0.bvid == normalizedBVID }
         }
+        persistMarkedAnimeSnapshots()
+    }
+
+    func setVideoMarkedAsAnime(_ video: VideoItem, isMarked: Bool) {
+        guard let normalizedBVID = Self.normalizedBVID(video.bvid) else { return }
+        if isMarked {
+            let existingMarkedAt = markedAnimeSnapshots.first(where: { $0.bvid == normalizedBVID })?.markedAt
+            let snapshot = MarkedAnimeSnapshot(video: video, markedAt: existingMarkedAt ?? Date())
+            markedAnimeSnapshots.removeAll { $0.bvid == normalizedBVID }
+            markedAnimeSnapshots.insert(snapshot, at: 0)
+        } else {
+            markedAnimeSnapshots.removeAll { $0.bvid == normalizedBVID }
+        }
+        persistMarkedAnimeSnapshots()
+    }
+
+    func updateMarkedAnimeSnapshot(_ snapshot: MarkedAnimeSnapshot) {
+        guard markedAnimeBVIDs.contains(snapshot.bvid) else { return }
+        guard let index = markedAnimeSnapshots.firstIndex(where: { $0.bvid == snapshot.bvid }) else { return }
+        markedAnimeSnapshots[index] = snapshot
+        persistMarkedAnimeSnapshots()
+    }
+
+    func restoreMarkedAnimeSnapshot(_ snapshot: MarkedAnimeSnapshot) {
+        guard Self.normalizedBVID(snapshot.bvid) != nil else { return }
+        markedAnimeSnapshots.removeAll { $0.bvid == snapshot.bvid }
+        markedAnimeSnapshots.append(snapshot)
+        persistMarkedAnimeSnapshots()
+    }
+
+    func setFollowedUploaderNotificationLevel(_ level: FollowedUploaderNotificationLevel) {
+        followedUploaderNotificationLevel = level
+        userDefaults.set(level.rawValue, forKey: Self.followedUploaderNotificationLevelKey)
+    }
+
+    private func persistMarkedAnimeSnapshots() {
+        markedAnimeSnapshots.sort { $0.markedAt > $1.markedAt }
+        markedAnimeBVIDs = Set(markedAnimeSnapshots.map(\.bvid))
         userDefaults.set(markedAnimeBVIDs.sorted(), forKey: Self.markedAnimeBVIDsKey)
+        guard let data = try? JSONEncoder().encode(markedAnimeSnapshots) else { return }
+        userDefaults.set(data, forKey: Self.markedAnimeSnapshotsKey)
     }
 
     func setPictureInPictureEnabled(_ isEnabled: Bool) {
@@ -1294,11 +1373,6 @@ final class LibraryStore: ObservableObject {
     func setScrollEdgeEffectPreference(_ preference: AppScrollEdgeEffectPreference) {
         scrollEdgeEffectPreference = preference
         userDefaults.set(preference.rawValue, forKey: Self.scrollEdgeEffectPreferenceKey)
-    }
-
-    func setLiquidGlassStylePreference(_ preference: AppLiquidGlassStylePreference) {
-        liquidGlassStylePreference = preference
-        userDefaults.set(preference.rawValue, forKey: Self.liquidGlassStylePreferenceKey)
     }
 
     func setRemoteImageQualityPreference(_ preference: RemoteImageQualityPreference) {

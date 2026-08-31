@@ -250,86 +250,40 @@ extension View {
 }
 
 private struct CompactVideoResultSurfaceModifier: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
     let cornerRadius: CGFloat
 
-    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
-        if interfaceStyle.isFluent {
-            let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
-            content
-                .background(shape.fill(palette.surface))
-                .overlay {
-                    shape.strokeBorder(
-                        palette.subtleStroke,
-                        lineWidth: contrast == .increased ? 1.5 : 1
-                    )
-                }
-        } else {
-            content
-                .background {
-                    shape.fill(Color(.secondarySystemGroupedBackground))
-                }
-                .overlay {
-                    shape.strokeBorder(Color(.separator).opacity(0.16), lineWidth: 0.5)
-                }
-        }
+        content
+            .background {
+                shape.fill(Color(.secondarySystemGroupedBackground))
+            }
+            .overlay {
+                shape.strokeBorder(Color(.separator).opacity(0.16), lineWidth: 0.5)
+            }
     }
 }
 
 private struct VideoCardBorderedSurfaceModifier: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let cornerRadius: CGFloat
     let showsShadow: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
-        if interfaceStyle.isFluent {
-            let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
-            content
-                .background {
-                    shape.fill(
-                        reduceTransparency
-                            ? AnyShapeStyle(palette.surface)
-                            : AnyShapeStyle(.regularMaterial)
-                    )
-                }
-                .background(shape.fill(palette.raisedSurface.opacity(0.72)))
-                .clipShape(shape)
-                .overlay {
-                    shape.strokeBorder(
-                        palette.subtleStroke,
-                        lineWidth: contrast == .increased ? 1.5 : 1
-                    )
-                }
-                .shadow(
-                    color: .black.opacity(showsShadow ? (colorScheme == .dark ? 0.20 : 0.09) : 0),
-                    radius: 8,
-                    x: 0,
-                    y: 4
-                )
-        } else {
-            content
-                .background {
-                    shape
-                        .fill(.ultraThinMaterial)
-                }
-                .clipShape(shape)
-                .overlay {
-                    shape.strokeBorder(borderColor, lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(showsShadow ? shadowOpacity : 0), radius: 18, x: 0, y: 10)
-                .shadow(color: .black.opacity(showsShadow ? 0.06 : 0), radius: 6, x: 0, y: 2)
-        }
+        content
+            .background {
+                shape
+                    .fill(.ultraThinMaterial)
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(borderColor, lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(showsShadow ? shadowOpacity : 0), radius: 18, x: 0, y: 10)
+            .shadow(color: .black.opacity(showsShadow ? 0.06 : 0), radius: 6, x: 0, y: 2)
     }
 
     private var borderColor: Color {

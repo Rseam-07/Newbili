@@ -13,7 +13,13 @@ struct PlayerPerformanceSessionDetailMessages: View {
 
         optionalMessage(session.networkMessage, color: .secondary, lineLimit: 2)
         optionalMessage(session.hlsStartupMessage, color: .secondary, lineLimit: 2)
-        optionalMessage(session.startupSchedulerMessage, color: .secondary, lineLimit: 2)
+        optionalMessage(
+            PiliPlusStylePlayURLSelectionExperiment.userVisibleDiagnosticMessage(
+                session.startupSchedulerMessage
+            ),
+            color: .secondary,
+            lineLimit: 2
+        )
         optionalMessage(session.accessLogMessage, color: accessLogColor, lineLimit: 3)
         optionalMessage(session.mediaCacheMessage, color: .secondary, lineLimit: 2)
         optionalMessage(session.manifestStageMessage, color: .secondary, lineLimit: 3)

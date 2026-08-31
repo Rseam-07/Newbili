@@ -23,18 +23,25 @@ struct MineSettingsSearchView: View {
 
     static let searchableItems: [MineSettingsSearchItem] = [
         MineSettingsSearchItem(
+            route: .notificationSettings,
+            title: "更新通知与追更",
+            subtitle: "关注 UP 投稿提醒、特别关注与自标记番剧分 P 更新",
+            systemImage: "bell.badge",
+            keywords: ["通知", "UP 更新", "特别关注", "追更", "番剧", "分P", "后台刷新"]
+        ),
+        MineSettingsSearchItem(
             route: .interfaceSettings,
             title: "样式设置",
             subtitle: "主题、字号、底栏、帧率与图片显示",
             systemImage: "paintpalette",
-            keywords: ["界面显示", "外观", "深色模式", "Liquid Glass", "液态玻璃", "Fluent", "Fluent UI", "重启生效", "iPad", "120Hz", "图标"]
+            keywords: ["界面显示", "外观", "深色模式", "Liquid Glass", "液态玻璃", "iPad", "120Hz", "图标"]
         ),
         MineSettingsSearchItem(
             route: .homeAndSearchSettings,
             title: "推荐与搜索设置",
             subtitle: "推荐来源、首页风格、首页布局、刷新距离与热搜",
             systemImage: "sparkles",
-            keywords: ["首页使用app端推荐", "web端推荐", "首页布局", "热门搜索", "影像杂志", "流光画报", "每日精选"]
+            keywords: ["首页使用app端推荐", "web端推荐", "首页布局", "热门搜索", "为你推荐"]
         ),
         MineSettingsSearchItem(
             route: .playbackSettings,

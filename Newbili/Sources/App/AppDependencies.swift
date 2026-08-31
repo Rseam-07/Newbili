@@ -10,6 +10,7 @@ final class AppDependencies: ObservableObject {
     let api: BiliAPIClient
     let accountMessageService: AccountMessageService
     let sponsorBlockService: SponsorBlockService
+    let updateNotificationService: UpdateNotificationService
     private let networkMetricsRecorder: BiliNetworkMetricsRecorder
     private var sessionCancellables = Set<AnyCancellable>()
     private var hasScheduledDeferredStartupWork = false
@@ -34,6 +35,13 @@ final class AppDependencies: ObservableObject {
         self.api = api
         self.accountMessageService = AccountMessageService(sessionStore: sessionStore, api: api)
         self.sponsorBlockService = SponsorBlockService()
+        let updateNotificationService = UpdateNotificationService(
+            api: api,
+            libraryStore: libraryStore,
+            sessionStore: sessionStore
+        )
+        self.updateNotificationService = updateNotificationService
+        UpdateNotificationBackgroundRefreshCoordinator.install(service: updateNotificationService)
         sessionStore.$playbackCredentialVersion
             .dropFirst()
             .sink { [weak self] _ in
@@ -88,6 +96,19 @@ final class AppDependencies: ObservableObject {
                 }
             }
             .store(in: &sessionCancellables)
+        libraryStore.$followedUploaderNotificationLevel
+            .removeDuplicates()
+            .sink { [weak updateNotificationService] level in
+                updateNotificationService?.followedUploaderNotificationLevelDidChange(level)
+            }
+            .store(in: &sessionCancellables)
+        libraryStore.$markedAnimeSnapshots
+            .map(\.isEmpty)
+            .removeDuplicates()
+            .sink { [weak updateNotificationService] _ in
+                updateNotificationService?.synchronizeBackgroundRefreshSchedule()
+            }
+            .store(in: &sessionCancellables)
     }
 
     deinit {
@@ -118,11 +139,18 @@ final class AppDependencies: ObservableObject {
             return
         }
         refreshPlaybackCDNProbeOnAppActivationIfNeeded()
+        Task { [updateNotificationService] in
+            await updateNotificationService.refreshIfNeededOnAppActivation()
+        }
     }
 
     private func runDeferredStartupWork() {
         hasCompletedDeferredStartupWork = true
         refreshPlaybackCDNProbeOnAppActivationIfNeeded()
+
+        Task { [updateNotificationService] in
+            await updateNotificationService.refreshIfNeededOnAppActivation()
+        }
 
         let api = api
         let dynamicFeedIdentityKey = sessionStore.accountCacheIdentityKey(

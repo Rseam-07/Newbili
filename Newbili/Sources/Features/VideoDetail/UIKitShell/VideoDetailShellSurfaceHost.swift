@@ -1784,7 +1784,7 @@ private struct SurfaceOnlyMoreControlsNavigationContent: View {
 
     private func toggleAnimeMark() {
         libraryStore.setVideoMarkedAsAnime(
-            detailViewModel.detail.bvid,
+            detailViewModel.detail,
             isMarked: !isMarkedAsAnime
         )
         close()
@@ -2580,7 +2580,7 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
 
     private func toggleAnimeMark() {
         libraryStore.setVideoMarkedAsAnime(
-            detailViewModel.detail.bvid,
+            detailViewModel.detail,
             isMarked: !isMarkedAsAnime
         )
         close()

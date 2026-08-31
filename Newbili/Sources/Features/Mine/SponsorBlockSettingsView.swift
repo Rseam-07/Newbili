@@ -64,7 +64,7 @@ struct SponsorBlockSettingsView: View {
             }
 
             Section {
-                Button("恢复 PiliPlus 风格默认设置", role: .destructive) {
+                Button("恢复默认设置", role: .destructive) {
                     withAnimation(.smooth(duration: 0.24)) {
                         libraryStore.setSponsorBlockPreferences(.default)
                     }

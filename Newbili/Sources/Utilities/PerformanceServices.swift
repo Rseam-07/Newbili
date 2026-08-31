@@ -3610,6 +3610,11 @@ final class RemoteImageDisplayMemoryCache {
 }
 
 struct CachedRemoteImage<Content: View, Placeholder: View>: View {
+    private final class StateContainer: ObservableObject {
+        @Published var reloadToken = 0
+        var automaticRetryTask: Task<Void, Never>?
+    }
+
     let url: URL?
     let fallbackURL: URL?
     let scale: CGFloat
@@ -3621,8 +3626,7 @@ struct CachedRemoteImage<Content: View, Placeholder: View>: View {
     @ViewBuilder let placeholder: (RemoteImageLoadingPhase, @escaping () -> Void) -> Placeholder
 
     @StateObject private var loader = CachedRemoteImageLoader()
-    @State private var reloadToken = 0
-    @State private var automaticRetryTask: Task<Void, Never>?
+    @StateObject private var state = StateContainer()
 
     init(
         url: URL?,
@@ -3689,12 +3693,12 @@ struct CachedRemoteImage<Content: View, Placeholder: View>: View {
                 targetPixelSize: targetPixelSize,
                 cachePolicy: cachePolicy,
                 displayCachePolicy: displayCachePolicy,
-                clearsFailedMarkers: reloadToken > 0
+                clearsFailedMarkers: state.reloadToken > 0
             )
         }
         .onDisappear {
-            automaticRetryTask?.cancel()
-            automaticRetryTask = nil
+            state.automaticRetryTask?.cancel()
+            state.automaticRetryTask = nil
             loader.cancel()
             if loader.image == nil {
                 loader.reset()
@@ -3709,7 +3713,7 @@ struct CachedRemoteImage<Content: View, Placeholder: View>: View {
     }
 
     private var loadTaskIdentity: String {
-        "\(cacheIdentity)|reload:\(reloadToken)"
+        "\(cacheIdentity)|reload:\(state.reloadToken)"
     }
 
     private var displayedImage: UIImage? {
@@ -3721,36 +3725,36 @@ struct CachedRemoteImage<Content: View, Placeholder: View>: View {
     }
 
     private var displayedPhase: RemoteImageLoadingPhase {
-        if loader.phase == .failed, reloadToken == 0 {
+        if loader.phase == .failed, state.reloadToken == 0 {
             return .loading
         }
         return loader.phase
     }
 
     private func retry() {
-        automaticRetryTask?.cancel()
-        automaticRetryTask = nil
+        state.automaticRetryTask?.cancel()
+        state.automaticRetryTask = nil
         loader.reset()
-        reloadToken &+= 1
+        state.reloadToken &+= 1
     }
 
     private func scheduleAutomaticRetryIfNeeded(for phase: RemoteImageLoadingPhase) {
         guard phase == .failed,
-              reloadToken == 0,
-              automaticRetryTask == nil
+              state.reloadToken == 0,
+              state.automaticRetryTask == nil
         else {
             if phase != .failed {
-                automaticRetryTask?.cancel()
-                automaticRetryTask = nil
+                state.automaticRetryTask?.cancel()
+                state.automaticRetryTask = nil
             }
             return
         }
-        automaticRetryTask = Task { @MainActor in
+        state.automaticRetryTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard !Task.isCancelled else { return }
             loader.reset()
-            reloadToken &+= 1
-            automaticRetryTask = nil
+            state.reloadToken &+= 1
+            state.automaticRetryTask = nil
         }
     }
 }

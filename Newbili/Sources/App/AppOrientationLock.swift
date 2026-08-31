@@ -1,4 +1,5 @@
 import UIKit
+import UserNotifications
 
 nonisolated enum AppOrientationPolicy {
     static func rootOrientations(for idiom: UIUserInterfaceIdiom) -> UIInterfaceOrientationMask {
@@ -83,7 +84,7 @@ private extension UIWindow {
 }
 
 @MainActor
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -98,7 +99,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         PlayerSystemMediaControls.clear()
         LaunchAppearance.applyToConnectedWindows()
+        UNUserNotificationCenter.current().delegate = self
+        UpdateNotificationBackgroundRefreshCoordinator.register()
         return true
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let bvid = response.notification.request.content.userInfo["bvid"] as? String,
+              let normalizedBVID = AppIntentVideoIdentifier.normalizedBVID(from: bvid)
+        else { return }
+        AppIntentRouteInbox.shared.enqueue(.video(bvid: normalizedBVID))
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

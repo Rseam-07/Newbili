@@ -57,7 +57,6 @@ enum MediaShadowLevel {
 }
 
 private struct MediaShadowModifier: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @Environment(\.colorScheme) private var colorScheme
     let level: MediaShadowLevel
     let opacityScale: Double
@@ -66,9 +65,9 @@ private struct MediaShadowModifier: ViewModifier {
         content
             .shadow(
                 color: .black.opacity(level.opacity(colorScheme: colorScheme) * opacityScale),
-                radius: interfaceStyle.isFluent ? min(level.radius, 8) : level.radius,
+                radius: level.radius,
                 x: 0,
-                y: interfaceStyle.isFluent ? min(level.yOffset, 4) : level.yOffset
+                y: level.yOffset
             )
     }
 }
@@ -116,9 +115,7 @@ extension View {
 }
 
 private struct VideoCoverSurfaceModifier: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
     let cornerRadius: CGFloat
     let shadowLevel: MediaShadowLevel?
     let emphasizesBorder: Bool
@@ -129,13 +126,8 @@ private struct VideoCoverSurfaceModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let palette = AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
         let baseSurface = content
-            .background(
-                interfaceStyle.isFluent
-                    ? palette.surface
-                    : Color(.secondarySystemGroupedBackground)
-            )
+            .background(Color(.secondarySystemGroupedBackground))
             .clipShape(shape)
 
         if appliesUnifiedBorder {
@@ -170,11 +162,6 @@ private struct VideoCoverSurfaceModifier: ViewModifier {
     }
 
     private var outerStrokeColor: Color {
-        if interfaceStyle.isFluent {
-            return AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
-                .subtleStroke
-                .opacity(borderOpacityScale)
-        }
         let opacity = emphasizesBorder ? 1.18 : 1
         switch colorScheme {
         case .dark:
@@ -185,11 +172,6 @@ private struct VideoCoverSurfaceModifier: ViewModifier {
     }
 
     private var innerStrokeColor: Color {
-        if interfaceStyle.isFluent {
-            return AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
-                .raisedSurface
-                .opacity(0.30 * borderOpacityScale)
-        }
         switch colorScheme {
         case .dark:
             return Color.white.opacity(0.10 * borderOpacityScale)
@@ -200,9 +182,6 @@ private struct VideoCoverSurfaceModifier: ViewModifier {
 }
 
 private struct UnifiedVideoCoverBorderModifier<BorderShape: Shape>: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.displayScale) private var displayScale
     let shape: BorderShape
     let opacityScale: Double
@@ -216,12 +195,7 @@ private struct UnifiedVideoCoverBorderModifier<BorderShape: Shape>: ViewModifier
     }
 
     private var systemSeparatorColor: Color {
-        if interfaceStyle.isFluent {
-            return AppFluentPalette.resolve(colorScheme: colorScheme, contrast: contrast)
-                .subtleStroke
-                .opacity(normalizedOpacityScale)
-        }
-        return Color(.separator).opacity(0.72 * normalizedOpacityScale)
+        Color(.separator).opacity(0.72 * normalizedOpacityScale)
     }
 
     private var normalizedOpacityScale: Double {

@@ -48,7 +48,7 @@ struct MineHomeRecommendDiagnosticsView: View {
                    snapshot.isLoggedIn,
                    !snapshot.guestModeEnabled,
                    !snapshot.hasAccessKey {
-                    Label("缺少移动端 access_key，App 推荐会弱于 PiliPlus/PiliPod。请优先用“App 短信验证码登录”。", systemImage: "exclamationmark.triangle")
+                    Label("缺少移动端 access_key，App 推荐结果可能受限。请优先用“App 短信验证码登录”。", systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.orange)
                 }

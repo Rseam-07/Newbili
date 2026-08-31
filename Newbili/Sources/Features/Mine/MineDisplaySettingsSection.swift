@@ -1,36 +1,11 @@
 import SwiftUI
 
 struct MineDisplaySettingsSection: View {
-    @Environment(\.appInterfaceStyle) private var activeInterfaceStyle
     @ObservedObject var libraryStore: LibraryStore
     @AppStorage(VideoCoverBadgeContrastBacking.storageKey) private var videoCoverBadgeContrastBackingOpacity = VideoCoverBadgeContrastBacking.defaultOpacity
 
     var body: some View {
         Section("显示") {
-            Toggle(isOn: Binding(
-                get: { libraryStore.liquidGlassStylePreference == .fluent },
-                set: { isEnabled in
-                    libraryStore.setLiquidGlassStylePreference(isEnabled ? .fluent : .current)
-                }
-            )) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Fluent UI", systemImage: "rectangle.3.group.bubble.left")
-
-                    Text(interfaceStyleDetail)
-                        .appTypography(.settingsSubtitle, fallback: .caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .accessibilityHint("切换后需完全退出并重新打开 Newbili")
-
-            if hasPendingInterfaceStyleChange {
-                Label("已保存，将在下次启动时应用", systemImage: "arrow.clockwise.circle.fill")
-                    .appTypography(.settingsSubtitle, fallback: .caption)
-                    .foregroundStyle(libraryStore.appTintColor)
-                    .accessibilityLabel("界面风格已保存，将在下次启动时应用")
-            }
-
             Picker(selection: Binding(
                 get: { libraryStore.appearanceMode },
                 set: { libraryStore.setAppearanceMode($0) }
@@ -221,16 +196,6 @@ struct MineDisplaySettingsSection: View {
                 }
             }
         }
-    }
-
-    private var hasPendingInterfaceStyleChange: Bool {
-        libraryStore.liquidGlassStylePreference != activeInterfaceStyle
-    }
-
-    private var interfaceStyleDetail: String {
-        let preference = libraryStore.liquidGlassStylePreference
-        let restartSuffix = hasPendingInterfaceStyleChange ? " 已保存，重启后生效。" : " 当前正在使用。"
-        return preference.detail + restartSuffix
     }
 
     private var videoCoverBadgeContrastBackingOpacityTitle: String {

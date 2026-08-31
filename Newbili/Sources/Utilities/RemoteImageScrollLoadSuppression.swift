@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 enum FastScrollImageLoadSuppression {
     static let resumeDelayNanoseconds: UInt64 = 120_000_000
@@ -119,19 +120,23 @@ actor RemoteImageLoadSuppressionGate {
 }
 
 private struct FastScrollImageLoadSuppressionModifier: ViewModifier {
-    @State private var phase: ScrollPhase = .idle
-    @State private var scopeID = UUID()
+    private final class StateContainer: ObservableObject {
+        @Published var phase: ScrollPhase = .idle
+        let scopeID = UUID()
+    }
+
+    @StateObject private var state = StateContainer()
 
     func body(content: Content) -> some View {
         content
             .onScrollPhaseChange { _, newPhase in
-                phase = newPhase
+                state.phase = newPhase
             }
             .task(id: gateTaskIdentity) {
                 await updateGate()
             }
             .onDisappear {
-                let scopeID = scopeID
+                let scopeID = state.scopeID
                 Task {
                     await RemoteImageLoadSuppressionGate.shared.setSuppressed(false, for: scopeID)
                 }
@@ -139,7 +144,7 @@ private struct FastScrollImageLoadSuppressionModifier: ViewModifier {
     }
 
     private var suppressesNetworkLoads: Bool {
-        FastScrollImageLoadSuppressionPolicy.suppressesNetworkLoads(phase: phase)
+        FastScrollImageLoadSuppressionPolicy.suppressesNetworkLoads(phase: state.phase)
     }
 
     private var gateTaskIdentity: Int {
@@ -149,6 +154,7 @@ private struct FastScrollImageLoadSuppressionModifier: ViewModifier {
     private func updateGate() async {
         if suppressesNetworkLoads {
             guard !Task.isCancelled else { return }
+            let scopeID = state.scopeID
             await RemoteImageLoadSuppressionGate.shared.setSuppressed(true, for: scopeID)
             return
         }
@@ -159,6 +165,7 @@ private struct FastScrollImageLoadSuppressionModifier: ViewModifier {
             return
         }
         guard !Task.isCancelled else { return }
+        let scopeID = state.scopeID
         await RemoteImageLoadSuppressionGate.shared.setSuppressed(false, for: scopeID)
     }
 }

@@ -60,31 +60,12 @@ struct BiliPlayerGlassSheetBackground: View {
 }
 
 private struct BiliPlayerClearGlassModifier<GlassShape: Shape>: ViewModifier {
-    @Environment(\.appInterfaceStyle) private var interfaceStyle
-    @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let interactive: Bool
     let shape: GlassShape
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if interfaceStyle.isFluent {
-            content
-                .background(
-                    reduceTransparency
-                        ? AnyShapeStyle(Color.black.opacity(0.82))
-                        : AnyShapeStyle(.ultraThinMaterial),
-                    in: shape
-                )
-                .background(Color.black.opacity(0.42), in: shape)
-                .overlay {
-                    shape.stroke(
-                        Color.white.opacity(contrast == .increased ? 0.34 : 0.16),
-                        lineWidth: contrast == .increased ? 1.5 : 1
-                    )
-                }
-                .shadow(color: .black.opacity(0.24), radius: 7, x: 0, y: 3)
-        } else if #available(iOS 26, *) {
+        if #available(iOS 26, *) {
             content.glassEffect(
                 .clear
                     .interactive(interactive),

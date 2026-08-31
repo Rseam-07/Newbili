@@ -44,8 +44,16 @@ nonisolated enum PiliPlusStylePlayURLSelectionExperiment {
     }
 
     static func sampleGroupStateTitle(for isEnabled: Bool?) -> String {
-        guard let isEnabled else { return "PiliPlus AV1 取流：旧样本未知" }
-        return isEnabled ? "PiliPlus AV1 取流：已启用" : "PiliPlus AV1 取流：未启用"
+        guard let isEnabled else { return "AV1 兼容取流：旧样本未知" }
+        return isEnabled ? "AV1 兼容取流：已启用" : "AV1 兼容取流：未启用"
+    }
+
+    static func userVisibleDiagnosticMessage(_ message: String?) -> String? {
+        message?.replacingOccurrences(
+            of: "piliplus",
+            with: "newbili",
+            options: [.caseInsensitive]
+        )
     }
 
     static func sampleGroupStrategy(
@@ -54,7 +62,7 @@ nonisolated enum PiliPlusStylePlayURLSelectionExperiment {
     ) -> (key: String, title: String) {
         guard isEnabled == true else {
             return isEnabled == false
-                ? ("disabled", "取流策略：非 PiliPlus")
+                ? ("disabled", "取流策略：兼容模式未启用")
                 : ("unknown", "取流策略：旧样本未知")
         }
         let message = startupSchedulerMessage ?? ""

@@ -142,11 +142,18 @@ struct AccountLibraryButtonRow: View {
     let title: String
     let systemImage: String
     let badgeText: String?
+    let badgeAccessibilityLabel: String?
 
-    init(title: String, systemImage: String, badgeText: String? = nil) {
+    init(
+        title: String,
+        systemImage: String,
+        badgeText: String? = nil,
+        badgeAccessibilityLabel: String? = nil
+    ) {
         self.title = title
         self.systemImage = systemImage
         self.badgeText = badgeText
+        self.badgeAccessibilityLabel = badgeAccessibilityLabel
     }
 
     var body: some View {
@@ -170,7 +177,7 @@ struct AccountLibraryButtonRow: View {
                     .padding(.horizontal, 6)
                     .frame(minWidth: 20, minHeight: 20)
                     .background(.red, in: Capsule())
-                    .accessibilityLabel("\(badgeText) 条未读")
+                    .accessibilityLabel(badgeAccessibilityLabel ?? "\(badgeText) 条未读")
             }
         }
     }

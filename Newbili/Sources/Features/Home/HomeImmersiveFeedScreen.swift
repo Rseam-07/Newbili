@@ -8,7 +8,6 @@ struct HomeImmersiveFeedScreen: View {
     @ObservedObject var libraryStore: LibraryStore
     @Binding var viewportState: HomeFeedViewportState
     @Binding var detailPath: NavigationPath
-    @Binding var usesCinematicNavigationChrome: Bool
     @Binding var primarySection: HomePrimarySection
     let onSelectPrimarySection: (HomePrimarySection) -> Void
     let accountMessageViewModel: AccountMessageCenterViewModel?
@@ -98,9 +97,6 @@ struct HomeImmersiveFeedScreen: View {
 
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: usesCinematicWideLayout, initial: true) { _, usesWideLayout in
-            usesCinematicNavigationChrome = usesWideLayout
-        }
         .task(id: imagePrefetchProfile.cacheIdentity) {
             viewModel.updateImagePrefetchProfile(imagePrefetchProfile)
         }
@@ -223,6 +219,7 @@ private struct HomeCinematicWideFeed: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             HomeCinematicNavigationHeader(
                 selection: $primarySection,
+                containerWidth: containerWidth,
                 onSelect: onSelectPrimarySection,
                 accountMessageViewModel: accountMessageViewModel,
                 onOpenAccountMessages: onOpenAccountMessages

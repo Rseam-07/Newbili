@@ -371,7 +371,7 @@ nonisolated enum DolbyVisionRenderingPolicy: String, CaseIterable, Identifiable,
         case .metadataPassthrough:
             return "该路线即使按色彩盒声明 HLG，AVPlayer 仍会因 B 站 Profile 8.4 元数据过曝，已自动迁移到兼容基层。"
         case .appleNativeP8HLS:
-            return "底层 HLS 仍使用兼容基层，另挂一个静音 AVPlayerLayer 直连原始杜比/HDR 视频流，模拟 PiliPlus 的 iOS 原生显示链路。"
+            return "底层 HLS 仍使用兼容基层，另挂一个静音 AVPlayerLayer 直连原始杜比/HDR 视频流，保持 iOS 原生显示链路。"
         case .protectedHLG:
             return "该路线仍可能让 AVPlayer 套用错误杜比映射，已自动迁移到兼容基层。"
         case .fullEffect:
