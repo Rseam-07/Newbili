@@ -1,0 +1,4 @@
+ab1cd8b62e541872e3c48a8a1886f5038a721e4daaa7a42514e80422f542678a  Newbili-1.0.7-10-unsigned.ipa
+b764afb0711ea264e9bba4811ad790d91ab8015c422d3fd410bd3d761537e638  Newbili-Android-1.0.7-10-armeabi-v7a-test.apk
+ecd228b38ba38f3051f9006096eba11e8f2940b1645bb1b55f8dcc72c15ba36d  Newbili-Android-1.0.7-10-arm64-v8a-test.apk
+7e585967b5de4c1a955b820579d4fe1de4efb4df2943ccbe9c6ff6a4c94d8d76  Newbili-Android-1.0.7-10-x86_64-test.apk
