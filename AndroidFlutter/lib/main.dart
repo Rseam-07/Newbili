@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:PiliPlus/services/update_notification_service.dart';
+
 import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/back_detector.dart';
@@ -136,6 +138,7 @@ void main() async {
 
   Request();
   Request.setCookie();
+  if (Platform.isAndroid) Get.put(UpdateNotificationService());
   RequestUtils.syncHistoryStatus();
 
   SmartDialog.config.toast = SmartConfigToast(displayType: .onlyRefresh);

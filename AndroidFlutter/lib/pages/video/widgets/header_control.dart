@@ -4,6 +4,7 @@ import 'dart:io' show Platform, File;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/common/widgets/background_playback_picker.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
@@ -598,12 +599,15 @@ class HeaderControlState extends State<HeaderControl>
                         Obx(
                           () => ActionRowLineItem(
                             iconData: Icons.play_circle_outline,
-                            onTap:
-                                plPlayerController.setContinuePlayInBackground,
-                            text: " 后台播放 ",
-                            selectStatus: plPlayerController
-                                .continuePlayInBackground
-                                .value,
+                            onTap: () => showBackgroundPlaybackPicker(
+                              context,
+                              plPlayerController.backgroundPlaybackMode.value,
+                              plPlayerController.setBackgroundPlaybackMode,
+                            ),
+                            text:
+                                '后台 · ${plPlayerController.backgroundPlaybackMode.value.label}',
+                            selectStatus:
+                                plPlayerController.continuesInBackground,
                           ),
                         ),
                     ],

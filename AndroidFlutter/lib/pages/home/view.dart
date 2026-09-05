@@ -5,11 +5,13 @@ import 'package:PiliPlus/common/widgets/newbili_glass.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/pages/common/common_page.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
+import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
@@ -44,28 +46,17 @@ class _HomePageState extends CommonPageState<HomePage>
     super.build(context);
     Widget tabBar;
     if (_homeController.tabs.length > 1) {
-      tabBar = NewbiliGlassSurface(
-        role: NewbiliGlassRole.toolbar,
-        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-        borderRadius: BorderRadius.circular(23),
-        child: SizedBox(
-          height: 42,
-          width: double.infinity,
-          child: TabBar(
-            controller: _homeController.tabController,
-            tabs: _homeController.tabs.map((e) => Tab(text: e.label)).toList(),
-            isScrollable: true,
-            dividerColor: Colors.transparent,
-            dividerHeight: 0,
-            splashBorderRadius: Style.mdRadius,
-            tabAlignment: TabAlignment.center,
-            onTap: (_) {
-              feedBack();
-              if (!_homeController.tabController.indexIsChanging) {
-                _homeController.animateToTop();
-              }
-            },
-          ),
+      tabBar = Padding(
+        padding: const EdgeInsets.fromLTRB(16, 7, 16, 9),
+        child: HomeSectionTabs(
+          controller: _homeController.tabController,
+          labels: _homeController.tabs.map((e) => e.label).toList(),
+          onTap: (_) {
+            feedBack();
+            if (!_homeController.tabController.indexIsChanging) {
+              _homeController.animateToTop();
+            }
+          },
         ),
       );
       if (_homeController.hideTopBar &&
@@ -97,14 +88,36 @@ class _HomePageState extends CommonPageState<HomePage>
   }
 
   Widget customAppBar() {
-    const padding = EdgeInsets.fromLTRB(14, 6, 14, 0);
+    const padding = EdgeInsets.fromLTRB(16, 5, 16, 0);
     final child = Row(
       children: [
-        searchBar(),
-        const SizedBox(width: 4),
-        msgBadge(_mainController),
-        const SizedBox(width: 8),
-        userAvatar(colorScheme: _colorScheme, mainController: _mainController),
+        Expanded(
+          child: Obx(
+            () => HomeGreeting(
+              displayName: _mainController.accountService.isLogin.value
+                  ? Pref.userInfoCache?.uname
+                  : null,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        NewbiliGlassSurface(
+          role: NewbiliGlassRole.toolbar,
+          borderRadius: BorderRadius.circular(24),
+          child: Obx(
+            () => _mainController.accountService.isLogin.value
+                ? msgBadge(_mainController)
+                : IconButton(
+                    tooltip: '账号消息',
+                    onPressed: _mainController.toMinePage,
+                    icon: Icon(
+                      Icons.notifications_rounded,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+          ),
+        ),
       ],
     );
     if (_homeController.hideTopBar) {
@@ -141,60 +154,9 @@ class _HomePageState extends CommonPageState<HomePage>
       }
     }
     return Container(
-      height: Style.topBarHeight,
+      constraints: const BoxConstraints(minHeight: 54),
       padding: padding,
       child: child,
-    );
-  }
-
-  Widget searchBar() {
-    const borderRadius = BorderRadius.all(Radius.circular(25));
-    return Expanded(
-      child: SizedBox(
-        height: 44,
-        child: NewbiliGlassSurface(
-          role: NewbiliGlassRole.toolbar,
-          borderRadius: borderRadius,
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: borderRadius,
-            child: InkWell(
-              borderRadius: borderRadius,
-              splashColor: _colorScheme.primaryContainer.withValues(
-                alpha: 0.3,
-              ),
-              onTap: () => Get.toNamed(
-                '/search',
-                parameters: _homeController.enableSearchWord
-                    ? {'hintText': _homeController.defaultSearch.value}
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 14),
-                  Icon(
-                    Icons.search_outlined,
-                    color: _colorScheme.onSecondaryContainer,
-                    semanticLabel: '搜索',
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Obx(
-                      () => Text(
-                        _homeController.defaultSearch.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: _colorScheme.outline),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -297,7 +259,11 @@ Widget msgBadge(MainController mainController) {
                 ? const Alignment(0.0, -0.85)
                 : const Alignment(1.0, -0.85),
             label: isNumBadge && count.isNotEmpty ? Text(count) : null,
-            child: const Icon(Icons.notifications_none),
+            child: Icon(
+              Icons.notifications_rounded,
+              size: 20,
+              color: Theme.of(Get.context!).colorScheme.onSurface,
+            ),
           ),
         );
       }

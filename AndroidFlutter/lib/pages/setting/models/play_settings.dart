@@ -1,5 +1,8 @@
 import 'dart:io' show Platform;
 
+import 'package:PiliPlus/models/common/video/background_playback_mode.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
+
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/models/common/super_chat_type.dart';
 import 'package:PiliPlus/models/common/video/subtitle_pref_type.dart';
@@ -207,12 +210,19 @@ List<SettingsModel> get playSettings => [
     defaultVal: false,
   ),
   if (PlatformUtils.isMobile)
-    const SwitchModel(
+    PopupModel(
       title: '后台播放',
-      subtitle: '进入后台时继续播放',
-      leading: Icon(Icons.motion_photos_pause_outlined),
-      setKey: SettingBoxKey.continuePlayInBackground,
-      defaultVal: false,
+      leading: const Icon(Icons.motion_photos_pause_outlined),
+      value: () => Pref.backgroundPlaybackMode,
+      items: BackgroundPlaybackMode.values,
+      onSelected: (value, setState) async {
+        await GStorage.setting.put(
+          SettingBoxKey.backgroundPlaybackMode,
+          value.name,
+        );
+        PlPlayerController.instance?.backgroundPlaybackMode.value = value;
+        setState();
+      },
     ),
   if (Platform.isAndroid) ...[
     SwitchModel(

@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/theme/newbili_theme.dart';
+import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/font_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -33,6 +34,23 @@ abstract final class ThemeUtils {
     required bool isDynamic,
     bool isDark = false,
   }) {
+    colorScheme = colorScheme.copyWith(
+      primary: isDynamic
+          ? colorScheme.primary
+          : colorThemeTypes[Pref.customColor].color,
+      surface: isDark ? const Color(0xFF000000) : const Color(0xFFFFFFFF),
+      surfaceContainerLow: isDark
+          ? const Color(0xFF1C1C1E)
+          : const Color(0xFFFFFFFF),
+      onSurface: isDark ? const Color(0xFFF5F5F7) : const Color(0xFF141416),
+      onSurfaceVariant: isDark
+          ? const Color(0xFFABAAB0)
+          : const Color(0xFF737378),
+      outline: isDark ? const Color(0xFF929298) : const Color(0xFF86868B),
+      outlineVariant: isDark
+          ? const Color(0xFF38383A)
+          : const Color(0xFFE5E5EA),
+    );
     final appFontWeight = Pref.appFontWeight.clamp(
       -1,
       FontWeight.values.length - 1,
@@ -114,15 +132,13 @@ abstract final class ThemeUtils {
         elevation: 0,
         margin: EdgeInsets.zero,
         shadowColor: Colors.transparent,
-        color: colorScheme.surfaceContainerHigh.withValues(
-          alpha: isDark ? .86 : .90,
-        ),
+        color: colorScheme.surfaceContainerLow.withValues(alpha: .96),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           side: BorderSide(
             color: colorScheme.outlineVariant.withValues(alpha: .42),
           ),
-          borderRadius: const BorderRadius.all(Radius.circular(20)),
+          borderRadius: const BorderRadius.all(Radius.circular(14)),
         ),
       ),
       progressIndicatorTheme: isDark

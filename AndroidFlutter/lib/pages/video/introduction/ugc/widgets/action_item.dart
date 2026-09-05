@@ -15,6 +15,7 @@ class ActionItem extends StatefulWidget {
     this.selectStatus = false,
     required this.semanticsLabel,
     this.expand = true,
+    this.compact = false,
     this.animation,
     this.onStartTriple,
     this.onCancelTriple,
@@ -29,6 +30,7 @@ class ActionItem extends StatefulWidget {
   final bool selectStatus;
   final String semanticsLabel;
   final bool expand;
+  final bool compact;
   final Animation<double>? animation;
   final VoidCallback? onStartTriple;
   final void Function([bool])? onCancelTriple;
@@ -65,12 +67,31 @@ class _ActionItemState extends State<ActionItem> {
       child: Icon(
         widget.selectStatus ? widget.selectIcon!.icon! : widget.icon.icon,
         key: ValueKey(widget.selectStatus),
-        size: 20,
+        size: widget.compact ? 15 : 20,
         color: widget.selectStatus
             ? primary
-            : widget.icon.color ?? colorScheme.outline,
+            : widget.icon.color ??
+                  (widget.compact
+                      ? colorScheme.onSurface
+                      : colorScheme.outline),
       ),
     );
+
+    if (widget.compact) {
+      child = Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: colorScheme.onSurface.withValues(alpha: .045),
+          border: Border.all(
+            color: colorScheme.onSurface.withValues(alpha: .06),
+          ),
+        ),
+        child: child,
+      );
+    }
 
     if (widget.animation != null) {
       child = Stack(
@@ -95,15 +116,26 @@ class _ActionItemState extends State<ActionItem> {
     child = Semantics(
       button: true,
       label: widget.semanticsLabel,
+      value: widget.compact ? widget.text : null,
       toggled: widget.selectIcon == null ? null : widget.selectStatus,
+      // The held gesture uses tap-down/up, which InkWell does not expose as
+      // a semantic tap. Give TalkBack the same short-press action.
+      onTap: widget._isThumbsUp
+          ? () {
+              widget.onStartTriple!();
+              widget.onCancelTriple!(true);
+            }
+          : null,
       child: AnimatedScale(
         scale: reduceMotion || !_isPressed ? 1 : .9,
         duration: reduceMotion ? Duration.zero : NewbiliMotion.feedback,
         curve: Curves.easeOutCubic,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
+          constraints: BoxConstraints(
             minWidth: NewbiliMetrics.minTouchTarget,
-            minHeight: NewbiliMetrics.minTouchTarget,
+            minHeight: widget.expand && !widget.compact
+                ? 64
+                : NewbiliMetrics.minTouchTarget,
           ),
           child: Material(
             type: .transparency,
@@ -126,10 +158,14 @@ class _ActionItemState extends State<ActionItem> {
                 _setPressed(false);
                 if (widget._isThumbsUp) widget.onCancelTriple!();
               },
-              child: widget.expand
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [child, _buildText(theme)],
+              child: widget.expand && !widget.compact
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [child, _buildText(theme, reduceMotion)],
+                      ),
                     )
                   : Center(child: child),
             ),
@@ -140,21 +176,23 @@ class _ActionItemState extends State<ActionItem> {
     return widget.expand ? Expanded(child: child) : child;
   }
 
-  Widget _buildText(ThemeData theme) {
+  Widget _buildText(ThemeData theme, bool reduceMotion) {
     final hasText = widget.text != null;
     final child = Text(
       hasText ? widget.text! : '-',
       key: hasText ? ValueKey(widget.text!) : null,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: TextStyle(
         color: widget.selectStatus
             ? theme.colorScheme.primary
-            : theme.colorScheme.outline,
+            : theme.colorScheme.onSurfaceVariant,
         fontSize: theme.textTheme.labelSmall!.fontSize,
       ),
     );
     if (hasText) {
       return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
+        duration: reduceMotion ? Duration.zero : NewbiliMotion.feedback,
         transitionBuilder: (child, animation) =>
             ScaleTransition(scale: animation, child: child),
         child: child,

@@ -49,6 +49,16 @@ class _MainAppState extends PopScopeState<MainApp>
   late EdgeInsets _padding;
   late ColorScheme _colorScheme;
   Brightness? _brightness;
+  late final _pages = _mainController.navigationBars.indexed
+      .map(
+        (entry) => Obx(
+          () => TickerMode(
+            enabled: _mainController.selectedIndex.value == entry.$1,
+            child: entry.$2.page,
+          ),
+        ),
+      )
+      .toList(growable: false);
 
   @override
   bool get initCanPop => false;
@@ -327,12 +337,11 @@ class _MainAppState extends PopScopeState<MainApp>
       if (_mainController.floatingNavBar) {
         bottomNav = Obx(
           () => FloatingNavigationBar(
-            backgroundColor: Colors.transparent,
             onDestinationSelected: _mainController.setIndex,
             selectedIndex: _mainController.selectedIndex.value,
             destinations: _mainController.navigationBars
                 .map(
-                  (e) => FloatingNavigationDestination(
+                  (e) => NavigationDestination(
                     label: e.label,
                     icon: _buildIcon(type: e),
                     selectedIcon: _buildIcon(type: e, selected: true),
@@ -382,11 +391,17 @@ class _MainAppState extends PopScopeState<MainApp>
         );
       }
 
-      bottomNav = NewbiliGlassSurface(
-        role: NewbiliGlassRole.navigation,
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        borderRadius: BorderRadius.circular(30),
-        child: bottomNav,
+      bottomNav = SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: NewbiliGlassSurface(
+            role: NewbiliGlassRole.navigation,
+            borderRadius: BorderRadius.circular(32),
+            child: bottomNav,
+          ),
+        ),
       );
 
       if (_mainController.hideBottomBar) {
@@ -492,13 +507,13 @@ class _MainAppState extends PopScopeState<MainApp>
         controller: _mainController.controller,
         physics: const NeverScrollableScrollPhysics(),
         scrollDirection: _mainController.useBottomNav ? .horizontal : .vertical,
-        children: _mainController.navigationBars.map((i) => i.page).toList(),
+        children: _pages,
       );
     } else {
       child = PageView(
         controller: _mainController.controller,
         physics: const NeverScrollableScrollPhysics(),
-        children: _mainController.navigationBars.map((i) => i.page).toList(),
+        children: _pages,
       );
     }
 
@@ -528,15 +543,27 @@ class _MainAppState extends PopScopeState<MainApp>
       padding = .only(top: _padding.top, right: _padding.right);
     }
 
+    final layout = MainLayout(
+      sideBar: sideBar,
+      bottomNav: bottomNav,
+      body: Padding(padding: padding, child: child),
+    );
     child = Material(
       color: Colors.transparent,
-      child: NewbiliAtmosphere(
-        child: MainLayout(
-          sideBar: sideBar,
-          bottomNav: bottomNav,
-          body: Padding(padding: padding, child: child),
-        ),
-      ),
+      child: Obx(() {
+        final tab =
+            _mainController.navigationBars[_mainController.selectedIndex.value];
+        return NewbiliAtmosphere(
+          backgroundColor: tab == NavigationBarType.home
+              ? null
+              : tab == NavigationBarType.mine || tab == NavigationBarType.search
+              ? (_colorScheme.brightness == Brightness.dark
+                    ? Colors.black
+                    : const Color(0xFFF2F2F7))
+              : _colorScheme.surface,
+          child: layout,
+        );
+      }),
     );
 
     if (PlatformUtils.isMobile) {

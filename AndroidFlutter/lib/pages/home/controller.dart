@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/home_tab_type.dart';
+import 'package:PiliPlus/models/common/nav_bar_config.dart';
+import 'package:PiliPlus/utils/enum_order.dart';
 import 'package:PiliPlus/pages/common/common_controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/services/account_service.dart';
@@ -66,11 +68,15 @@ class HomeController extends GetxController
 
   void setTabConfig() {
     final tabs = GStorage.setting.get(SettingBoxKey.tabBarSort) as List?;
-    if (tabs != null) {
-      this.tabs = tabs.map((i) => HomeTabType.values[i]).toList();
-    } else {
-      this.tabs = HomeTabType.values;
-    }
+    final hasLiveDestination = Get.find<MainController>().navigationBars
+        .contains(NavigationBarType.live);
+    this.tabs = restoreEnumOrder(
+      HomeTabType.values,
+      tabs,
+      HomeTabType.values
+          .where((tab) => !hasLiveDestination || tab != HomeTabType.live)
+          .toList(),
+    );
 
     tabController = TabController(
       initialIndex: max(0, this.tabs.indexOf(HomeTabType.rcmd)),

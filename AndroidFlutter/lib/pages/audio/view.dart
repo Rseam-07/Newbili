@@ -662,93 +662,89 @@ class _AudioPageState extends State<AudioPage> {
   }
 
   Widget _buildActions(DetailItem audioItem) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.thumbsUp),
-              selectIcon: const Icon(
-                FontAwesomeIcons.solidThumbsUp,
-              ),
-              selectStatus: _controller.hasLike.value,
-              semanticsLabel: '点赞',
-              text: NumUtils.numFormat(audioItem.stat.like),
-              onStartTriple: _controller.onStartTriple,
-              onCancelTriple: _controller.onCancelTriple,
+    return Row(
+      children: [
+        Obx(
+          () => ActionItem(
+            animation: _controller.tripleAnimation,
+            icon: const Icon(FontAwesomeIcons.thumbsUp),
+            selectIcon: const Icon(
+              FontAwesomeIcons.solidThumbsUp,
             ),
+            selectStatus: _controller.hasLike.value,
+            semanticsLabel: '点赞',
+            text: NumUtils.numFormat(audioItem.stat.like),
+            onStartTriple: _controller.onStartTriple,
+            onCancelTriple: _controller.onCancelTriple,
           ),
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.b),
-              selectIcon: const Icon(FontAwesomeIcons.b),
-              onTap: _controller.actionCoinVideo,
-              selectStatus: _controller.hasCoin,
-              semanticsLabel: '投币',
-              text: NumUtils.numFormat(
-                audioItem.stat.coin,
-              ),
-            ),
-          ),
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.star),
-              selectIcon: const Icon(
-                FontAwesomeIcons.solidStar,
-              ),
-              onTap: () => _controller.showFavBottomSheet(context),
-              onLongPress: () => _controller.showFavBottomSheet(
-                context,
-                isLongPress: true,
-              ),
-              selectStatus: _controller.hasFav.value,
-              semanticsLabel: '收藏',
-              text: NumUtils.numFormat(
-                audioItem.stat.favourite,
-              ),
-            ),
-          ),
-          ActionItem(
-            icon: const Icon(FontAwesomeIcons.comment),
-            onTap: _controller.showReply,
-            semanticsLabel: '评论',
+        ),
+        Obx(
+          () => ActionItem(
+            animation: _controller.tripleAnimation,
+            icon: const Icon(FontAwesomeIcons.b),
+            selectIcon: const Icon(FontAwesomeIcons.b),
+            onTap: _controller.actionCoinVideo,
+            selectStatus: _controller.hasCoin,
+            semanticsLabel: '投币',
             text: NumUtils.numFormat(
-              audioItem.stat.reply,
+              audioItem.stat.coin,
             ),
           ),
-          ActionItem(
-            icon: const Icon(
-              FontAwesomeIcons.shareFromSquare,
+        ),
+        Obx(
+          () => ActionItem(
+            animation: _controller.tripleAnimation,
+            icon: const Icon(FontAwesomeIcons.star),
+            selectIcon: const Icon(
+              FontAwesomeIcons.solidStar,
             ),
-            onTap: () => _controller.actionShareVideo(context),
+            onTap: () => _controller.showFavBottomSheet(context),
+            onLongPress: () => _controller.showFavBottomSheet(
+              context,
+              isLongPress: true,
+            ),
+            selectStatus: _controller.hasFav.value,
+            semanticsLabel: '收藏',
+            text: NumUtils.numFormat(
+              audioItem.stat.favourite,
+            ),
+          ),
+        ),
+        ActionItem(
+          icon: const Icon(FontAwesomeIcons.comment),
+          onTap: _controller.showReply,
+          semanticsLabel: '评论',
+          text: NumUtils.numFormat(
+            audioItem.stat.reply,
+          ),
+        ),
+        ActionItem(
+          icon: const Icon(
+            FontAwesomeIcons.shareFromSquare,
+          ),
+          onTap: () => _controller.actionShareVideo(context),
+          selectStatus: false,
+          semanticsLabel: '分享',
+          text: NumUtils.numFormat(
+            audioItem.stat.share,
+          ),
+        ),
+        if (audioItem.associatedItem.hasOid() &&
+            audioItem.associatedItem.subId.isNotEmpty)
+          ActionItem(
+            icon: const Icon(FontAwesomeIcons.circlePlay),
+            onTap: () {
+              _controller.player?.pause();
+              PageUtils.toVideoPage(
+                cid: audioItem.associatedItem.subId.first.toInt(),
+                aid: audioItem.associatedItem.oid.toInt(),
+              );
+            },
             selectStatus: false,
-            semanticsLabel: '分享',
-            text: NumUtils.numFormat(
-              audioItem.stat.share,
-            ),
+            semanticsLabel: '看MV',
+            text: '看MV',
           ),
-          if (audioItem.associatedItem.hasOid() &&
-              audioItem.associatedItem.subId.isNotEmpty)
-            ActionItem(
-              icon: const Icon(FontAwesomeIcons.circlePlay),
-              onTap: () {
-                _controller.player?.pause();
-                PageUtils.toVideoPage(
-                  cid: audioItem.associatedItem.subId.first.toInt(),
-                  aid: audioItem.associatedItem.oid.toInt(),
-                );
-              },
-              selectStatus: false,
-              semanticsLabel: '看MV',
-              text: '看MV',
-            ),
-        ],
-      ),
+      ],
     );
   }
 

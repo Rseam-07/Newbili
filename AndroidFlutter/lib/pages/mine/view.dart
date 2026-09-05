@@ -1,569 +1,445 @@
-import 'dart:async';
-
-import 'package:PiliPlus/common/assets.dart';
-import 'package:PiliPlus/common/style.dart';
-import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
-import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/models/common/nav_bar_config.dart';
-import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
-import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
+import 'package:PiliPlus/pages/login/view.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
-import 'package:PiliPlus/pages/mine/widgets/item.dart';
-import 'package:PiliPlus/utils/bili_utils.dart';
+import 'package:PiliPlus/pages/setting/view.dart';
+import 'package:PiliPlus/pages/updates/view.dart';
+import 'package:PiliPlus/pages/setting/widgets/newbili_settings_links.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/num_ext.dart';
-import 'package:PiliPlus/utils/extension/theme_ext.dart';
-import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
-import 'package:PiliPlus/utils/utils.dart';
-import 'package:flutter_svg/svg.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:get/get.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:material_ui/material_ui.dart' hide ListTile;
+import 'package:material_ui/material_ui.dart';
 
 class MinePage extends StatefulWidget {
   const MinePage({super.key, this.showBackBtn = false});
-
   final bool showBackBtn;
-
   @override
-  State<MinePage> createState() => _MediaPageState();
+  State<MinePage> createState() => _MinePageState();
 }
 
-class _MediaPageState extends CommonPageState<MinePage>
+class _MinePageState extends CommonPageState<MinePage>
     with AutomaticKeepAliveClientMixin {
-  final MineController controller = Get.putOrFind(MineController.new);
-  late final MainController _mainController = Get.find<MainController>();
-
+  final controller = Get.putOrFind(MineController.new);
+  final _mainController = Get.find<MainController>();
   @override
   bool get wantKeepAlive => true;
 
-  bool get checkPage =>
-      _mainController.navigationBars[0] != NavigationBarType.mine &&
-      _mainController.selectedIndex.value == 0;
+  void _login([int tab = 1]) => Get.to(() => LoginPage(initialTab: tab));
 
-  @override
-  bool onNotificationType1(UserScrollNotification notification) {
-    if (checkPage) {
-      return false;
+  void _accountPage(String route) {
+    if (controller.isLogin) {
+      Get.toNamed(route);
+    } else {
+      _login();
     }
-    return super.onNotificationType1(notification);
-  }
-
-  @override
-  bool onNotificationType2(ScrollNotification notification) {
-    if (checkPage) {
-      return false;
-    }
-    return super.onNotificationType2(notification);
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final theme = Theme.of(context);
-    final secondary = theme.colorScheme.secondary;
-    return Column(
-      children: [
-        Padding(
-          padding: const .symmetric(vertical: 10),
-          child: _buildHeaderActions,
-        ),
-        Expanded(
-          child: Material(
-            type: .transparency,
-            child: refreshIndicator(
-              onRefresh: controller.onRefresh,
-              child: onBuild(
-                ListView(
-                  padding: const .only(bottom: 100),
-                  physics: const AlwaysScrollableScrollPhysics(),
+    return ColoredBox(
+      color: NewbiliFormStyle.background(context),
+      child: refreshIndicator(
+        onRefresh: controller.onRefresh,
+        child: onBuild(
+          ListView(
+            padding: EdgeInsets.only(
+              top: 4,
+              bottom: FloatingNavigationBar.bottomContentInsetOf(context),
+            ),
+            children: [
+              NewbiliPageTitle(
+                '我的',
+                trailing: widget.showBackBtn ? const BackButton() : null,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
                   children: [
-                    _buildUserInfo(theme, secondary),
-                    _buildActions(secondary),
                     Obx(
-                      () => controller.loadingState.value is Loading
-                          ? const SizedBox.shrink()
-                          : _buildFav(theme, secondary),
+                      () => _mainController.accountService.isLogin.value
+                          ? _accountProfile()
+                          : NewbiliFormSection(
+                              dividers: false,
+                              children: [
+                                NewbiliLoginPanel(onLogin: _login),
+                              ],
+                            ),
+                    ),
+                    Obx(
+                      () => NewbiliFormSection(
+                        title: '账号内容',
+                        children: [
+                          if (_mainController.accountService.isLogin.value)
+                            NewbiliSettingsRow(
+                              title: '账号消息',
+                              icon: CupertinoIcons.bell,
+                              onTap: () => _accountPage('/whisper'),
+                            ),
+                          NewbiliSettingsRow(
+                            title: '观看记录',
+                            icon: CupertinoIcons.clock,
+                            onTap: () => _accountPage('/history'),
+                          ),
+                          NewbiliSettingsRow(
+                            title: '账号收藏',
+                            icon: CupertinoIcons.star,
+                            onTap: () => _accountPage('/fav'),
+                          ),
+                          NewbiliSettingsRow(
+                            title: '稍后再看',
+                            icon: CupertinoIcons.bookmark,
+                            onTap: () => _accountPage('/later'),
+                          ),
+                          NewbiliSettingsRow(
+                            title: '我的订阅',
+                            icon: CupertinoIcons.tv,
+                            onTap: () => _accountPage('/subscription'),
+                          ),
+                          NewbiliSettingsRow(
+                            title: '我的追更',
+                            icon: CupertinoIcons.bookmark,
+                            onTap: () =>
+                                Get.to(() => const TrackedSeriesPage()),
+                          ),
+                          NewbiliSettingsRow(
+                            title: '离线缓存',
+                            icon: CupertinoIcons.arrow_down_circle,
+                            onTap: () => Get.toNamed('/download'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    NewbiliSettingsLinks(
+                      onOpen: SettingPage.open,
+                      onSearch: () => Get.toNamed('/settingsSearch'),
+                    ),
+                    NewbiliFormSection(
+                      title: '账号与快捷操作',
+                      children: [
+                        NewbiliSettingsRow(
+                          title: '切换账号',
+                          icon: CupertinoIcons.person_2,
+                          onTap: () =>
+                              LoginPageController.switchAccountDialog(context),
+                        ),
+                        if (GStorage.reply != null)
+                          NewbiliSettingsRow(
+                            title: '评论记录',
+                            icon: CupertinoIcons.chat_bubble,
+                            onTap: () => Get.toNamed('/myReply'),
+                          ),
+                        Obx(
+                          () => NewbiliSettingsRow(
+                            title: '无痕模式',
+                            icon: CupertinoIcons.eye_slash,
+                            value: MineController.anonymity.value
+                                ? '已开启'
+                                : '已关闭',
+                            onTap: MineController.onChangeAnonymity,
+                          ),
+                        ),
+                        Obx(
+                          () => NewbiliSettingsRow(
+                            title: '外观模式',
+                            icon: CupertinoIcons.circle_lefthalf_fill,
+                            value: controller.themeType.value.label,
+                            onTap: controller.onChangeTheme,
+                          ),
+                        ),
+                        NewbiliSettingsRow(
+                          title: '账号管理',
+                          subtitle: '退出登录与完整设置',
+                          icon: CupertinoIcons.person_crop_circle,
+                          onTap: () => Get.toNamed('/setting'),
+                        ),
+                      ],
+                    ),
+                    NewbiliFormSection(
+                      title: '关于',
+                      children: [
+                        NewbiliSettingsRow(
+                          title: '关于 Newbili',
+                          icon: CupertinoIcons.info_circle,
+                          onTap: () => Get.toNamed('/about'),
+                        ),
+                        NewbiliSettingsRow(
+                          title: '项目地址',
+                          icon: CupertinoIcons.arrow_up_right_square,
+                          value: 'Rseam-07/Newbili',
+                          onTap: () => PageUtils.launchURL(
+                            'https://github.com/Rseam-07/Newbili',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildActions(Color primary) {
-    return Row(
-      mainAxisAlignment: .spaceEvenly,
-      children: controller.list
-          .map(
-            (e) => Flexible(
-              child: InkWell(
-                onTap: e.onTap,
-                borderRadius: Style.mdRadius,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 80),
-                  child: AspectRatio(
-                    aspectRatio: 1,
+  Widget _accountProfile() {
+    final scheme = Theme.of(context).colorScheme;
+    final user = controller.userInfo.value;
+    final level = user.levelInfo;
+    final current = level?.currentExp;
+    final total = level?.nextExp;
+    return NewbiliFormSection(
+      children: [
+        InkWell(
+          onTap: controller.onLogin,
+          onLongPress: () => controller.onLogin(true),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              spacing: 12,
+              children: [
+                NetworkImgLayer(
+                  src: user.face,
+                  type: .avatar,
+                  width: 56,
+                  height: 56,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
+                      Row(
+                        spacing: 8,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              user.uname ?? '我的账号',
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (level != null)
+                            Text(
+                              'LV${level.currentLevel}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                      Text(
+                        '硬币 ${user.money ?? '-'}  ·  经验 ${current ?? '-'} / ${total ?? '-'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (current != null && total != null && total > 0)
+                        LinearProgressIndicator(
+                          value: (current / total).clamp(0, 1),
+                          minHeight: 3,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Row(
+          children: [
+            for (final (title, count, route) in [
+              ('动态', controller.userStat.value.dynamicCount, 'memberDynamics'),
+              ('关注', controller.userStat.value.following, 'follow'),
+              ('粉丝', controller.userStat.value.follower, 'fan'),
+            ])
+              Expanded(
+                child: InkWell(
+                  onTap: () => controller.push(route),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Column(
-                      spacing: 6,
-                      mainAxisSize: .min,
-                      mainAxisAlignment: .center,
+                      spacing: 3,
                       children: [
-                        Icon(e.icon, color: primary),
                         Text(
-                          e.title,
-                          style: const TextStyle(fontSize: 13),
+                          '${count ?? '-'}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  Widget get _buildHeaderActions {
-    const iconSize = 22.0;
-    const padding = EdgeInsets.all(8);
-    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
-    return Row(
-      spacing: 5,
-      mainAxisAlignment: .end,
-      children: [
-        if (widget.showBackBtn)
-          const Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: BackButton(),
-              ),
-            ),
-          ),
-        if (!_mainController.hasHome) ...[
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '搜索',
-            onPressed: () => Get.toNamed('/search'),
-            icon: const Icon(Icons.search),
-          ),
-          msgBadge(_mainController),
-        ],
-        if (GStorage.reply != null)
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '评论记录',
-            onPressed: () => Get.toNamed('/myReply'),
-            icon: const Icon(Icons.message_outlined),
-          ),
-        Obx(
-          () {
-            final anonymity = MineController.anonymity.value;
-            return IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-              onPressed: MineController.onChangeAnonymity,
-              icon: anonymity
-                  ? const Icon(MdiIcons.incognito)
-                  : const Icon(MdiIcons.incognitoOff),
-            );
-          },
+          ],
         ),
-        IconButton(
-          iconSize: iconSize,
-          padding: padding,
-          style: style,
-          tooltip: '切换账号',
-          onPressed: () => LoginPageController.switchAccountDialog(context),
-          icon: const Icon(Icons.switch_account_outlined),
-        ),
-        Obx(
-          () {
-            return IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '切换至${controller.nextThemeType.label}主题',
-              onPressed: controller.onChangeTheme,
-              icon: controller.themeType.value.icon,
-            );
-          },
-        ),
-        IconButton(
-          iconSize: iconSize,
-          padding: padding,
-          style: style,
-          tooltip: '设置',
-          onPressed: () => Get.toNamed('/setting', preventDuplicates: false),
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        const SizedBox(width: 16),
       ],
     );
   }
+}
 
-  Widget _buildUserInfo(ThemeData theme, Color secondary) {
-    final style = TextStyle(
-      fontSize: theme.textTheme.titleMedium!.fontSize,
-      fontWeight: FontWeight.bold,
-    );
-    final labelStyle = theme.textTheme.labelMedium!.copyWith(
-      color: theme.colorScheme.outline,
-    );
-    final coinLabelStyle = TextStyle(
-      fontSize: theme.textTheme.labelMedium!.fontSize,
-      color: theme.colorScheme.outline,
-    );
-    final coinValStyle = TextStyle(
-      fontSize: theme.textTheme.labelMedium!.fontSize,
-      fontWeight: FontWeight.bold,
-      color: secondary,
-    );
-    return Obx(() {
-      final userInfo = controller.userInfo.value;
-      final levelInfo = userInfo.levelInfo;
-      final hasLevel = levelInfo != null;
-      final isVip = userInfo.vipStatus != null && userInfo.vipStatus! > 0;
-      final userStat = controller.userStat.value;
-      return Column(
-        mainAxisSize: MainAxisSize.min,
+/// The same login hierarchy as iOS, backed by the existing login controller.
+class NewbiliLoginPanel extends StatelessWidget {
+  const NewbiliLoginPanel({super.key, required this.onLogin});
+  final ValueChanged<int> onLogin;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+      child: Column(
+        spacing: 16,
         children: [
-          GestureDetector(
-            behavior: .opaque,
-            onTap: controller.onLogin,
-            onLongPress: () {
-              Feedback.forLongPress(context);
-              controller.onLogin(true);
-            },
-            onSecondaryTap: PlatformUtils.isMobile
-                ? null
-                : () => controller.onLogin(true),
-            child: Row(
-              mainAxisSize: .min,
-              children: [
-                const SizedBox(width: 20),
-                userInfo.face != null
-                    ? Stack(
-                        clipBehavior: .none,
-                        children: [
-                          NetworkImgLayer(
-                            src: userInfo.face,
-                            type: .avatar,
-                            width: 55,
-                            height: 55,
-                          ),
-                          if (isVip)
-                            Positioned(
-                              right: -1,
-                              bottom: -2,
-                              child: SvgPicture.asset(
-                                Assets.vipIcon,
-                                height: 19,
-                                semanticsLabel: "大会员",
-                              ),
-                            ),
-                        ],
-                      )
-                    : ClipOval(
-                        child: Image.asset(
-                          width: 55,
-                          height: 55,
-                          cacheHeight: 55.cacheSize(context),
-                          Assets.avatarPlaceHolder,
-                          semanticLabel: "默认头像",
-                        ),
-                      ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: .min,
-                    mainAxisAlignment: .center,
-                    crossAxisAlignment: .start,
-                    children: [
-                      Row(
-                        spacing: 6,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              userInfo.uname ?? '点击登录',
-                              style: theme.textTheme.titleMedium!.copyWith(
-                                height: 1,
-                                color: isVip && userInfo.vipType == 2
-                                    ? theme.colorScheme.vipColor
-                                    : null,
-                              ),
-                              maxLines: 1,
-                              overflow: .ellipsis,
-                            ),
-                          ),
-                          BiliUtils.levelPicture(
-                            levelInfo?.currentLevel ?? 0,
-                            isSeniorMember: userInfo.isSeniorMember == 1,
-                            height: 10,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: '硬币 ',
-                              style: coinLabelStyle,
-                            ),
-                            TextSpan(
-                              text: userInfo.money?.toString() ?? '-',
-                              style: coinValStyle,
-                            ),
-                            TextSpan(
-                              text: "      经验 ",
-                              style: coinLabelStyle,
-                            ),
-                            TextSpan(
-                              text: levelInfo?.currentExp?.toString() ?? '-',
-                              style: coinValStyle,
-                            ),
-                            TextSpan(
-                              text: "/${levelInfo?.nextExp ?? '-'}",
-                              style: coinLabelStyle,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 225),
-                        child: LinearProgressIndicator(
-                          minHeight: 2.25,
-                          value: hasLevel
-                              ? levelInfo.currentExp! / levelInfo.nextExp!
-                              : 0,
-                          backgroundColor: theme.colorScheme.outline.withValues(
-                            alpha: 0.4,
-                          ),
-                          valueColor: AlwaysStoppedAnimation<Color>(secondary),
-                          stopIndicatorColor: Colors.transparent,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-              ],
+          Icon(
+            CupertinoIcons.person_crop_circle_badge_checkmark,
+            size: 46,
+            color: scheme.primary,
+          ),
+          Text(
+            '想让 App 端首页推荐更接近官方，优先用短信验证码；想稳定登录可用扫码。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.4,
+              color: scheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: .spaceEvenly,
+          Column(
+            spacing: 8,
             children: [
-              _btn(
-                count: userStat.dynamicCount,
-                countStyle: style,
-                name: '动态',
-                labelStyle: labelStyle,
-                onTap: () => controller.push('memberDynamics'),
-              ),
-              _btn(
-                count: userStat.following,
-                countStyle: style,
-                name: '关注',
-                labelStyle: labelStyle,
-                onTap: () => controller.push('follow'),
-              ),
-              _btn(
-                count: userStat.follower,
-                countStyle: style,
-                name: '粉丝',
-                labelStyle: labelStyle,
-                onTap: () => controller.push('fan'),
-              ),
+              for (final (tab, title, subtitle, badge, icon, tint) in [
+                (
+                  1,
+                  'App 短信验证码登录',
+                  '更适合 App 端推荐，可能触发风控',
+                  '推荐',
+                  CupertinoIcons.chat_bubble,
+                  scheme.primary,
+                ),
+                (
+                  2,
+                  'App 扫码登录',
+                  '更稳定；可配合网页端推荐',
+                  '稳定',
+                  CupertinoIcons.qrcode,
+                  const Color(0xFF008AFF),
+                ),
+                (
+                  3,
+                  '其他登录方式',
+                  '密码与 Cookie 登录，保留原有方式',
+                  '备用',
+                  CupertinoIcons.globe,
+                  scheme.onSurfaceVariant,
+                ),
+              ])
+                Material(
+                  color: tab == 1
+                      ? tint.withValues(alpha: .08)
+                      : NewbiliFormStyle.card(context),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(
+                      color: tab == 1
+                          ? tint.withValues(alpha: .4)
+                          : scheme.outlineVariant.withValues(alpha: .45),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => onLogin(tab),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        spacing: 12,
+                        children: [
+                          Icon(icon, color: tint, size: 24),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              spacing: 3,
+                              children: [
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 6,
+                                  runSpacing: 3,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: tab == 1
+                                            ? tint
+                                            : tint.withValues(alpha: .12),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        badge,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: tab == 1 ? Colors.white : tint,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  subtitle,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            CupertinoIcons.chevron_right,
+                            size: 14,
+                            color: scheme.outline,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ],
-      );
-    });
-  }
-
-  Widget _btn({
-    required int? count,
-    required TextStyle countStyle,
-    required String name,
-    required TextStyle? labelStyle,
-    required VoidCallback onTap,
-  }) {
-    return Flexible(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: Style.mdRadius,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 80),
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: Column(
-              spacing: 4,
-              mainAxisSize: .min,
-              mainAxisAlignment: .center,
-              children: [
-                Text(
-                  count?.toString() ?? '-',
-                  style: countStyle,
-                ),
-                Text(
-                  name,
-                  style: labelStyle,
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
-  }
-
-  void _autoRefresh() => Future.delayed(
-    const Duration(milliseconds: 150),
-    () => controller.onRefresh(isManual: false),
-  );
-
-  Widget _buildFav(ThemeData theme, Color secondary) {
-    return Column(
-      children: [
-        Divider(
-          height: 20,
-          color: theme.dividerColor.withValues(alpha: 0.1),
-        ),
-        ListTile(
-          onTap: () => Get.toNamed('/fav')?.whenComplete(_autoRefresh),
-          dense: true,
-          title: Padding(
-            padding: const EdgeInsets.only(left: 10),
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '我的收藏  ',
-                    style: TextStyle(
-                      fontSize: theme.textTheme.titleMedium!.fontSize,
-                      fontWeight: .bold,
-                    ),
-                  ),
-                  if (controller.favFolderCount != null)
-                    TextSpan(
-                      text: "${controller.favFolderCount}  ",
-                      style: TextStyle(
-                        fontSize: theme.textTheme.titleSmall!.fontSize,
-                        color: secondary,
-                      ),
-                    ),
-                  WidgetSpan(
-                    child: Icon(
-                      Icons.arrow_forward_ios,
-                      size: 18,
-                      color: secondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          trailing: IconButton(
-            tooltip: '刷新',
-            onPressed: controller.onRefresh,
-            icon: const Icon(Icons.refresh, size: 20),
-          ),
-        ),
-        _buildFavBody(theme, secondary, controller.loadingState.value),
-      ],
-    );
-  }
-
-  Widget _buildFavBody(
-    ThemeData theme,
-    Color secondary,
-    LoadingState loadingState,
-  ) {
-    return switch (loadingState) {
-      Loading() => const SizedBox.shrink(),
-      Success(:final response) => Builder(
-        builder: (context) {
-          List<FavFolderInfo>? favFolderList = response.list;
-          if (favFolderList == null || favFolderList.isEmpty) {
-            return const SizedBox.shrink();
-          }
-          bool flag = (controller.favFolderCount ?? 0) > favFolderList.length;
-          return SizedBox(
-            height: 200,
-            child: ListView.separated(
-              controller: controller.scrollController,
-              padding: const .only(left: 20, top: 10, right: 20),
-              itemCount: response.list.length + (flag ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (flag && index == favFolderList.length) {
-                  return Padding(
-                    padding: const .only(bottom: 35),
-                    child: Center(
-                      child: IconButton(
-                        tooltip: '查看更多',
-                        style: ButtonStyle(
-                          padding: const WidgetStatePropertyAll(.zero),
-                          backgroundColor: WidgetStatePropertyAll(
-                            theme.colorScheme.secondaryContainer.withValues(
-                              alpha: 0.5,
-                            ),
-                          ),
-                        ),
-                        onPressed: () =>
-                            Get.toNamed('/fav')?.whenComplete(_autoRefresh),
-                        icon: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 18,
-                          color: secondary,
-                        ),
-                      ),
-                    ),
-                  );
-                } else {
-                  return FavFolderItem(
-                    heroTag: Utils.generateRandomString(8),
-                    item: response.list[index],
-                    onPop: _autoRefresh,
-                  );
-                }
-              },
-              scrollDirection: .horizontal,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-            ),
-          );
-        },
-      ),
-      Error(:final errMsg) => SizedBox(
-        height: 160,
-        child: Center(
-          child: Text(
-            errMsg ?? '',
-            textAlign: .center,
-          ),
-        ),
-      ),
-    };
   }
 }

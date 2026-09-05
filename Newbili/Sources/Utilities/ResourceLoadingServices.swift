@@ -1228,58 +1228,44 @@ nonisolated final class BiliNetworkTaskPriorityHandle: @unchecked Sendable {
 actor BiliReadRequestCoalescer {
     static let shared = BiliReadRequestCoalescer()
 
-    private struct Entry {
-        let id: UUID
-        let task: Task<Data, Error>
-    }
-
-    private var entries: [String: Entry] = [:]
+    private var entries: [String: Task<Data, Error>] = [:]
 
     func data(
         for key: String,
         operation: @escaping @Sendable () async throws -> Data
     ) async throws -> Data {
+        try Task.checkCancellation()
         let startedAt = Date()
-        if let entry = entries[key] {
-            do {
-                let data = try await entry.task.value
-                ResourceLoadingDiagnostics.shared.record(
-                    .readRequestShared,
-                    durationMilliseconds: elapsedMilliseconds(since: startedAt)
-                )
-                return data
-            } catch {
-                ResourceLoadingDiagnostics.shared.record(
-                    .readRequestFailure,
-                    durationMilliseconds: elapsedMilliseconds(since: startedAt),
-                    details: ["role": "shared"]
-                )
-                throw error
-            }
+        let isOwner = entries[key] == nil
+        let task: Task<Data, Error>
+        if let existing = entries[key] {
+            task = existing
+        } else {
+            task = Task { try await operation() }
+            entries[key] = task
         }
-
-        let entry = Entry(
-            id: UUID(),
-            task: Task { try await operation() }
-        )
-        entries[key] = entry
         defer {
-            if entries[key]?.id == entry.id {
-                entries[key] = nil
-            }
+            // Only the creating caller removes this entry. There is no other
+            // replacement path, so an additional UUID/generation is unnecessary.
+            if isOwner { entries[key] = nil }
         }
         do {
-            let data = try await entry.task.value
+            let data = try await task.value
+            // One caller leaving must not cancel a request other callers share,
+            // but the cancelled caller must not apply its now-stale response.
+            try Task.checkCancellation()
             ResourceLoadingDiagnostics.shared.record(
-                .readRequestOwner,
+                isOwner ? .readRequestOwner : .readRequestShared,
                 durationMilliseconds: elapsedMilliseconds(since: startedAt)
             )
             return data
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             ResourceLoadingDiagnostics.shared.record(
                 .readRequestFailure,
                 durationMilliseconds: elapsedMilliseconds(since: startedAt),
-                details: ["role": "owner"]
+                details: ["role": isOwner ? "owner" : "shared"]
             )
             throw error
         }

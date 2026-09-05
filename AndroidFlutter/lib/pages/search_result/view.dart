@@ -1,4 +1,10 @@
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
+import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/models/common/search/video_search_type.dart';
+import 'package:PiliPlus/pages/search_panel/video/controller.dart';
+import 'package:PiliPlus/pages/search_result/controls.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/models/common/search/search_type.dart';
@@ -66,8 +72,12 @@ class _SearchResultPageState extends State<SearchResultPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final searchHeight = (MediaQuery.textScalerOf(context).scale(16) + 16)
+        .clamp(48.0, double.infinity);
     return SimpleScaffold(
+      backgroundColor: NewbiliFormStyle.background(context),
       appBar: AppBar(
+        toolbarHeight: searchHeight + 8,
         shape: Border(
           bottom: BorderSide(
             color: theme.dividerColor.withValues(alpha: 0.08),
@@ -86,12 +96,29 @@ class _SearchResultPageState extends State<SearchResultPage>
             }
           },
           behavior: HitTestBehavior.opaque,
-          child: SizedBox(
-            width: double.infinity,
-            child: Text(
-              _searchResultController.keyword,
-              style: theme.textTheme.titleMedium,
-              maxLines: 1,
+          child: NewbiliGlassSurface(
+            role: NewbiliGlassRole.toolbar,
+            borderRadius: BorderRadius.circular(24),
+            child: SizedBox(
+              width: double.infinity,
+              height: searchHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.search, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _searchResultController.keyword,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -100,55 +127,6 @@ class _SearchResultPageState extends State<SearchResultPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TabBar(
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-              splashFactory: NoSplash.splashFactory,
-              padding: const EdgeInsets.only(top: 4, left: 8, right: 8),
-              controller: _tabController,
-              tabs: SearchType.values
-                  .map(
-                    (item) => Obx(
-                      () {
-                        int count = _searchResultController.count[item.index];
-                        return Tab(
-                          text:
-                              '${item.label}${count != -1 ? ' ${count > 99 ? '99+' : count}' : ''}',
-                        );
-                      },
-                    ),
-                  )
-                  .toList(),
-              isScrollable: true,
-              indicatorWeight: 0,
-              indicatorPadding: const EdgeInsets.symmetric(
-                horizontal: 3,
-                vertical: 8,
-              ),
-              indicator: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer,
-                borderRadius: const BorderRadius.all(Radius.circular(20)),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: theme.colorScheme.onSecondaryContainer,
-              labelStyle:
-                  TabBarTheme.of(
-                    context,
-                  ).labelStyle?.copyWith(fontSize: 13) ??
-                  const TextStyle(fontSize: 13),
-              dividerColor: Colors.transparent,
-              dividerHeight: 0,
-              unselectedLabelColor: theme.colorScheme.outline,
-              tabAlignment: TabAlignment.start,
-              onTap: (index) {
-                if (!_tabController.indexIsChanging) {
-                  if (_searchResultController.toTopIndex.value == index) {
-                    _searchResultController.toTopIndex.refresh();
-                  } else {
-                    _searchResultController.toTopIndex.value = index;
-                  }
-                }
-              },
-            ),
             Expanded(
               child: tabBarView(
                 controller: _tabController,
@@ -189,6 +167,52 @@ class _SearchResultPageState extends State<SearchResultPage>
                       },
                     )
                     .toList(),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.viewPaddingOf(context).bottom + 12,
+              ),
+              child: AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) => Obx(() {
+                  final counts = _searchResultController.count.toList();
+                  final tag = SearchType.video.name + _tag;
+                  final controller =
+                      Get.isRegistered<SearchVideoController>(tag: tag)
+                      ? Get.find<SearchVideoController>(tag: tag)
+                      : null;
+                  return SearchResultControls(
+                    scope: SearchType.values[_tabController.index],
+                    counts: counts,
+                    order:
+                        controller?.selectedType.value ??
+                        ArchiveFilterType.totalrank,
+                    onScope: (scope) {
+                      if (_tabController.index == scope.index) {
+                        _searchResultController.toTopIndex.value = scope.index;
+                        _searchResultController.toTopIndex.refresh();
+                      } else {
+                        _tabController.animateTo(scope.index);
+                      }
+                    },
+                    onOrder: (order) {
+                      final video = Get.find<SearchVideoController>(tag: tag);
+                      if (video.selectedType.value != order) {
+                        video
+                          ..order = order.name
+                          ..selectedType.value = order
+                          ..onSortSearch(getBack: false);
+                      }
+                    },
+                    onFilter: () =>
+                        Get.find<SearchVideoController>(tag: tag)
+                            .onShowFilterDialog(context),
+                  );
+                }),
               ),
             ),
           ],

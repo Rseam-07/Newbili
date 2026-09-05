@@ -1,17 +1,12 @@
-import 'package:PiliPlus/common/widgets/custom_icon.dart';
-import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/theme/theme_type.dart';
 import 'package:PiliPlus/models/user/info.dart';
 import 'package:PiliPlus/models/user/stat.dart';
-import 'package:PiliPlus/models_new/fav/fav_folder/data.dart';
-import 'package:PiliPlus/pages/common/common_data_controller.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
-import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -21,12 +16,9 @@ import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 
-class MineController extends CommonDataController<FavFolderData, FavFolderData>
-    with AccountMixin {
+class MineController extends GetxController with AccountMixin {
   @override
   AccountService accountService = Get.find<AccountService>();
-
-  int? favFolderCount;
 
   // 用户信息 头像、昵称、lv
   final Rx<UserInfoData> userInfo = UserInfoData().obs;
@@ -41,48 +33,12 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
   static RxBool anonymity =
       (Accounts.account.isNotEmpty && !Accounts.heartbeat.isLogin).obs;
 
-  late final list = <({IconData icon, String title, VoidCallback onTap})>[
-    (
-      icon: CustomIcons.folderDownloadOutline,
-      title: '离线缓存',
-      onTap: () => Get.toNamed('/download'),
-    ),
-    (
-      icon: CustomIcons.history,
-      title: '观看记录',
-      onTap: () {
-        if (isLogin) {
-          Get.toNamed('/history');
-        }
-      },
-    ),
-    (
-      icon: CustomIcons.subscriptions_outlined,
-      title: '我的订阅',
-      onTap: () {
-        if (isLogin) {
-          Get.toNamed('/subscription');
-        }
-      },
-    ),
-    (
-      icon: CustomIcons.watch_later_outlined,
-      title: '稍后再看',
-      onTap: () {
-        if (isLogin) {
-          Get.toNamed('/later');
-        }
-      },
-    ),
-  ];
-
   @override
   void onInit() {
     super.onInit();
     UserInfoData? userInfoCache = Pref.userInfoCache;
     if (userInfoCache != null) {
       userInfo.value = userInfoCache;
-      queryData();
       queryUserInfo();
     }
   }
@@ -118,7 +74,7 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
         return;
       }
     }
-    queryUserStatOwner();
+    await queryUserStatOwner();
   }
 
   void _onLogoutMain() => Accounts.deleteAll({Accounts.main});
@@ -128,22 +84,6 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
     if (res case Success(:final response)) {
       userStat.value = response;
     }
-  }
-
-  @override
-  bool customHandleResponse(bool isRefresh, Success<FavFolderData> response) {
-    favFolderCount = response.response.count;
-    loadingState.value = response;
-    return true;
-  }
-
-  @override
-  Future<LoadingState<FavFolderData>> customGetData() {
-    return FavHttp.userfavFolder(
-      pn: 1,
-      ps: 20,
-      mid: Accounts.main.mid,
-    );
   }
 
   static void onChangeAnonymity() {
@@ -284,17 +224,11 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
     }
   }
 
-  @override
+  // Favorites load in their own destination, not every time Mine refreshes.
+  Future<void>? _refresh;
   Future<void> onRefresh({bool isManual = true}) {
-    if (!accountService.isLogin.value) {
-      return Future.syncValue(null);
-    }
-    queryUserInfo();
-    return super.onRefresh().whenComplete(() {
-      if (isManual) {
-        scrollController.jumpToTop();
-      }
-    });
+    if (!isLogin) return Future.value();
+    return _refresh ??= queryUserInfo().whenComplete(() => _refresh = null);
   }
 
   @override
@@ -304,7 +238,6 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
     } else {
       userInfo.value = UserInfoData();
       userStat.value = const UserStat();
-      loadingState.value = LoadingState.loading();
     }
   }
 }

@@ -1,5 +1,5 @@
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/models/common/setting_type.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:material_ui/material_ui.dart';
@@ -50,19 +50,37 @@ class _CommonSettingState extends State<CommonSetting> {
   Widget build(BuildContext context) {
     final showAppBar = widget.showAppBar;
     return SimpleScaffold(
+      backgroundColor: NewbiliFormStyle.background(context),
       appBar: showAppBar ? AppBar(title: Text(widget.settingType.title)) : null,
       body: ListView.builder(
         key: ValueKey(widget.settingType),
         padding: EdgeInsets.only(
-          left: showAppBar ? padding.left : 0,
-          right: showAppBar ? padding.right : 0,
-          bottom: padding.bottom + 100,
+          left: (showAppBar ? padding.left : 0) + 16,
+          right: (showAppBar ? padding.right : 0) + 16,
+          top: 16,
+          bottom: padding.bottom + 24,
         ),
         itemCount: settings.length,
-        itemBuilder: (context, index) => NewbiliGlassSurface(
-          role: NewbiliGlassRole.card,
-          margin: const EdgeInsets.fromLTRB(12, 5, 12, 5),
-          child: settings[index].widget,
+        itemBuilder: (context, index) => Material(
+          color: NewbiliFormStyle.card(context),
+          clipBehavior: Clip.antiAlias,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(index == 0 ? 24 : 0),
+            bottom: Radius.circular(index == settings.length - 1 ? 24 : 0),
+          ),
+          child: Column(
+            children: [
+              settings[index].widget,
+              if (index != settings.length - 1)
+                Divider(
+                  height: .5,
+                  thickness: .5,
+                  indent: 56,
+                  endIndent: 16,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+            ],
+          ),
         ),
       ),
     );

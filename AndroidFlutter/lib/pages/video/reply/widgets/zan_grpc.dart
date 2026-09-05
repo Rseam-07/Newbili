@@ -1,180 +1,154 @@
+import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show ReplyInfo;
 import 'package:PiliPlus/http/reply.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
-import 'package:fixnum/fixnum.dart' as $fixnum;
+import 'package:fixnum/fixnum.dart' as fixnum;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 
-class ZanButtonGrpc extends StatelessWidget {
-  const ZanButtonGrpc({
-    super.key,
-    required this.replyItem,
-  });
+({int action, int likeDelta}) replyReactionTransition(
+  int previous, {
+  required bool dislike,
+}) {
+  final target = dislike ? 2 : 1;
+  final action = previous == target ? 0 : target;
+  return (
+    action: action,
+    likeDelta: (action == 1 ? 1 : 0) - (previous == 1 ? 1 : 0),
+  );
+}
 
+class ZanButtonGrpc extends StatefulWidget {
+  const ZanButtonGrpc({super.key, required this.replyItem});
   final ReplyInfo replyItem;
 
-  Future<void> onHateReply(
-    BuildContext context,
-    bool isProcessing,
-    VoidCallback onDone, {
-    required bool isLike,
-    required bool isDislike,
-  }) async {
-    if (isProcessing) {
-      return;
-    }
-    isProcessing = true;
-    feedBack();
-    final int oid = replyItem.oid.toInt();
-    final int rpid = replyItem.id.toInt();
-    // 1 已点赞 2 不喜欢 0 未操作
-    final int action = isDislike ? 0 : 2;
-    final res = await ReplyHttp.hateReply(
-      type: replyItem.type.toInt(),
-      action: action == 2 ? 1 : 0,
-      oid: oid,
-      rpid: rpid,
-    );
-    // SmartDialog.dismiss();
-    if (res.isSuccess) {
-      SmartDialog.showToast(isDislike ? '取消踩' : '点踩成功');
-      if (action == 2) {
-        if (isLike) replyItem.like -= $fixnum.Int64.ONE;
-        replyItem.replyControl.action = $fixnum.Int64.TWO;
-      } else {
-        replyItem.replyControl.action = $fixnum.Int64.ZERO;
-      }
-      if (context.mounted) {
-        (context as Element?)?.markNeedsBuild();
-      }
-    } else {
-      res.toast();
-    }
-    onDone();
-  }
+  @override
+  State<ZanButtonGrpc> createState() => _ZanButtonGrpcState();
+}
 
-  // 评论点赞
-  Future<void> onLikeReply(
-    BuildContext context,
-    bool isProcessing,
-    VoidCallback onDone, {
-    required bool isLike,
-    required bool isDislike,
-  }) async {
-    if (isProcessing) {
-      return;
-    }
-    isProcessing = true;
-    feedBack();
-    final int oid = replyItem.oid.toInt();
-    final int rpid = replyItem.id.toInt();
-    // 1 已点赞 2 不喜欢 0 未操作
-    final int action = isLike ? 0 : 1;
-    final res = await ReplyHttp.likeReply(
-      type: replyItem.type.toInt(),
-      oid: oid,
-      rpid: rpid,
-      action: action,
+class _ZanButtonGrpcState extends State<ZanButtonGrpc> {
+  // null = idle; false = like in flight; true = dislike in flight.
+  bool? _pendingDislike;
+
+  Future<void> _react({required bool dislike}) async {
+    if (_pendingDislike != null) return;
+    final item = widget.replyItem;
+    final transition = replyReactionTransition(
+      item.replyControl.action.toInt(),
+      dislike: dislike,
     );
-    if (res.isSuccess) {
-      SmartDialog.showToast(isLike ? '取消赞' : '点赞成功');
-      if (action == 1) {
-        replyItem
-          ..like += $fixnum.Int64.ONE
-          ..replyControl.action = $fixnum.Int64.ONE;
-      } else {
-        replyItem
-          ..like -= $fixnum.Int64.ONE
-          ..replyControl.action = $fixnum.Int64.ZERO;
+    setState(() => _pendingDislike = dislike);
+    try {
+      feedBack();
+      final result = dislike
+          ? await ReplyHttp.hateReply(
+              type: item.type.toInt(),
+              oid: item.oid.toInt(),
+              rpid: item.id.toInt(),
+              action: transition.action == 2 ? 1 : 0,
+            )
+          : await ReplyHttp.likeReply(
+              type: item.type.toInt(),
+              oid: item.oid.toInt(),
+              rpid: item.id.toInt(),
+              action: transition.action,
+            );
+      if (result.isSuccess) {
+        // Keep the captured reply, not a potentially recycled row's new item.
+        item.like += fixnum.Int64(transition.likeDelta);
+        item.replyControl.action = fixnum.Int64(transition.action);
+        if (mounted) {
+          SmartDialog.showToast(
+            transition.action == 0
+                ? '已取消'
+                : dislike
+                ? '点踩成功'
+                : '点赞成功',
+          );
+        }
+      } else if (mounted) {
+        result.toast();
       }
-      if (context.mounted) {
-        (context as Element?)?.markNeedsBuild();
-      }
-    } else {
-      res.toast();
+    } catch (_) {
+      if (mounted) SmartDialog.showToast('操作未完成，请稍后重试');
+    } finally {
+      if (mounted) setState(() => _pendingDislike = null);
     }
-    onDone();
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    late bool isProcessing = false;
-    final action = replyItem.replyControl.action;
-    final isLike = action == $fixnum.Int64.ONE;
-    final isDislike = action == $fixnum.Int64.TWO;
-    final outline = theme.colorScheme.outline;
-    final primary = theme.colorScheme.primary;
-    final ButtonStyle style = TextButton.styleFrom(
-      padding: EdgeInsets.zero,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-    );
+    final theme = Theme.of(context);
+    final action = widget.replyItem.replyControl.action.toInt();
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : NewbiliMotion.feedback;
+    Widget button({required bool dislike}) {
+      final selected = action == (dislike ? 2 : 1);
+      final pending = _pendingDislike == dislike;
+      final label = dislike
+          ? (selected ? '取消点踩' : '点踩')
+          : (selected ? '取消点赞' : '点赞');
+      return Semantics(
+        label: label,
+        selected: selected,
+        child: TextButton(
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            tapTargetSize: MaterialTapTargetSize.padded,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            foregroundColor: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          onPressed: _pendingDislike == null
+              ? () => _react(dislike: dislike)
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 6,
+            children: [
+              AnimatedSwitcher(
+                duration: duration,
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(scale: animation, child: child),
+                child: pending
+                    ? const SizedBox.square(
+                        key: ValueKey('pending'),
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        dislike
+                            ? (selected
+                                  ? Icons.thumb_down
+                                  : Icons.thumb_down_outlined)
+                            : (selected
+                                  ? Icons.thumb_up
+                                  : Icons.thumb_up_outlined),
+                        key: ValueKey((dislike, selected)),
+                        size: 18,
+                      ),
+              ),
+              if (!dislike)
+                Text(
+                  NumUtils.numFormat(widget.replyItem.like.toInt()),
+                  style: theme.textTheme.labelMedium,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
+      spacing: 8,
       children: [
-        SizedBox(
-          height: 32,
-          child: TextButton(
-            style: const ButtonStyle(
-              visualDensity: .compact,
-              tapTargetSize: .shrinkWrap,
-              padding: WidgetStatePropertyAll(.zero),
-              minimumSize: WidgetStatePropertyAll(.square(40)),
-            ),
-            onPressed: () => onHateReply(
-              context,
-              isProcessing,
-              () => isProcessing = false,
-              isLike: isLike,
-              isDislike: isDislike,
-            ),
-            child: Icon(
-              isDislike
-                  ? FontAwesomeIcons.solidThumbsDown
-                  : FontAwesomeIcons.thumbsDown,
-              size: 16,
-              color: isDislike ? primary : outline,
-              semanticLabel: isDislike ? '已踩' : '点踩',
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 32,
-          child: TextButton(
-            style: style,
-            onPressed: () => onLikeReply(
-              context,
-              isProcessing,
-              () => isProcessing = false,
-              isLike: isLike,
-              isDislike: isDislike,
-            ),
-            child: Row(
-              spacing: 4,
-              children: [
-                Icon(
-                  isLike
-                      ? FontAwesomeIcons.solidThumbsUp
-                      : FontAwesomeIcons.thumbsUp,
-                  size: 16,
-                  color: isLike ? primary : outline,
-                  semanticLabel: isLike ? '已赞' : '点赞',
-                ),
-                Text(
-                  NumUtils.numFormat(replyItem.like.toInt()),
-                  style: TextStyle(
-                    color: isLike ? primary : outline,
-                    fontSize: theme.textTheme.labelSmall!.fontSize,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        button(dislike: true),
+        button(dislike: false),
       ],
     );
   }

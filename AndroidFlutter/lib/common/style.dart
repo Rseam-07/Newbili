@@ -11,8 +11,8 @@ abstract final class Style {
   static const cardSpace = 8.0;
   static const safeSpace = 12.0;
   static const mdRadius = BorderRadius.all(imgRadius);
-  static const imgRadius = Radius.circular(18);
-  static const aspectRatio = 16 / 10;
+  static const imgRadius = Radius.circular(14);
+  static const aspectRatio = 16 / 9;
   static const aspectRatio16x9 = 16 / 9;
   static const imgMaxRatio = 2.6;
   static const bottomSheetRadius = BorderRadius.vertical(top: .circular(26));

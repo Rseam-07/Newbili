@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:PiliPlus/common/style.dart';
+import 'package:PiliPlus/common/widgets/background_playback_picker.dart';
 import 'package:PiliPlus/common/widgets/draggable_sheet/dyn.dart';
 import 'package:PiliPlus/common/widgets/marquee.dart';
 import 'package:PiliPlus/models/common/video/live_quality.dart';
@@ -210,11 +211,16 @@ class _LiveHeaderControlState extends State<LiveHeaderControl>
           if (PlatformUtils.isMobile)
             Obx(() {
               final continuePlayInBackground =
-                  plPlayerController.continuePlayInBackground.value;
+                  plPlayerController.continuesInBackground;
               return ComBtn(
                 height: btnHeight,
-                tooltip: '${continuePlayInBackground ? '关闭' : ''}后台播放',
-                onTap: plPlayerController.setContinuePlayInBackground,
+                tooltip:
+                    '后台播放 · ${plPlayerController.backgroundPlaybackMode.value.label}',
+                onTap: () => showBackgroundPlaybackPicker(
+                  context,
+                  plPlayerController.backgroundPlaybackMode.value,
+                  plPlayerController.setBackgroundPlaybackMode,
+                ),
                 icon: continuePlayInBackground
                     ? const Icon(
                         size: 18,

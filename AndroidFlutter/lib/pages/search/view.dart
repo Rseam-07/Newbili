@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:PiliPlus/common/widgets/dialog/export_import.dart';
 import 'package:PiliPlus/common/widgets/disabled_icon.dart';
+import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
+import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver_wrap.dart';
@@ -20,13 +24,16 @@ import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchPageState extends State<SearchPage> {
+class _SearchPageState extends State<SearchPage>
+    with AutomaticKeepAliveClientMixin {
   final _tag = Utils.generateRandomString(6);
   late final SSearchController _searchController;
   late ThemeData theme;
@@ -34,9 +41,18 @@ class _SearchPageState extends State<SearchPage> {
   late EdgeInsets padding;
 
   @override
+  bool get wantKeepAlive => widget.embedded;
+
+  @override
   void initState() {
     super.initState();
     _searchController = Get.put(SSearchController(_tag), tag: _tag);
+  }
+
+  @override
+  void dispose() {
+    Get.delete<SSearchController>(tag: _tag);
+    super.dispose();
   }
 
   @override
@@ -49,6 +65,7 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final trending = _searchController.enableTrending
         ? _buildHotSearch()
         : null;
@@ -57,6 +74,7 @@ class _SearchPageState extends State<SearchPage> {
         : null;
 
     return SimpleScaffold(
+      backgroundColor: NewbiliFormStyle.background(context),
       appBar: _buildAppBar,
       body: Padding(
         padding: .only(left: padding.left, right: padding.right),
@@ -77,7 +95,13 @@ class _SearchPageState extends State<SearchPage> {
                 )
               else
                 _buildHistory,
-              SliverPadding(padding: .only(bottom: padding.bottom)),
+              SliverPadding(
+                padding: .only(
+                  bottom: widget.embedded
+                      ? FloatingNavigationBar.bottomContentInsetOf(context)
+                      : padding.bottom,
+                ),
+              ),
             ],
           ),
         ),
@@ -85,49 +109,88 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  PreferredSizeWidget get _buildAppBar => AppBar(
-    shape: Border(
-      bottom: BorderSide(
-        color: theme.dividerColor.withValues(alpha: 0.08),
-        width: 1,
+  Widget get _buildAppBar => SafeArea(
+    top: !widget.embedded,
+    bottom: false,
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(widget.embedded ? 16 : 0, 6, 16, 6),
+      child: Row(
+        children: [
+          if (!widget.embedded) const BackButton(),
+          Expanded(
+            child: NewbiliGlassSurface(
+              role: NewbiliGlassRole.toolbar,
+              borderRadius: BorderRadius.circular(28),
+              child: Row(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 14, right: 8),
+                    child: Icon(CupertinoIcons.search, size: 22),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      autofocus: !widget.embedded,
+                      focusNode: _searchController.searchFocusNode,
+                      controller: _searchController.controller,
+                      textInputAction: TextInputAction.search,
+                      onChanged: _searchController.onChange,
+                      style: const TextStyle(fontSize: 17),
+                      decoration: InputDecoration(
+                        hintText: _searchController.hintText ?? '搜索',
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
+                      ),
+                      onSubmitted: (_) => _searchController.submit(),
+                    ),
+                  ),
+                  Obx(
+                    () => _searchController.showUidBtn.value
+                        ? IconButton(
+                            tooltip: 'UID搜索用户',
+                            icon: const Icon(CupertinoIcons.person, size: 20),
+                            onPressed: () => Get.toNamed(
+                              '/member?mid=${_searchController.controller.text}',
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  ValueListenableBuilder(
+                    valueListenable: _searchController.controller,
+                    builder: (context, value, _) => value.text.isEmpty
+                        ? const SizedBox(width: 16)
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: '清空',
+                                icon: const Icon(
+                                  CupertinoIcons.xmark_circle_fill,
+                                  size: 18,
+                                ),
+                                onPressed: _searchController.onClear,
+                              ),
+                              IconButton(
+                                tooltip: '搜索',
+                                icon: const Icon(
+                                  CupertinoIcons.arrow_right,
+                                  size: 20,
+                                ),
+                                onPressed: _searchController.submit,
+                              ),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-    actions: [
-      Obx(
-        () => _searchController.showUidBtn.value
-            ? IconButton(
-                tooltip: 'UID搜索用户',
-                icon: const Icon(Icons.person_outline, size: 22),
-                onPressed: () => Get.toNamed(
-                  '/member?mid=${_searchController.controller.text}',
-                ),
-              )
-            : const SizedBox.shrink(),
-      ),
-      IconButton(
-        tooltip: '清空',
-        icon: const Icon(Icons.clear, size: 22),
-        onPressed: _searchController.onClear,
-      ),
-      IconButton(
-        tooltip: '搜索',
-        onPressed: _searchController.submit,
-        icon: const Icon(Icons.search, size: 22),
-      ),
-      const SizedBox(width: 10),
-    ],
-    title: TextField(
-      autofocus: true,
-      focusNode: _searchController.searchFocusNode,
-      controller: _searchController.controller,
-      textInputAction: TextInputAction.search,
-      onChanged: _searchController.onChange,
-      decoration: InputDecoration(
-        visualDensity: .standard,
-        hintText: _searchController.hintText ?? '搜索',
-        border: InputBorder.none,
-      ),
-      onSubmitted: (value) => _searchController.submit(),
     ),
   );
 
@@ -171,117 +234,67 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  Widget _buildHotSearch({
-    bool isTrending = true,
-  }) {
-    final text = Text(
-      isTrending ? '大家都在搜' : '搜索发现',
-      strutStyle: const StrutStyle(leading: 0, height: 1),
-      style: theme.textTheme.titleMedium!.copyWith(
-        height: 1,
-        fontWeight: .bold,
-      ),
-    );
-    final outline = theme.colorScheme.outline;
-    final secondary = theme.colorScheme.secondary;
-    final style = TextStyle(
-      height: 1,
-      fontSize: 13,
-      color: outline,
-    );
-    return SliverPadding(
-      padding: .fromLTRB(
-        10,
-        !isTrending && (isPortrait || _searchController.enableTrending)
-            ? 4
-            : 25,
-        4,
-        25,
-      ),
-      sliver: SliverMainAxisGroup(
-        slivers: [
-          SliverPadding(
-            padding: const .fromLTRB(6, 0, 6, 6),
-            sliver: SliverToBoxAdapter(
-              child: Row(
-                mainAxisAlignment: .spaceBetween,
-                children: [
+  Widget _buildHotSearch({bool isTrending = true}) => SliverPadding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+    sliver: SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Icon(
                   isTrending
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            text,
-                            const SizedBox(width: 14),
-                            TextButton(
-                              style: const ButtonStyle(
-                                visualDensity: .compact,
-                                tapTargetSize: .shrinkWrap,
-                                padding: WidgetStatePropertyAll(
-                                  .symmetric(horizontal: 10),
-                                ),
-                              ),
-                              onPressed: () => Get.toNamed('/searchTrending'),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    '完整榜单',
-                                    strutStyle: const StrutStyle(
-                                      leading: 0,
-                                      height: 1,
-                                    ),
-                                    style: style,
-                                  ),
-                                  Icon(
-                                    size: 18,
-                                    Icons.keyboard_arrow_right,
-                                    color: outline,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : text,
-                  TextButton.icon(
-                    style: const ButtonStyle(
-                      visualDensity: .compact,
-                      tapTargetSize: .shrinkWrap,
-                      padding: WidgetStatePropertyAll(
-                        .symmetric(horizontal: 10),
-                      ),
-                    ),
-                    onPressed: isTrending
-                        ? _searchController.queryTrendingList
-                        : _searchController.queryRecommendList,
-                    icon: Icon(
-                      Icons.refresh_outlined,
-                      size: 18,
-                      color: secondary,
-                    ),
-                    label: Text(
-                      '刷新',
-                      strutStyle: const StrutStyle(leading: 0, height: 1),
-                      style: TextStyle(height: 1, color: secondary),
+                      ? CupertinoIcons.flame_fill
+                      : CupertinoIcons.sparkles,
+                  size: 21,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isTrending ? '大家都在搜' : '搜索发现',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: isTrending ? '热搜选项' : '发现选项',
+                  icon: const Icon(CupertinoIcons.ellipsis, size: 22),
+                  onSelected: (action) {
+                    if (action == 'list') {
+                      Get.toNamed('/searchTrending');
+                    } else {
+                      isTrending
+                          ? _searchController.queryTrendingList()
+                          : _searchController.queryRecommendList();
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'refresh', child: Text('刷新')),
+                    if (isTrending)
+                      const PopupMenuItem(value: 'list', child: Text('完整榜单')),
+                  ],
+                ),
+              ],
             ),
           ),
-          Obx(
-            () => _buildHotKey(
-              isTrending
-                  ? _searchController.trendingState.value
-                  : _searchController.recommendData.value,
-              isTrending,
-            ),
+        ),
+        Obx(
+          () => _buildHotKey(
+            isTrending
+                ? _searchController.trendingState.value
+                : _searchController.recommendData.value,
+            isTrending,
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 
-  late final mainAxisExtent = 16 + MediaQuery.textScalerOf(context).scale(14);
+  double get mainAxisExtent => (24 + MediaQuery.textScalerOf(context).scale(14))
+      .clamp(48.0, double.infinity);
   Widget get _buildHistory {
     return Obx(
       () {

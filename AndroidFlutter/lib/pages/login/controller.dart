@@ -22,6 +22,8 @@ import 'package:material_ui/material_ui.dart';
 
 class LoginPageController extends GetxController
     with GetSingleTickerProviderStateMixin {
+  LoginPageController({this.initialTab = 1});
+  final int initialTab;
   final TextEditingController telTextController = TextEditingController();
   final TextEditingController usernameTextController = TextEditingController();
   final TextEditingController passwordTextController = TextEditingController();
@@ -51,8 +53,9 @@ class LoginPageController extends GetxController
   @override
   void onInit() {
     super.onInit();
-    tabController = TabController(length: 4, vsync: this)
+    tabController = TabController(length: 4, initialIndex: initialTab, vsync: this)
       ..addListener(_handleTabChange);
+    _handleTabChange();
   }
 
   @override

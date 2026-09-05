@@ -4,7 +4,7 @@
 
 # Newbili
 
-Newbili（简称 **nb**）是一个面向 iPhone、iPad 与 Android 的第三方客户端。iOS/iPadOS 由 SwiftUI、UIKit 和 AVFoundation 实现；Android 基于完整的 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) Flutter 功能底座，以 Fluent UI、Material 3 和分级 Liquid Glass 重新装修手机与平板体验。
+Newbili（简称 **nb**）是一个面向 iPhone、iPad 与 Android 的第三方客户端。iOS/iPadOS 由 SwiftUI、UIKit 和 AVFoundation 实现；Android 基于完整的 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) Flutter 功能底座，以现有 iOS 界面和交互为对齐基准，复用 Material 组件及分级 Liquid Glass。跨端深层页面仍在逐步对齐。
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.4%2B-lightgrey.svg)](https://developer.apple.com/ios/)
@@ -31,7 +31,9 @@ Newbili 仍在持续补齐 PiliPlus 的长尾功能。PGC 高级筛选与完整�
 
 Android 端位于 [`AndroidFlutter/`](AndroidFlutter/)，直接从 PiliPlus `44680b8a486a0518f366a2c9bff6242506cf8783`（2.1.2 系列，2026-08-30）演进，保留其完整业务路由、网络模型、登录、多账号、推荐/热门/动态、视频与直播播放器、弹幕、评论、下载、DLNA、后台音频和画中画。Newbili 的改动集中在主题、公共组件、响应式导航、首页焦点推荐、播放器控制层、触控命中区和性能分级，不以删功能换性能。
 
-Android 视觉借鉴 [BiliBili-UWP](https://github.com/Richasy/BiliBili-UWP) 的 Fluent 分层、亚克力与 Master–Detail 思路，并针对移动端重组：手机保留底部主导航和横向二级频道，平板使用 Navigation Rail，只有大横屏才启用辅助详情栏。Liquid Glass 使用 Flutter `BackdropFilter` 与自研 capability tier 实现；Android 13+ 为增强档，Android 12/12L 为基础模糊档，低内存或省电模式自动退化为静态 MD3 材质。该实现参考 AndroidLiquidGlass 的渲染原则，但没有把 Compose PlatformView 塞进 Flutter 滚动列表。
+Android 当前首页、个人页、搜索、分组设置及播放器详情/评论导航按 iOS 重排：居中分类、问候语、默认双列、五项胶囊导航和共享圆角卡片。保留早期参考 [BiliBili-UWP](https://github.com/Richasy/BiliBili-UWP) 的分层与宽屏适配思路，但不再用独立 Fluent 首页替代 iOS 对齐目标。Liquid Glass 使用 Flutter `BackdropFilter` 与自研能力分档实现；Android 13+ 为增强档，Android 12/12L 为基础模糊档，低内存或省电模式自动退化为静态 MD3 材质。实时模糊用于固定控件，不放到每张滚动视频卡片上。
+
+v1.0.7 新增 Android 的关注 UP 分档通知、我的追更、新增分 P 通知与三档后台播放。通知通过系统周期检查，非服务端即时推送；验证范围与剩余差距见 [本轮对齐记录](PERFORMANCE_PARITY_2026-09-05.md) 和 [版本说明](RELEASE_NOTES_1.0.7.md)。
 
 ## 播放器设计
 

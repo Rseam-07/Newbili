@@ -10,10 +10,40 @@ import android.view.WindowManager.LayoutParams
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONObject
+import java.util.concurrent.Executors
 
 class MainActivity : AudioServiceActivity() {
+    private val updateExecutor = Executors.newCachedThreadPool()
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.rseam07.newbili/updates")
+            .setMethodCallHandler { call, result ->
+                updateExecutor.execute {
+                    try {
+                        val monitor = UpdateMonitor.get(this)
+                        when (call.method) {
+                            "state" -> monitor.schedule()
+                            "configure" -> monitor.configure(
+                                call.argument<String>("level") ?: "off",
+                                call.argument<Number>("mid")?.toLong() ?: 0,
+                                call.argument<String>("cookie") ?: "",
+                            )
+                            "mark" -> monitor.mark(JSONObject(call.argument<String>("video")!!))
+                            "unmark" -> monitor.unmark(call.argument<String>("bvid")!!)
+                            "check" -> monitor.checkUpdates(call.argument<Boolean>("manual") == true)
+                            else -> {
+                                runOnUiThread { result.notImplemented() }
+                                return@execute
+                            }
+                        }
+                        val state = monitor.state()
+                        runOnUiThread { result.success(state) }
+                    } catch (_: Exception) {
+                        runOnUiThread { result.error("update_monitor", "更新检查暂时不可用，请稍后重试", null) }
+                    }
+                }
+            }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.rseam07.newbili/glass",
@@ -68,6 +98,7 @@ class MainActivity : AudioServiceActivity() {
     }
 
     override fun onDestroy() {
+        updateExecutor.shutdownNow()
         stopService(Intent(this, com.ryanheise.audioservice.AudioService::class.java))
         super.onDestroy()
     }

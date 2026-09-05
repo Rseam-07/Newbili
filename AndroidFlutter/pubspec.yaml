@@ -17,7 +17,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 # update when release
-version: 1.1.0+8
+version: 1.0.7+10
 
 environment:
   sdk: ">=3.13.0"
@@ -68,6 +68,7 @@ dependencies:
   connectivity_plus: ^7.1.1
   cookie_jar: ^4.0.8
   crypto: ^3.0.6
+  cupertino_icons: 1.0.8
   cupertino_ui: ^1.0.0
   desktop_webview_window:
     git:

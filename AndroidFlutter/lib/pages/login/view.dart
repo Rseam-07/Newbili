@@ -23,14 +23,15 @@ import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.initialTab = 1});
+  final int initialTab;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final LoginPageController _loginPageCtr = Get.put(LoginPageController());
+  late final LoginPageController _loginPageCtr = Get.put(LoginPageController(initialTab: widget.initialTab));
   // 二维码生成时间
   bool showPassword = false;
   GlobalKey globalKey = GlobalKey();

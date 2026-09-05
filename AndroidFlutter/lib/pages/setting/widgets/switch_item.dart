@@ -4,6 +4,7 @@ import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:flutter/cupertino.dart' show CupertinoSwitch;
 import 'package:material_ui/material_ui.dart' hide ListTile;
 
 class SetSwitchItem extends StatefulWidget {
@@ -103,12 +104,16 @@ class _SetSwitchItemState extends State<SetSwitchItem> {
               : null,
         );
     final subTitleStyle = theme.textTheme.labelMedium!.copyWith(
-      color: theme.colorScheme.outline,
+      color: theme.colorScheme.onSurfaceVariant,
     );
 
-    final switchBtn = Switch(
-      value: val,
-      onChanged: switchChange,
+    final switchBtn = ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 56, minHeight: 48),
+      child: CupertinoSwitch(
+        value: val,
+        activeTrackColor: theme.colorScheme.primary,
+        onChanged: switchChange,
+      ),
     );
 
     Widget child(Widget? trailing) => ListTile(

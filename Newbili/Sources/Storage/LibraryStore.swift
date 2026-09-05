@@ -307,7 +307,7 @@ final class LibraryStore: ObservableObject {
     nonisolated static let defaultPlaybackStreamSourcePreference: PlaybackStreamSourcePreference = .app
     nonisolated static let defaultHomeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference = .app
     nonisolated static let defaultHomePresentationStyle: HomePresentationStyle = .immersive
-    nonisolated static let defaultHomeFeedLayout: HomeFeedLayout = .singleColumn
+    nonisolated static let defaultHomeFeedLayout: HomeFeedLayout = .doubleColumn
     nonisolated static let defaultDynamicFeedLayoutPreference: DynamicFeedLayoutPreference = .automatic
     nonisolated static let defaultPlaybackHistorySyncThresholdSeconds = 5
     nonisolated static let supportedPlaybackHistorySyncThresholdSeconds = [5, 10, 30]

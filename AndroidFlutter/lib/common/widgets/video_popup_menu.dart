@@ -40,6 +40,7 @@ class VideoPopupMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton(
+      tooltip: '视频操作',
       padding: EdgeInsets.zero,
       icon: Icon(
         Icons.more_vert_outlined,

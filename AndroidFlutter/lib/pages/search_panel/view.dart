@@ -50,8 +50,8 @@ abstract class CommonSearchPanelState<
         slivers: [
           ?buildHeader(theme),
           SliverPadding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
+            padding: const EdgeInsets.only(
+              bottom: 24,
             ),
             sliver: Obx(() => _buildBody(theme, controller.loadingState.value)),
           ),

@@ -1,4 +1,5 @@
-import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
+import 'package:PiliPlus/pages/setting/widgets/newbili_settings_links.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/login.dart';
@@ -14,74 +15,30 @@ import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:material_ui/material_ui.dart' hide ListTile;
-
-class _SettingsModel {
-  final SettingType type;
-  final String? subtitle;
-  final Icon icon;
-
-  const _SettingsModel({
-    required this.type,
-    this.subtitle,
-    required this.icon,
-  });
-}
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:material_ui/material_ui.dart';
 
 class SettingPage extends StatefulWidget {
   const SettingPage({super.key});
+
+  static Widget destination(SettingType type, {bool showAppBar = true}) =>
+      switch (type) {
+        SettingType.webdavSetting => WebDavSettingPage(showAppBar: showAppBar),
+        SettingType.about => AboutPage(showAppBar: showAppBar),
+        _ => CommonSetting(settingType: type, showAppBar: showAppBar),
+      };
+
+  static void open(SettingType type) => Get.to(() => destination(type));
 
   @override
   State<SettingPage> createState() => _SettingPageState();
 }
 
 class _SettingPageState extends State<SettingPage> {
-  late SettingType _type = SettingType.privacySetting;
+  SettingType _type = SettingType.styleSetting;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
   late ThemeData theme;
-
-  static const List<_SettingsModel> _items = [
-    _SettingsModel(
-      type: SettingType.privacySetting,
-      subtitle: '黑名单',
-      icon: Icon(Icons.privacy_tip_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.recommendSetting,
-      subtitle: '推荐来源（web/app）、刷新保留内容、过滤器',
-      icon: Icon(Icons.explore_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.videoSetting,
-      subtitle: '画质、音质、解码、缓冲、音频输出等',
-      icon: Icon(Icons.video_settings_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.playSetting,
-      subtitle: '双击/长按、全屏、后台播放、弹幕、字幕、底部进度条等',
-      icon: Icon(Icons.touch_app_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.styleSetting,
-      subtitle: '横屏适配（平板）、侧栏、列宽、首页、动态红点、主题、字号、图片、帧率等',
-      icon: Icon(Icons.style_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.extraSetting,
-      subtitle: '震动、搜索、收藏、ai、评论、动态、代理、更新检查等',
-      icon: Icon(Icons.extension_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.webdavSetting,
-      icon: Icon(MdiIcons.databaseCogOutline),
-    ),
-    _SettingsModel(
-      type: SettingType.about,
-      icon: Icon(Icons.info_outline),
-    ),
-  ];
 
   @override
   void didChangeDependencies() {
@@ -92,48 +49,30 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return SimpleScaffold(
-      appBar: AppBar(
-        title: _isPortrait ? const Text('设置') : Text(_type.title),
-      ),
-      body: ViewSafeArea(
+  Widget build(BuildContext context) => SimpleScaffold(
+    appBar: AppBar(title: Text(_isPortrait ? '设置' : _type.title)),
+    body: ColoredBox(
+      color: NewbiliFormStyle.background(context),
+      child: ViewSafeArea(
         child: _isPortrait
-            ? _buildList(theme)
+            ? _buildList()
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 4,
-                    child: _buildList(theme),
-                  ),
+                  Expanded(flex: 4, child: _buildList()),
                   VerticalDivider(
                     width: 1,
-                    color: theme.colorScheme.outline.withValues(alpha: 0.1),
+                    color: theme.colorScheme.outlineVariant,
                   ),
                   Expanded(
                     flex: 6,
-                    child: switch (_type) {
-                      .privacySetting ||
-                      .recommendSetting ||
-                      .videoSetting ||
-                      .playSetting ||
-                      .styleSetting ||
-                      .extraSetting => CommonSetting(
-                        settingType: _type,
-                        showAppBar: false,
-                      ),
-                      .webdavSetting => const WebDavSettingPage(
-                        showAppBar: false,
-                      ),
-                      .about => const AboutPage(showAppBar: false),
-                    },
+                    child: SettingPage.destination(_type, showAppBar: false),
                   ),
                 ],
               ),
       ),
-    );
-  }
+    ),
+  );
 
   @override
   void dispose() {
@@ -143,78 +82,53 @@ class _SettingPageState extends State<SettingPage> {
 
   void _toPage(SettingType type) {
     if (_isPortrait) {
-      Get.to(
-        () => switch (type) {
-          .privacySetting ||
-          .recommendSetting ||
-          .videoSetting ||
-          .playSetting ||
-          .styleSetting ||
-          .extraSetting => CommonSetting(settingType: type),
-          .webdavSetting => const WebDavSettingPage(),
-          .about => const AboutPage(),
-        },
-      );
+      SettingPage.open(type);
     } else {
-      _type = type;
-      setState(() {});
+      setState(() => _type = type);
     }
   }
 
-  Color? _getTileColor(ThemeData theme, SettingType type) {
-    if (_isPortrait) {
-      return null;
-    } else {
-      return type == _type ? theme.colorScheme.onInverseSurface : null;
-    }
-  }
-
-  Widget _buildList(ThemeData theme) {
-    final padding = MediaQuery.viewPaddingOf(context);
-    TextStyle titleStyle = theme.textTheme.titleMedium!;
-    TextStyle subTitleStyle = theme.textTheme.labelMedium!.copyWith(
-      color: theme.colorScheme.outline,
-    );
-    return ListView(
-      padding: EdgeInsets.only(bottom: padding.bottom + 100),
-      children: [
-        _buildSearchItem(theme),
-        ..._items
-            .take(_items.length - 1)
-            .map(
-              (item) => ListTile(
-                tileColor: _getTileColor(theme, item.type),
-                onTap: () => _toPage(item.type),
-                leading: item.icon,
-                title: Text(item.type.title, style: titleStyle),
-                subtitle: item.subtitle == null
-                    ? null
-                    : Text(item.subtitle!, style: subTitleStyle),
-              ),
+  Widget _buildList() => ListView(
+    padding: EdgeInsets.fromLTRB(
+      16,
+      16,
+      16,
+      MediaQuery.viewPaddingOf(context).bottom + 24,
+    ),
+    children: [
+      NewbiliSettingsLinks(
+        onOpen: _toPage,
+        onSearch: () => Get.toNamed('/settingsSearch'),
+      ),
+      Obx(
+        () => NewbiliFormSection(
+          title: '账号',
+          children: [
+            NewbiliSettingsRow(
+              title: '切换账号',
+              icon: CupertinoIcons.person_2,
+              onTap: () => LoginPageController.switchAccountDialog(context),
             ),
-        ListTile(
-          onTap: () => LoginPageController.switchAccountDialog(context),
-          leading: const Icon(Icons.switch_account_outlined),
-          title: Text('切换账号', style: titleStyle),
+            if (!_noAccount.value)
+              NewbiliSettingsRow(
+                title: '退出登录',
+                icon: CupertinoIcons.square_arrow_right,
+                onTap: () => _logoutDialog(context),
+              ),
+          ],
         ),
-        Obx(
-          () => _noAccount.value
-              ? const SizedBox.shrink()
-              : ListTile(
-                  leading: const Icon(Icons.logout_outlined),
-                  onTap: () => _logoutDialog(context),
-                  title: Text('退出登录', style: titleStyle),
-                ),
-        ),
-        ListTile(
-          tileColor: _getTileColor(theme, _items.last.type),
-          onTap: () => _toPage(_items.last.type),
-          leading: _items.last.icon,
-          title: Text(_items.last.type.title, style: titleStyle),
-        ),
-      ],
-    );
-  }
+      ),
+      NewbiliFormSection(
+        children: [
+          NewbiliSettingsRow(
+            title: '关于 Newbili',
+            icon: CupertinoIcons.info_circle,
+            onTap: () => _toPage(SettingType.about),
+          ),
+        ],
+      ),
+    ],
+  );
 
   Future<void> _removeAccounts(Set<LoginAccount> accounts) async {
     await Accounts.deleteAll(accounts);
@@ -296,40 +210,4 @@ class _SettingPageState extends State<SettingPage> {
       },
     );
   }
-
-  Widget _buildSearchItem(ThemeData theme) => Padding(
-    padding: const EdgeInsets.only(
-      left: 16,
-      right: 16,
-      bottom: 8,
-    ),
-    child: Material(
-      color: theme.colorScheme.onInverseSurface,
-      borderRadius: const BorderRadius.all(Radius.circular(50)),
-      child: InkWell(
-        onTap: () => Get.toNamed('/settingsSearch'),
-        borderRadius: const BorderRadius.all(Radius.circular(50)),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  size: 18,
-                  applyTextScaling: true,
-                  Icons.search,
-                ),
-                Text(
-                  ' 搜索',
-                  style: TextStyle(height: 1),
-                  strutStyle: StrutStyle(height: 1, leading: 0),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
 }

@@ -1,4 +1,6 @@
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
+import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/dynamic/dynamics_type.dart';
 import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
@@ -31,8 +33,8 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
 
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
       Container(
-        width: 34,
-        height: 34,
+        width: 48,
+        height: 48,
         margin: isRight ? const .only(right: 16) : const .only(left: 16),
         child: IconButton(
           tooltip: '发布动态',
@@ -170,35 +172,30 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
       appBar: PreferredSize(
-        preferredSize: const .fromHeight(50),
-        child: Row(
+        preferredSize: Size.fromHeight(
+          NewbiliPageTitle.heightOf(context) +
+              HomeSectionTabs.heightOf(context),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ?leading,
-            Expanded(
-              child: TabBar(
-                dividerHeight: 0,
-                isScrollable: true,
-                tabAlignment: .start,
-                dividerColor: Colors.transparent,
-                labelColor: colorScheme.primary,
-                indicatorColor: colorScheme.primary,
-                controller: _dynamicsController.tabController,
-                unselectedLabelColor: colorScheme.onSurface,
-                labelStyle:
-                    TabBarTheme.of(context).labelStyle
-                        ?.copyWith(fontSize: 13) ??
-                    const TextStyle(fontSize: 13),
-                tabs: DynamicsTabType.values
-                    .map((e) => Tab(text: e.label))
-                    .toList(),
-                onTap: (index) {
-                  if (!_dynamicsController.tabController.indexIsChanging) {
-                    _dynamicsController.animateToTop();
-                  }
-                },
-              ),
+            NewbiliPageTitle('动态', trailing: actions),
+            Row(
+              children: [
+                ?leading,
+                Expanded(
+                  child: HomeSectionTabs(
+                    controller: _dynamicsController.tabController,
+                    labels: DynamicsTabType.values.map((e) => e.label).toList(),
+                    onTap: (index) {
+                      if (!_dynamicsController.tabController.indexIsChanging) {
+                        _dynamicsController.animateToTop();
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
-            actions,
           ],
         ),
       ),

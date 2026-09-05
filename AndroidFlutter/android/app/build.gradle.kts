@@ -31,6 +31,7 @@ android {
         applicationId = "com.rseam07.newbili"
         minSdk = 31
         targetSdk = 37
+        testInstrumentationRunner = "com.example.piliplus.UpdateMonitorInstrumentation"
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -111,4 +112,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
 }

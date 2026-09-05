@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:PiliPlus/models/common/video/background_playback_mode.dart';
+
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart'
     show deviceTouchSlop;
 import 'package:PiliPlus/common/widgets/pair.dart';
@@ -18,6 +20,7 @@ import 'package:PiliPlus/models/common/sponsor_block/skip_type.dart';
 import 'package:PiliPlus/models/common/super_chat_type.dart';
 import 'package:PiliPlus/models/common/super_resolution_type.dart';
 import 'package:PiliPlus/models/common/theme/theme_type.dart';
+import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
 import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/live_quality.dart';
@@ -186,8 +189,11 @@ abstract final class Pref {
   static double get smallCardWidth =>
       _setting.get(SettingBoxKey.smallCardWidth, defaultValue: 240.0);
 
-  static double get recommendCardWidth =>
-      _setting.get(SettingBoxKey.recommendCardWidth, defaultValue: 240.0);
+  static const defaultRecommendCardWidth = 240.0;
+  static double get recommendCardWidth => _setting.get(
+    SettingBoxKey.recommendCardWidth,
+    defaultValue: defaultRecommendCardWidth,
+  );
 
   static UpPanelPosition get upPanelPosition =>
       UpPanelPosition.values[_setting.get(
@@ -732,12 +738,14 @@ abstract final class Pref {
   static bool get p1080 =>
       _setting.get(SettingBoxKey.p1080, defaultValue: true);
 
-  static int get customColor =>
-      _setting.get(SettingBoxKey.customColor, defaultValue: 0);
+  static int get customColor => _setting.get(
+    SettingBoxKey.customColor,
+    defaultValue: newbiliThemeColorIndex,
+  );
 
   static bool get dynamicColor =>
       !Platform.isIOS &&
-      _setting.get(SettingBoxKey.dynamicColor, defaultValue: true);
+      _setting.get(SettingBoxKey.dynamicColor, defaultValue: false);
 
   static bool get enableSystemProxy =>
       _setting.get(SettingBoxKey.enableSystemProxy, defaultValue: false);
@@ -897,8 +905,11 @@ abstract final class Pref {
   static int get cacheVideoFit =>
       _video.get(VideoBoxKey.cacheVideoFit, defaultValue: 1);
 
-  static bool get continuePlayInBackground =>
-      _setting.get(SettingBoxKey.continuePlayInBackground, defaultValue: false);
+  static BackgroundPlaybackMode get backgroundPlaybackMode =>
+      BackgroundPlaybackMode.restore(
+        _setting.get(SettingBoxKey.backgroundPlaybackMode),
+        _setting.get(SettingBoxKey.continuePlayInBackground),
+      );
 
   static bool get directExitOnBack =>
       _setting.get(SettingBoxKey.directExitOnBack, defaultValue: false);
@@ -1028,7 +1039,7 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.saveReply, defaultValue: true);
 
   static bool get floatingNavBar =>
-      _setting.get(SettingBoxKey.floatingNavBar, defaultValue: false);
+      _setting.get(SettingBoxKey.floatingNavBar, defaultValue: true);
 
   static bool get removeSafeArea =>
       _setting.get(SettingBoxKey.removeSafeArea, defaultValue: false);

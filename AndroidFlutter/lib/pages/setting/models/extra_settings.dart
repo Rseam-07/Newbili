@@ -24,6 +24,7 @@ import 'package:PiliPlus/models/dynamics/result.dart'
 import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
+import 'package:PiliPlus/pages/updates/view.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/slider_dialog.dart';
@@ -55,6 +56,14 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:material_ui/material_ui.dart' hide RefreshIndicator;
 
 List<SettingsModel> get extraSettings => [
+  if (Platform.isAndroid)
+    NormalModel(
+      title: '更新通知与追更',
+      subtitle: '特别关注、关注 UP 新投稿、自标记番剧、分 P 更新提醒',
+      leading: const Icon(Icons.notifications_outlined),
+      onTap: (context, setState) =>
+          Get.to(() => const UpdateNotificationPage()),
+    ),
   if (PlatformUtils.isDesktop) ...[
     SwitchModel(
       title: '退出时最小化',

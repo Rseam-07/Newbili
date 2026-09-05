@@ -37,10 +37,12 @@ final class DanmakuTextLabel: UILabel {
 
     private var fillText: NSAttributedString?
     private var outlineText: NSAttributedString?
+    private var measuredTextSize = CGSize.zero
 
     func apply(
         text: String,
         font: UIFont,
+        measuredTextSize: CGSize,
         foregroundColor: UIColor,
         outlineColor: UIColor,
         outlineWidth: CGFloat
@@ -50,6 +52,7 @@ final class DanmakuTextLabel: UILabel {
         textColor = foregroundColor
         self.text = text
         accessibilityLabel = text
+        self.measuredTextSize = measuredTextSize
         renderedForegroundColor = foregroundColor
         renderedOutlineColor = outlineColor
         renderedOutlineWidth = max(0, outlineWidth)
@@ -84,10 +87,9 @@ final class DanmakuTextLabel: UILabel {
             return
         }
 
-        let textSize = fillText.size()
         let origin = CGPoint(
-            x: round(rect.midX - textSize.width / 2),
-            y: round(rect.midY - textSize.height / 2)
+            x: round(rect.midX - measuredTextSize.width / 2),
+            y: round(rect.midY - measuredTextSize.height / 2)
         )
         outlineText?.draw(at: origin)
         fillText.draw(at: origin)
@@ -96,10 +98,34 @@ final class DanmakuTextLabel: UILabel {
     func prepareForReuse() {
         fillText = nil
         outlineText = nil
+        measuredTextSize = .zero
         text = nil
         attributedText = nil
         accessibilityLabel = nil
         setNeedsDisplay()
+    }
+}
+
+nonisolated enum DanmakuReplayWindow {
+    /// The timeline is sorted. Collect the newest live items backwards, then
+    /// restore chronological spawn order without shifting a growing array.
+    static func latestItems(
+        in items: ArraySlice<DanmakuItem>,
+        at playbackTime: TimeInterval,
+        limit: Int,
+        displayDuration: (DanmakuItem) -> TimeInterval
+    ) -> [DanmakuItem] {
+        guard limit > 0 else { return [] }
+        var result: [DanmakuItem] = []
+        result.reserveCapacity(min(limit, items.count))
+        for item in items.reversed() {
+            let age = playbackTime - item.time
+            guard item.isSupported, age >= 0, age < displayDuration(item) else { continue }
+            result.append(item)
+            if result.count == limit { break }
+        }
+        result.reverse()
+        return result
     }
 }
 
@@ -1146,16 +1172,12 @@ final class DanmakuAnimationOverlayView: UIView {
             return
         }
 
-        var visibleItems: [DanmakuItem] = []
-        visibleItems.reserveCapacity(min(maxActiveCount, endIndex - startIndex))
-        for item in items[startIndex..<endIndex] {
-            let age = playbackTime - item.time
-            guard age >= 0, age < displayDuration(for: item) else { continue }
-            visibleItems.append(item)
-            if visibleItems.count > maxActiveCount {
-                visibleItems.removeFirst(visibleItems.count - maxActiveCount)
-            }
-        }
+        let visibleItems = DanmakuReplayWindow.latestItems(
+            in: items[startIndex..<endIndex],
+            at: playbackTime,
+            limit: maxActiveCount,
+            displayDuration: displayDuration(for:)
+        )
 
         for item in visibleItems {
             spawn(item, at: playbackTime, animated: animated)
@@ -1203,21 +1225,13 @@ final class DanmakuAnimationOverlayView: UIView {
             let fontSize = fontSize(for: entry.item)
             let font = UIFont.systemFont(ofSize: fontSize, weight: settings.fontWeight.uiFontWeight)
             let textSize = measuredTextSize(for: entry.item, font: font)
-            let labelSize = CGSize(
-                width: min(max(textSize.width + 18 + CGFloat(settings.strokeWidth * 2), 44), bounds.width * 1.45),
-                height: max(
-                    textSize.height + 8 + CGFloat(settings.strokeWidth * 2),
-                    fontSize * CGFloat(settings.lineHeight) + 4
-                )
-            )
-            configure(entry.label, for: entry.item, font: font, size: labelSize)
+            let labelSize = labelSize(for: textSize, font: font)
+            configure(entry.label, for: entry.item, font: font, size: labelSize, textSize: textSize)
 
             let band = displayBand()
             let laneHeight = max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
             let laneCount = max(1, Int(max(1, band.height) / laneHeight))
-            let lane = entry.item.isScrolling
-                ? stableLane(for: entry.item.id, laneCount: laneCount)
-                : stableLane(for: entry.item.id, laneCount: laneCount)
+            let lane = stableLane(for: entry.item.id, laneCount: laneCount)
             let y = yPosition(for: entry.item, lane: lane, laneHeight: laneHeight, band: band, labelSize: labelSize)
             entry.label.layer.removeAllAnimations()
 
@@ -1342,15 +1356,7 @@ final class DanmakuAnimationOverlayView: UIView {
         let fontSize = fontSize(for: item)
         let font = UIFont.systemFont(ofSize: fontSize, weight: settings.fontWeight.uiFontWeight)
         let textSize = measuredTextSize(for: item, font: font)
-        let labelSize = CGSize(
-            width: min(max(textSize.width + 18 + CGFloat(settings.strokeWidth * 2), 44), bounds.width * 1.45),
-            height: max(
-                textSize.height + 8 + CGFloat(settings.strokeWidth * 2),
-                fontSize * CGFloat(settings.lineHeight) + 4
-            )
-        )
-        let label = dequeueLabel()
-        configure(label, for: item, font: font, size: labelSize)
+        let labelSize = labelSize(for: textSize, font: font)
 
         let duration = displayDuration(for: item)
         let age = min(max(0, playbackTime - item.time), duration)
@@ -1367,7 +1373,6 @@ final class DanmakuAnimationOverlayView: UIView {
                 labelWidth: labelSize.width,
                 at: item.time
             ) else {
-                recycle(label)
                 return
             }
             lane = selectedLane
@@ -1376,6 +1381,8 @@ final class DanmakuAnimationOverlayView: UIView {
         }
         let y = yPosition(for: item, lane: lane, laneHeight: laneHeight, band: band, labelSize: labelSize)
 
+        let label = dequeueLabel()
+        configure(label, for: item, font: font, size: labelSize, textSize: textSize)
         addSubview(label)
         let id = item.id
         let entryAnimationGeneration = animationGeneration
@@ -1443,12 +1450,21 @@ final class DanmakuAnimationOverlayView: UIView {
         }
     }
 
-    private func configure(_ label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont, size: CGSize) {
-        label.font = font
+    private func labelSize(for textSize: CGSize, font: UIFont) -> CGSize {
+        CGSize(
+            width: min(max(ceil(textSize.width) + 18 + CGFloat(settings.strokeWidth * 2), 44), bounds.width * 1.45),
+            height: max(
+                ceil(max(textSize.height, font.lineHeight)) + 8 + CGFloat(settings.strokeWidth * 2),
+                font.pointSize * CGFloat(settings.lineHeight) + 4
+            )
+        )
+    }
+
+    private func configure(_ label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont, size: CGSize, textSize: CGSize) {
         label.textAlignment = .center
         label.numberOfLines = 1
         label.lineBreakMode = .byClipping
-        applyTextStyle(to: label, for: item, font: font)
+        applyTextStyle(to: label, for: item, font: font, textSize: textSize)
         label.alpha = 1
         label.layer.opacity = 1
         label.frame = CGRect(origin: .zero, size: size)
@@ -1462,11 +1478,11 @@ final class DanmakuAnimationOverlayView: UIView {
         for entry in activeEntries.values {
             let label = entry.label
             let font = label.font ?? UIFont.systemFont(ofSize: fontSize(for: entry.item))
-            applyTextStyle(to: label, for: entry.item, font: font)
+            applyTextStyle(to: label, for: entry.item, font: font, textSize: measuredTextSize(for: entry.item, font: font))
         }
     }
 
-    private func applyTextStyle(to label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont) {
+    private func applyTextStyle(to label: DanmakuTextLabel, for item: DanmakuItem, font: UIFont, textSize: CGSize) {
         let palette = DanmakuTextColorPalette.resolved(from: item.color)
         let foregroundColor = UIColor.danmakuRGB(palette.foregroundRGB)
             .withAlphaComponent(settings.opacity)
@@ -1475,6 +1491,7 @@ final class DanmakuAnimationOverlayView: UIView {
         label.apply(
             text: item.text,
             font: font,
+            measuredTextSize: textSize,
             foregroundColor: foregroundColor,
             outlineColor: outlineColor,
             outlineWidth: CGFloat(settings.strokeWidth)
@@ -1653,11 +1670,10 @@ final class DanmakuAnimationOverlayView: UIView {
         }
 
         let size = (item.text as NSString).size(withAttributes: [.font: font])
-        let measured = CGSize(width: ceil(size.width), height: ceil(max(size.height, font.lineHeight)))
-        textSizeCache[key] = measured
+        textSizeCache[key] = size
         textSizeCacheOrder.append(key)
         trimTextSizeCacheIfNeeded()
-        return measured
+        return size
     }
 
     private func trimTextSizeCacheIfNeeded() {

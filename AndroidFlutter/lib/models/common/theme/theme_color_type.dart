@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
+const newbiliThemeColorIndex = 19;
+
 const List<({Color color, String label})> colorThemeTypes = [
-  (color: Color(0xFF5CB67B), label: '默认绿'),
+  (color: Color(0xFF5CB67B), label: '薄荷绿'),
   (color: Color(0xFFFF7299), label: '粉红色'),
   (color: Colors.red, label: '红色'),
   (color: Colors.orange, label: '橙色'),
@@ -20,4 +22,7 @@ const List<({Color color, String label})> colorThemeTypes = [
   (color: Colors.blueGrey, label: '蓝灰色'),
   (color: Colors.brown, label: '棕色'),
   (color: Colors.grey, label: '灰色'),
+  // Append instead of changing existing users' stored color selections.
+  // Source of truth: iOS AppThemeTintColor.defaultHex.
+  (color: Color(0xFFEE719E), label: 'Newbili 粉'),
 ];

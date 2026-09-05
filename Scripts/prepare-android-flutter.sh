@@ -22,10 +22,10 @@ apply_once() {
   local patch_path="$2"
   local patch_name="${patch_path:t}"
 
-  if (cd "$target_dir" && git apply --ignore-space-change --whitespace=nowarn --reverse --check "$patch_path" >/dev/null 2>&1); then
+  if (cd "$target_dir" && git apply --recount --ignore-space-change --whitespace=nowarn --reverse --check "$patch_path" >/dev/null 2>&1); then
     echo "Already applied: $patch_name"
-  elif (cd "$target_dir" && git apply --ignore-space-change --whitespace=nowarn --check "$patch_path"); then
-    (cd "$target_dir" && git apply --ignore-space-change --whitespace=nowarn "$patch_path")
+  elif (cd "$target_dir" && git apply --recount --ignore-space-change --whitespace=nowarn --check "$patch_path"); then
+    (cd "$target_dir" && git apply --recount --ignore-space-change --whitespace=nowarn "$patch_path")
     echo "Applied: $patch_name"
   else
     echo "Patch does not match Flutter 3.47.2: $patch_name" >&2

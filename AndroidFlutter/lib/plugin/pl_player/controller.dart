@@ -1,4 +1,7 @@
 import 'dart:async' show StreamSubscription, Timer;
+
+import 'package:PiliPlus/models/common/video/background_playback_mode.dart';
+
 import 'dart:convert' show ascii, utf8;
 import 'dart:io' show Platform;
 import 'dart:math' show max, min;
@@ -126,8 +129,12 @@ class PlPlayerController with BlockConfigMixin {
 
   final Rx<VideoFitType> videoFit = Rx(.contain);
 
-  late final RxBool continuePlayInBackground =
-      Pref.continuePlayInBackground.obs;
+  late final backgroundPlaybackMode = Pref.backgroundPlaybackMode.obs;
+
+  bool get continuesInBackground => backgroundPlaybackMode.value.allows(
+    listening: onlyPlayAudio.value,
+    pictureInPicture: isPipMode,
+  );
 
   bool _autoPlay = false;
 
@@ -1613,13 +1620,10 @@ class PlPlayerController with BlockConfigMixin {
     }
   }
 
-  void setContinuePlayInBackground() {
-    continuePlayInBackground.toggle();
+  Future<void> setBackgroundPlaybackMode(BackgroundPlaybackMode mode) async {
+    backgroundPlaybackMode.value = mode;
     if (!tempPlayerConf) {
-      setting.put(
-        SettingBoxKey.continuePlayInBackground,
-        continuePlayInBackground.value,
-      );
+      await setting.put(SettingBoxKey.backgroundPlaybackMode, mode.name);
     }
   }
 

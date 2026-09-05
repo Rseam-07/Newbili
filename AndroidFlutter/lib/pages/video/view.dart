@@ -46,6 +46,7 @@ import 'package:PiliPlus/pages/video/view_point/view.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
+import 'package:PiliPlus/pages/video/widgets/page_switcher.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
@@ -582,22 +583,55 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             },
             body: MiniScaffold(
               key: videoDetailController.childKey,
-              body: Column(
-                children: [
-                  buildTabBar(onTap: videoDetailController.animToTop),
-                  Expanded(
-                    child: tabBarView(
-                      hitTestBehavior: .translucent,
-                      controller: videoDetailController.tabCtr,
+              body: Builder(
+                builder: (context) {
+                  final bar = buildTabBar(
+                    onTap: videoDetailController.animToTop,
+                    floating: isPortrait,
+                  );
+                  Widget pages = tabBarView(
+                    hitTestBehavior: .translucent,
+                    controller: videoDetailController.tabCtr,
+                    children: [
+                      videoIntro(isHorizontal: false, needCtr: false),
+                      if (videoDetailController.showReply)
+                        videoReplyPanel(isNested: true),
+                      if (_shouldShowSeasonPanel) seasonPanel,
+                    ],
+                  );
+                  if (!isPortrait) {
+                    return Column(
                       children: [
-                        videoIntro(isHorizontal: false, needCtr: false),
-                        if (videoDetailController.showReply)
-                          videoReplyPanel(isNested: true),
-                        if (_shouldShowSeasonPanel) seasonPanel,
+                        bar,
+                        Expanded(child: pages),
                       ],
+                    );
+                  }
+                  final media = MediaQuery.of(context);
+                  pages = MediaQuery(
+                    data: media.copyWith(
+                      viewPadding: media.viewPadding.copyWith(
+                        bottom:
+                            media.viewPadding.bottom +
+                            PlayerPageSwitcher.contentInsetOf(context),
+                      ),
                     ),
-                  ),
-                ],
+                    child: pages,
+                  );
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      pages,
+                      if (!isFullScreen)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: padding.bottom + 12,
+                          child: Center(child: bar),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -1288,6 +1322,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   }
 
   Widget buildTabBar({
+    bool floating = false,
     bool needIndicator = true,
     String? introText,
     bool showIntro = true,
@@ -1300,13 +1335,34 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       if (_shouldShowSeasonPanel) '播放列表',
     ];
     if (videoDetailController.tabCtr.length != tabs.length) {
+      final previousIndex = videoDetailController.tabCtr.index;
       videoDetailController.tabCtr.dispose();
       videoDetailController.tabCtr = TabController(
         vsync: videoDetailController,
         length: tabs.length,
         initialIndex: tabs.isEmpty
             ? 0
-            : videoDetailController.tabCtr.index.clamp(0, tabs.length - 1),
+            : previousIndex.clamp(0, tabs.length - 1),
+      );
+    }
+
+    if (floating && tabs.isNotEmpty) {
+      return Obx(
+        () => PlayerPageSwitcher(
+          controller: videoDetailController.tabCtr,
+          labels: tabs,
+          showsDanmaku:
+              videoDetailController.plPlayerController.enableShowDanmaku.value,
+          onSendDanmaku: videoDetailController.showShootDanmakuSheet,
+          onToggleDanmaku: _toggleDanmaku,
+          onReselect: () {
+            if (tabs[videoDetailController.tabCtr.index] == '评论') {
+              _videoReplyController.animateToTop();
+            } else {
+              onTap?.call();
+            }
+          },
+        ),
       );
     }
 
@@ -1413,16 +1469,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                   final ctr = videoDetailController.plPlayerController;
                   final enableShowDanmaku = ctr.enableShowDanmaku.value;
                   return IconButton(
-                    onPressed: () {
-                      final newVal = !enableShowDanmaku;
-                      ctr.enableShowDanmaku.value = newVal;
-                      if (!ctr.tempPlayerConf) {
-                        GStorage.setting.put(
-                          SettingBoxKey.enableShowDanmaku,
-                          newVal,
-                        );
-                      }
-                    },
+                    onPressed: _toggleDanmaku,
                     icon: Icon(
                       size: 22,
                       enableShowDanmaku
@@ -1441,6 +1488,15 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ),
       ),
     );
+  }
+
+  void _toggleDanmaku() {
+    final ctr = videoDetailController.plPlayerController;
+    final newVal = !ctr.enableShowDanmaku.value;
+    ctr.enableShowDanmaku.value = newVal;
+    if (!ctr.tempPlayerConf) {
+      GStorage.setting.put(SettingBoxKey.enableShowDanmaku, newVal);
+    }
   }
 
   Widget videoPlayer({required double width, required double height}) {
@@ -1682,7 +1738,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 (videoDetailController.isPlayAll && !isPortrait
                     ? 80
                     : Style.safeSpace) +
-                padding.bottom,
+                padding.bottom +
+                (isPortrait ? PlayerPageSwitcher.contentInsetOf(context) : 0),
           ),
         ),
       ],

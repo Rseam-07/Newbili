@@ -4,9 +4,11 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/button/more_btn.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/live/live_feed_index/card_data_list_item.dart';
 import 'package:PiliPlus/models_new/live/live_feed_index/card_list.dart';
@@ -25,7 +27,9 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:material_ui/material_ui.dart';
 
 class LivePage extends StatefulWidget {
-  const LivePage({super.key});
+  const LivePage({super.key, this.controllerTag});
+
+  final String? controllerTag;
 
   @override
   State<LivePage> createState() => _LivePageState();
@@ -33,7 +37,10 @@ class LivePage extends StatefulWidget {
 
 class _LivePageState extends State<LivePage>
     with AutomaticKeepAliveClientMixin {
-  final LiveController controller = Get.put(LiveController());
+  late final LiveController controller = Get.put(
+    LiveController(),
+    tag: widget.controllerTag,
+  );
 
   @override
   bool get wantKeepAlive => true;
@@ -44,6 +51,13 @@ class _LivePageState extends State<LivePage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     textScaler = MediaQuery.textScalerOf(context);
+    gridDelegate = SliverGridDelegateWithExtentAndRatio(
+      mainAxisSpacing: Style.cardSpace,
+      crossAxisSpacing: Style.cardSpace,
+      maxCrossAxisExtent: Grid.smallCardWidth,
+      childAspectRatio: Style.aspectRatio,
+      mainAxisExtent: textScaler.scale(90),
+    );
   }
 
   @override
@@ -61,12 +75,14 @@ class _LivePageState extends State<LivePage>
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.only(
+              padding: EdgeInsets.only(
                 top: Style.cardSpace,
-                bottom: 100,
+                bottom: FloatingNavigationBar.bottomContentInsetOf(context),
               ),
               sliver: SliverMainAxisGroup(
                 slivers: [
+                  if (widget.controllerTag == 'root-live')
+                    const SliverToBoxAdapter(child: NewbiliPageTitle('直播')),
                   Obx(() => _buildTop(theme, controller.topState.value)),
                   Obx(() => _buildBody(theme, controller.loadingState.value)),
                 ],
@@ -176,13 +192,7 @@ class _LivePageState extends State<LivePage>
     );
   }
 
-  late final gridDelegate = SliverGridDelegateWithExtentAndRatio(
-    mainAxisSpacing: Style.cardSpace,
-    crossAxisSpacing: Style.cardSpace,
-    maxCrossAxisExtent: Grid.smallCardWidth,
-    childAspectRatio: Style.aspectRatio,
-    mainAxisExtent: textScaler.scale(90),
-  );
+  late SliverGridDelegateWithExtentAndRatio gridDelegate;
 
   Widget _buildBody(ThemeData theme, LoadingState<List?> loadingState) {
     return switch (loadingState) {

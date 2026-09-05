@@ -48,7 +48,7 @@ import 'package:path/path.dart' as path;
 List<SettingsModel> get styleSettings => [
   if (Platform.isAndroid)
     SwitchModel(
-      title: 'Fluent 液态玻璃',
+      title: '液态玻璃',
       subtitle: 'Android 13+ 使用增强玻璃；Android 12 使用模糊玻璃；省电或低内存设备自动降级',
       leading: const Icon(Icons.blur_on_rounded),
       setKey: SettingBoxKey.newbiliLiquidGlass,
@@ -131,7 +131,7 @@ List<SettingsModel> get styleSettings => [
     title: '悬浮底栏',
     leading: Icon(MdiIcons.soundbar),
     setKey: SettingBoxKey.floatingNavBar,
-    defaultVal: false,
+    defaultVal: true,
     needReboot: true,
   ),
   NormalModel(
@@ -368,11 +368,11 @@ List<SettingsModel> get styleSettings => [
       arguments: {
         'key': SettingBoxKey.navBarSort,
         'defaultBars': NavigationBarType.values,
-        'title': 'Navbar',
+        'title': '底部导航',
       },
     ),
-    title: 'Navbar编辑',
-    subtitle: '删除或调换Navbar',
+    title: '底部导航',
+    subtitle: '调整首页、动态、直播、我的与搜索的显示及顺序',
     leading: const Icon(Icons.toc_outlined),
   ),
   SwitchModel(
