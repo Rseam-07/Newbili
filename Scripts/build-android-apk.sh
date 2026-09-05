@@ -74,7 +74,9 @@ for abi in armeabi-v7a arm64-v8a x86_64; do
 
   "$apksigner" verify --verbose --print-certs "$output_apk"
   "$zipalign" -c 4 "$output_apk"
-  signer_sha256="$("$apksigner" verify --print-certs "$output_apk" | awk -F': ' '/certificate SHA-256 digest/ {print $2; exit}')"
+  # apksigner writes verification details to stderr on some build-tools
+  # versions; merge both streams before extracting the certificate digest.
+  signer_sha256="$("$apksigner" verify --print-certs "$output_apk" 2>&1 | awk -F': ' '/certificate SHA-256 digest/ {print $2; exit}')"
   if [[ "$signer_sha256" != "$EXPECTED_SIGNER_SHA256" ]]; then
     echo "APK signer differs from the existing public Newbili Android test release." >&2
     exit 1
