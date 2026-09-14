@@ -1,9 +1,11 @@
+import 'dart:convert' show jsonDecode;
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/common/widgets/newbili_library.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -13,9 +15,18 @@ void main() {
   const outputDirectory = String.fromEnvironment('NEWBILI_VISUAL_OUTPUT');
   setUpAll(() async {
     if (fontPath.isEmpty) return;
+    final fonts =
+        jsonDecode(await rootBundle.loadString('FontManifest.json')) as List;
+    for (final entry in fonts) {
+      final loader = FontLoader(entry['family'] as String);
+      for (final font in entry['fonts'] as List) {
+        loader.addFont(rootBundle.load(font['asset'] as String));
+      }
+      await loader.load();
+    }
     await ui.loadFontFromList(
       await File(fontPath).readAsBytes(),
-      fontFamily: 'PreviewHeiti',
+      fontFamily: 'NewbiliPreview',
     );
   });
 
@@ -39,7 +50,7 @@ void main() {
           key: boundaryKey,
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(colorScheme: scheme, fontFamily: 'PreviewHeiti'),
+            theme: ThemeData(colorScheme: scheme, fontFamily: 'NewbiliPreview'),
             home: MediaQuery(
               data: MediaQueryData(
                 size: size,

@@ -267,6 +267,12 @@ void main() {
         await tester.pump();
         expect(find.text('创作者名称'), findsOneWidget);
         expect(find.text('看到 12:34 / 24:00'), findsOneWidget);
+        if (scale >= 2) {
+          final title = tester.getRect(
+            find.text('一个足够长的视频标题，用于检查两行截断和大字体布局'),
+          );
+          expect(title.width, greaterThan(300));
+        }
         final action = tester.getRect(find.byTooltip('内容操作'));
         expect(action.width, greaterThanOrEqualTo(48));
         expect(action.height, greaterThanOrEqualTo(48));

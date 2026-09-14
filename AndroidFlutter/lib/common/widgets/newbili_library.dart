@@ -45,6 +45,113 @@ class NewbiliLibraryTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
     );
     if (heroTag != null) image = Hero(tag: heroTag!, child: image);
+    const titleSize = 15.0;
+    final coverColumn = SizedBox(
+      width: 92,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            children: [
+              image,
+              if (selecting)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: .35),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      selected
+                          ? CupertinoIcons.check_mark_circled_solid
+                          : CupertinoIcons.circle,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (badge?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                badge!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    final info = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: titleSize,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurface,
+          ),
+        ),
+        if (subtitle?.isNotEmpty == true) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          metadata,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+        if (progressLabel != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            progressLabel!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: scheme.primary,
+            ),
+          ),
+          if (progress != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0.0, 1.0),
+                minHeight: 2,
+              ),
+            ),
+        ],
+      ],
+    );
+    final action = trailing == null
+        ? null
+        : SizedBox.square(dimension: 48, child: trailing!);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Semantics(
@@ -59,118 +166,38 @@ class NewbiliLibraryTile extends StatelessWidget {
             onSecondaryTap: onSecondaryTap,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 92,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final textWidth =
+                      constraints.maxWidth -
+                      92 -
+                      10 -
+                      (action == null ? 0 : 48);
+                  // Keep at least seven title glyphs per line at the user's
+                  // selected text size; use full-width text on narrow screens.
+                  if (textWidth <
+                      MediaQuery.textScalerOf(context).scale(titleSize) * 7) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Stack(
-                          children: [
-                            image,
-                            if (selecting)
-                              Positioned.fill(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: .35),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    selected
-                                        ? CupertinoIcons
-                                              .check_mark_circled_solid
-                                        : CupertinoIcons.circle,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [coverColumn, ?action],
                         ),
-                        if (badge?.isNotEmpty == true)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              badge!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
+                        const SizedBox(height: 10),
+                        info,
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.25,
-                            fontWeight: FontWeight.w600,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        if (subtitle?.isNotEmpty == true) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          metadata,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        if (progressLabel != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            progressLabel!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.primary,
-                            ),
-                          ),
-                          if (progress != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: LinearProgressIndicator(
-                                value: progress!.clamp(0.0, 1.0),
-                                minHeight: 2,
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (trailing != null)
-                    SizedBox.square(dimension: 48, child: trailing!),
-                ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      coverColumn,
+                      const SizedBox(width: 10),
+                      Expanded(child: info),
+                      ?action,
+                    ],
+                  );
+                },
               ),
             ),
           ),
