@@ -17,7 +17,11 @@ class HistorySearchPage extends StatefulWidget {
 
 class _HistorySearchPageState
     extends
-        CommonSearchPageState<HistorySearchPage, HistoryData, HistoryItemModel> {
+        CommonSearchPageState<
+          HistorySearchPage,
+          HistoryData,
+          HistoryItemModel
+        > {
   @override
   Color get backgroundColor => NewbiliFormStyle.background(context);
   @override

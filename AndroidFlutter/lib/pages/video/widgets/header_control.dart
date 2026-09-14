@@ -420,7 +420,10 @@ class HeaderControlState extends State<HeaderControl>
                         () => NewbiliSettingsRow(
                           title: '后台播放',
                           icon: Icons.play_circle_outline,
-                          subtitle: plPlayerController.backgroundPlaybackMode.value.label,
+                          subtitle: plPlayerController
+                              .backgroundPlaybackMode
+                              .value
+                              .label,
                           onTap: () => showBackgroundPlaybackPicker(
                             context,
                             plPlayerController.backgroundPlaybackMode.value,
@@ -429,26 +432,36 @@ class HeaderControlState extends State<HeaderControl>
                         ),
                       ),
                     if ((isFileSource &&
-                            !(plPlayerController.dataSource as FileSource).isMp4) ||
-                        (!isFileSource && videoDetailCtr.audioUrl?.isNotEmpty == true))
+                            !(plPlayerController.dataSource as FileSource)
+                                .isMp4) ||
+                        (!isFileSource &&
+                            videoDetailCtr.audioUrl?.isNotEmpty == true))
                       Obx(() {
-                        final onlyPlayAudio = plPlayerController.onlyPlayAudio.value;
+                        final onlyPlayAudio =
+                            plPlayerController.onlyPlayAudio.value;
                         final player = plPlayerController.videoPlayerController;
                         return SwitchListTile(
                           title: const Text('听视频', style: titleStyle),
-                          secondary: const Icon(Icons.headphones_outlined, size: 22),
+                          secondary: const Icon(
+                            Icons.headphones_outlined,
+                            size: 22,
+                          ),
                           value: onlyPlayAudio,
-                          onChanged: player == null ? null : (enabled) {
-                            plPlayerController.onlyPlayAudio.value = enabled;
-                            if (onlyPlayAudio && player.state.tracks.video.length <= 2) {
-                              videoDetailCtr.playerInit();
-                            } else {
-                              player.setProperty(
-                                'file-local-options/vid',
-                                onlyPlayAudio ? 'auto' : 'no',
-                              );
-                            }
-                          },
+                          onChanged: player == null
+                              ? null
+                              : (enabled) {
+                                  plPlayerController.onlyPlayAudio.value =
+                                      enabled;
+                                  if (onlyPlayAudio &&
+                                      player.state.tracks.video.length <= 2) {
+                                    videoDetailCtr.playerInit();
+                                  } else {
+                                    player.setProperty(
+                                      'file-local-options/vid',
+                                      onlyPlayAudio ? 'auto' : 'no',
+                                    );
+                                  }
+                                },
                         );
                       }),
                     ListTile(
@@ -623,18 +636,27 @@ class HeaderControlState extends State<HeaderControl>
                         ),
                       ),
                     ],
-                    Obx(() => SwitchListTile(
-                      title: const Text('左右翻转', style: titleStyle),
-                      secondary: const Icon(Icons.flip, size: 22),
-                      value: plPlayerController.flipX.value,
-                      onChanged: (value) => plPlayerController.flipX.value = value,
-                    )),
-                    Obx(() => SwitchListTile(
-                      title: const Text('上下翻转', style: titleStyle),
-                      secondary: const Icon(CustomIcons.flip_rotate_90, size: 22),
-                      value: plPlayerController.flipY.value,
-                      onChanged: (value) => plPlayerController.flipY.value = value,
-                    )),
+                    Obx(
+                      () => SwitchListTile(
+                        title: const Text('左右翻转', style: titleStyle),
+                        secondary: const Icon(Icons.flip, size: 22),
+                        value: plPlayerController.flipX.value,
+                        onChanged: (value) =>
+                            plPlayerController.flipX.value = value,
+                      ),
+                    ),
+                    Obx(
+                      () => SwitchListTile(
+                        title: const Text('上下翻转', style: titleStyle),
+                        secondary: const Icon(
+                          CustomIcons.flip_rotate_90,
+                          size: 22,
+                        ),
+                        value: plPlayerController.flipY.value,
+                        onChanged: (value) =>
+                            plPlayerController.flipY.value = value,
+                      ),
+                    ),
                   ],
                 ),
                 NewbiliFormSection(

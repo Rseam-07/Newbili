@@ -31,7 +31,10 @@ mixin BaseLaterController
       title: const Text('提示'),
       content: const Text('确认删除所选稍后再看吗？'),
       onConfirm: () async {
-        final aids = allChecked.map((item) => item.aid).whereType<int>().toSet();
+        final aids = allChecked
+            .map((item) => item.aid)
+            .whereType<int>()
+            .toSet();
         if (aids.isEmpty) return;
         SmartDialog.showLoading(msg: '请求中');
         try {
@@ -59,12 +62,12 @@ mixin BaseLaterController
   Future<void> afterVideosRemoved(Set<int> aids) async {
     // A refresh may replace or reorder model instances during the request.
     // Resolve the current rows by video identity, never by a captured index.
-    final items = loadingState.value.data;
-    if (items == null) return;
-    final removed = items.where((item) => aids.contains(item.aid)).toSet();
-    if (removed.isEmpty) return;
-    updateCount?.call(removed.length);
-    await afterDelete(removed);
+    if (loadingState.value case Success(:final response?)) {
+      final removed = response.where((item) => aids.contains(item.aid)).toSet();
+      if (removed.isEmpty) return;
+      updateCount?.call(removed.length);
+      await afterDelete(removed);
+    }
   }
 }
 
