@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
+import 'package:PiliPlus/common/widgets/newbili_library.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/later_view_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
@@ -8,7 +9,6 @@ import 'package:PiliPlus/pages/later/base_controller.dart';
 import 'package:PiliPlus/pages/later/controller.dart';
 import 'package:PiliPlus/pages/later/widgets/video_card_h_later.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/grid.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,7 +26,7 @@ class LaterViewChildPage extends StatefulWidget {
 }
 
 class _LaterViewChildPageState extends State<LaterViewChildPage>
-    with AutomaticKeepAliveClientMixin, GridMixin {
+    with AutomaticKeepAliveClientMixin {
   late final LaterController _laterController;
   late final _baseCtr = Get.putOrFind(LaterBaseController.new);
 
@@ -64,18 +64,17 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
 
   Widget _buildBody(LoadingState<List<LaterItemModel>?> loadingState) {
     return switch (loadingState) {
-      Loading() => gridSkeleton,
+      Loading() => const NewbiliLibrarySkeleton(),
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? SliverGrid.builder(
-                gridDelegate: gridDelegate,
+            ? SliverList.builder(
                 itemBuilder: (context, index) {
                   if (index == response.length - 1) {
                     _laterController.onLoadMore();
                   }
                   final videoItem = response[index];
                   return VideoCardHLater(
-                    index: index,
+                    key: ValueKey(videoItem.bvid ?? videoItem.aid),
                     videoItem: videoItem,
                     ctr: _laterController,
                     onViewLater: (cid) {

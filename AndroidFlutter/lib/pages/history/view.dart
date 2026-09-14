@@ -4,6 +4,8 @@ import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
+import 'package:PiliPlus/common/widgets/newbili_library.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
     show tabBarScrollPhysics;
@@ -13,7 +15,6 @@ import 'package:PiliPlus/pages/history/base_controller.dart';
 import 'package:PiliPlus/pages/history/controller.dart';
 import 'package:PiliPlus/pages/history/widgets/item.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
-import 'package:PiliPlus/utils/grid.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -27,7 +28,7 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage>
-    with AutomaticKeepAliveClientMixin, GridMixin {
+    with AutomaticKeepAliveClientMixin {
   late final HistoryController _historyController;
 
   @override
@@ -94,6 +95,7 @@ class _HistoryPageState extends State<HistoryPage>
             }
           },
           child: SimpleScaffold(
+            backgroundColor: NewbiliFormStyle.background(context),
             appBar: MultiSelectAppBarWidget(
               visible: enableMultiSelect,
               ctr: currCtr(),
@@ -206,17 +208,19 @@ class _HistoryPageState extends State<HistoryPage>
 
   Widget _buildBody(LoadingState<List<HistoryItemModel>?> loadingState) {
     return switch (loadingState) {
-      Loading() => gridSkeleton,
+      Loading() => const NewbiliLibrarySkeleton(),
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? SliverGrid.builder(
-                gridDelegate: gridDelegate,
+            ? SliverList.builder(
                 itemBuilder: (context, index) {
                   if (index == response.length - 1) {
                     _historyController.onLoadMore();
                   }
                   final item = response[index];
                   return HistoryItem(
+                    key: ValueKey(
+                      '${item.history.business}:${item.kid ?? item.history.oid}',
+                    ),
                     item: item,
                     ctr: _historyController,
                     onDelete: (kid, business) =>

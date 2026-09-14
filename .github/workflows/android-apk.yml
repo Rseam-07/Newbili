@@ -2,6 +2,11 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Build release candidates for local signature verification (not auto-published)
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -13,7 +18,7 @@ on:
 
 jobs:
   build:
-    name: Build Android debug APK
+    name: Test and build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -56,12 +61,42 @@ jobs:
           flutter test --no-pub
 
       - name: Build debug APK
+        if: ${{ !inputs.release_candidate }}
         working-directory: AndroidFlutter
         run: flutter build apk --debug --no-pub
 
+      - name: Build release candidates
+        if: ${{ inputs.release_candidate }}
+        working-directory: AndroidFlutter
+        env:
+          GRADLE_OPTS: -Dorg.gradle.project.newbiliDebugReleaseSigning=true
+        run: |
+          set -euo pipefail
+          version=$(awk '/^version:/ { print $2 }' pubspec.yaml)
+          flutter build apk --release --split-per-abi --no-pub \
+            --dart-define "pili.name=${version%+*}" \
+            --dart-define "pili.code=${version##*+}" \
+            --dart-define "pili.hash=$(git rev-parse --short=12 HEAD)" \
+            --dart-define "pili.time=$(date +%s)"
+
+      - name: Run Android native unit tests
+        working-directory: AndroidFlutter/android
+        run: ./gradlew :app:testDebugUnitTest
+
       - name: Upload debug APK
+        if: ${{ !inputs.release_candidate }}
         uses: actions/upload-artifact@v4
         with:
           name: Newbili-Android-ci-debug
           path: AndroidFlutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+      # The CI key is ephemeral. Re-sign locally with the existing public test
+      # channel key and verify its digest before attaching APKs to a release.
+      - name: Upload release candidates
+        if: ${{ inputs.release_candidate }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Newbili-Android-release-candidates
+          path: AndroidFlutter/build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error

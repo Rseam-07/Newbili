@@ -1,10 +1,10 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
+import 'package:PiliPlus/common/widgets/newbili_library.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
 import 'package:PiliPlus/pages/fav/video/controller.dart';
 import 'package:PiliPlus/pages/fav/video/widgets/item.dart';
-import 'package:PiliPlus/utils/grid.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -17,7 +17,7 @@ class FavVideoPage extends StatefulWidget {
 }
 
 class _FavVideoPageState extends State<FavVideoPage>
-    with AutomaticKeepAliveClientMixin, GridMixin {
+    with AutomaticKeepAliveClientMixin {
   final FavController _favController = Get.find<FavController>();
 
   @override
@@ -48,11 +48,10 @@ class _FavVideoPageState extends State<FavVideoPage>
 
   Widget _buildBody(LoadingState<List<FavFolderInfo>?> loadingState) {
     return switch (loadingState) {
-      Loading() => gridSkeleton,
+      Loading() => const NewbiliLibrarySkeleton(),
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? SliverGrid.builder(
-                gridDelegate: gridDelegate,
+            ? SliverList.builder(
                 itemBuilder: (BuildContext context, int index) {
                   if (index == response.length - 1) {
                     _favController.onLoadMore();
@@ -60,6 +59,7 @@ class _FavVideoPageState extends State<FavVideoPage>
                   final item = response[index];
                   String heroTag = Utils.makeHeroTag(item.fid);
                   return FavVideoItem(
+                    key: ValueKey(item.id),
                     heroTag: heroTag,
                     item: item,
                     onTap: () async {
@@ -71,10 +71,10 @@ class _FavVideoPageState extends State<FavVideoPage>
                           'mediaId': item.id.toString(),
                         },
                       );
-                      if (res == true) {
-                        _favController.loadingState
-                          ..value.data!.removeAt(index)
-                          ..refresh();
+                      final folders = _favController.loadingState.value.data;
+                      if (res == true && folders != null) {
+                        folders.removeWhere((folder) => folder.id == item.id);
+                        _favController.loadingState.refresh();
                       }
                     },
                   );

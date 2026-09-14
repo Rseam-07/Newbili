@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,7 +20,7 @@ fi
 apply_once() {
   local target_dir="$1"
   local patch_path="$2"
-  local patch_name="${patch_path:t}"
+  local patch_name="${patch_path##*/}"
 
   if (cd "$target_dir" && git apply --recount --ignore-space-change --whitespace=nowarn --reverse --check "$patch_path" >/dev/null 2>&1); then
     echo "Already applied: $patch_name"

@@ -31,55 +31,40 @@ mixin BaseLaterController
       title: const Text('提示'),
       content: const Text('确认删除所选稍后再看吗？'),
       onConfirm: () async {
-        final removeList = allChecked.toSet();
+        final aids = allChecked.map((item) => item.aid).whereType<int>().toSet();
+        if (aids.isEmpty) return;
         SmartDialog.showLoading(msg: '请求中');
-        final res = await UserHttp.toViewDel(
-          aids: removeList.map((item) => item.aid).join(','),
-        );
-        if (res.isSuccess) {
-          updateCount?.call(removeList.length);
-          afterDelete(removeList);
+        try {
+          final res = await UserHttp.toViewDel(aids: aids.join(','));
+          if (res.isSuccess) await afterVideosRemoved(aids);
+        } finally {
+          SmartDialog.dismiss();
         }
-        SmartDialog.dismiss();
       },
     );
   }
 
-  // single
-  void toViewDel(
-    BuildContext context,
-    int index,
-    int? aid,
-  ) {
-    showDialog(
+  void toViewDel(BuildContext context, int aid) {
+    showConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('提示'),
-        content: const Text('即将移除该视频，确定是否移除'),
-        actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: Text(
-              '取消',
-              style: TextStyle(color: Theme.of(context).colorScheme.outline),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Get.back();
-              final res = await UserHttp.toViewDel(aids: aid.toString());
-              if (res.isSuccess) {
-                loadingState
-                  ..value.data!.removeAt(index)
-                  ..refresh();
-                updateCount?.call(1);
-              }
-            },
-            child: const Text('确认移除'),
-          ),
-        ],
-      ),
+      title: const Text('提示'),
+      content: const Text('即将移除该视频，确定是否移除'),
+      onConfirm: () async {
+        final res = await UserHttp.toViewDel(aids: aid.toString());
+        if (res.isSuccess) await afterVideosRemoved({aid});
+      },
     );
+  }
+
+  Future<void> afterVideosRemoved(Set<int> aids) async {
+    // A refresh may replace or reorder model instances during the request.
+    // Resolve the current rows by video identity, never by a captured index.
+    final items = loadingState.value.data;
+    if (items == null) return;
+    final removed = items.where((item) => aids.contains(item.aid)).toSet();
+    if (removed.isEmpty) return;
+    updateCount?.call(removed.length);
+    await afterDelete(removed);
   }
 }
 

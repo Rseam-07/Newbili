@@ -18,6 +18,8 @@ abstract class CommonSearchPageState<S extends StatefulWidget, R, T>
 
   List<Widget>? get multiSelectActions => null;
 
+  Color? get backgroundColor => null;
+
   @override
   Widget build(BuildContext context) {
     if (controller case final MultiSelectBase multiCtr) {
@@ -39,6 +41,7 @@ abstract class CommonSearchPageState<S extends StatefulWidget, R, T>
 
   Widget _build(bool multiSelect) {
     return SimpleScaffold(
+      backgroundColor: backgroundColor,
       appBar: _buildBar(multiSelect),
       body: ViewInsetsSafeArea(
         child: CustomScrollView(

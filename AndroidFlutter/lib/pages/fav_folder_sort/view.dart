@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/reorder_mixin.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -29,6 +30,7 @@ class _FavFolderSortPageState extends State<FavFolderSortPage>
   @override
   Widget build(BuildContext context) {
     return SimpleScaffold(
+      backgroundColor: NewbiliFormStyle.background(context),
       appBar: AppBar(
         title: const Text('收藏夹排序'),
         actions: [
@@ -79,16 +81,13 @@ class _FavFolderSortPageState extends State<FavFolderSortPage>
       itemBuilder: (context, index) {
         final item = sortList[index];
         final key = item.id.toString();
-        return SizedBox(
+        return FavVideoItem(
           key: Key(key),
-          height: 110,
-          child: FavVideoItem(
-            heroTag: key,
-            item: item,
-            onLongPress: index == 0
-                ? () => SmartDialog.showToast('默认收藏夹不支持排序')
-                : null,
-          ),
+          heroTag: key,
+          item: item,
+          onLongPress: index == 0
+              ? () => SmartDialog.showToast('默认收藏夹不支持排序')
+              : null,
         );
       },
     );

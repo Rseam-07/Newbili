@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/newbili_glass.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_v.dart';
+import 'package:PiliPlus/common/widgets/newbili_library.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
@@ -221,6 +222,131 @@ void main() {
       ),
       findsNothing,
     );
+  });
+
+  for (final scale in [1.0, 2.0, 3.0]) {
+    testWidgets(
+      'library rows retain content and a 48dp action at scale $scale',
+      (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(const Size(375, 812));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        var opened = false;
+        await tester.pumpWidget(
+          _app(
+            const Size(375, 812),
+            scale,
+            Brightness.light,
+            ListView(
+              children: [
+                NewbiliLibraryTile(
+                  key: const ValueKey('progress-row'),
+                  title: '一个足够长的视频标题，用于检查两行截断和大字体布局',
+                  cover: null,
+                  subtitle: '创作者名称',
+                  metadata: '12.3万次观看 · 3.4万弹幕',
+                  progressLabel: '看到 12:34 / 24:00',
+                  progress: .5,
+                  trailing: IconButton(
+                    tooltip: '内容操作',
+                    onPressed: () => opened = true,
+                    icon: const Icon(Icons.more_horiz_rounded),
+                  ),
+                ),
+                const NewbiliLibraryTile(
+                  key: ValueKey('short-row'),
+                  title: '收藏夹',
+                  cover: null,
+                  metadata: '10 个内容',
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.text('创作者名称'), findsOneWidget);
+        expect(find.text('看到 12:34 / 24:00'), findsOneWidget);
+        final action = tester.getRect(find.byTooltip('内容操作'));
+        expect(action.width, greaterThanOrEqualTo(48));
+        expect(action.height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getSize(find.byKey(const ValueKey('short-row'))).height,
+          lessThan(
+            tester.getSize(find.byKey(const ValueKey('progress-row'))).height,
+          ),
+        );
+        await tester.tap(find.byTooltip('内容操作'));
+        expect(opened, isTrue);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('library menu and long press do not also open the video', (
+    tester,
+  ) async {
+    var openCount = 0;
+    var menuCount = 0;
+    var selectCount = 0;
+    await tester.pumpWidget(
+      _app(
+        const Size(375, 812),
+        1,
+        Brightness.dark,
+        ListView(
+          children: [
+            NewbiliLibraryTile(
+              title: '观看记录',
+              cover: null,
+              metadata: '今天',
+              onTap: () => openCount++,
+              onLongPress: () => selectCount++,
+              trailing: IconButton(
+                tooltip: '更多操作',
+                onPressed: () => menuCount++,
+                icon: const Icon(Icons.more_horiz_rounded),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('更多操作'));
+    expect(menuCount, 1);
+    expect(openCount, 0);
+    await tester.longPress(find.text('观看记录'));
+    expect(selectCount, 1);
+    expect(openCount, 0);
+    await tester.tap(find.text('观看记录'));
+    expect(openCount, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('selected library rows expose their selection state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        const Size(375, 812),
+        2,
+        Brightness.dark,
+        const NewbiliLibraryTile(
+          title: '稍后再看',
+          cover: null,
+          metadata: '昨天',
+          selecting: true,
+          selected: true,
+        ),
+      ),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.selected == true,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('player glass keeps white controls legible in light appearance', (

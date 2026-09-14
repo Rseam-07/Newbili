@@ -1,10 +1,10 @@
 import 'package:PiliPlus/models/common/video/source_type.dart';
+import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/models_new/later/data.dart';
 import 'package:PiliPlus/models_new/later/list.dart';
 import 'package:PiliPlus/pages/common/search/common_search_page.dart';
 import 'package:PiliPlus/pages/later/widgets/video_card_h_later.dart';
 import 'package:PiliPlus/pages/later_search/controller.dart';
-import 'package:PiliPlus/utils/grid.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -19,8 +19,9 @@ class LaterSearchPage extends StatefulWidget {
 }
 
 class _LaterSearchPageState
-    extends CommonSearchPageState<LaterSearchPage, LaterData, LaterItemModel>
-    with GridMixin {
+    extends CommonSearchPageState<LaterSearchPage, LaterData, LaterItemModel> {
+  @override
+  Color get backgroundColor => NewbiliFormStyle.background(context);
   @override
   final LaterSearchController controller = Get.put(
     LaterSearchController(),
@@ -61,15 +62,14 @@ class _LaterSearchPageState
 
   @override
   Widget buildList(List<LaterItemModel> list) {
-    return SliverGrid.builder(
-      gridDelegate: gridDelegate,
+    return SliverList.builder(
       itemBuilder: (context, index) {
         if (index == list.length - 1) {
           controller.onLoadMore();
         }
         final item = list[index];
         return VideoCardHLater(
-          index: index,
+          key: ValueKey(item.bvid ?? item.aid),
           videoItem: item,
           ctr: controller,
           onViewLater: (cid) {
