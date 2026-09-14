@@ -12,8 +12,17 @@ Android 版本：1.0.8（11），最低 Android 12。本轮仅更新 Android；i
 - 修正文件 Provider 的 authority，让独立 Debug 包能与测试渠道 Release 包共存，无需卸载旧包或清除账号数据。
 - 修复 GitHub Linux 构建脚本的解释器兼容问题。候选包经分析和测试后构建，再在本地使用原有测试渠道证书签名。
 
+## 安装
+
+- Android 12+：普通手机优先选择 `arm64-v8a-test.apk`；另提供 `armeabi-v7a` 和 `x86_64`。
+- APK 是优化后的 Release 构建，`test` 指原有公开测试渠道签名，不是 Debug 运行模式。包名保持 `com.rseam07.newbili`，版本号由 10 升至 11；相同证书的旧测试包可覆盖升级，不需要先卸载或清除账号数据。
+- 下载后可使用同页 `SHA256SUMS-1.0.8.txt` 校验文件。iOS/iPadOS 仍使用上方链接中的 v1.0.7，不需要为了本次 Android 更新重新安装。
+
 ## 验证状态
 
-本文件为候选版本记录，当前尚未发布。测试、构建和产物签名核验完成后，补充本节的实际结果；不沿用上一版本的测试数字。
+- 本地与 GitHub Linux CI 均通过 76 项 Flutter 测试；Dart 静态分析无 error/warning，保留 33 项上游 info。Android 原生单元测试任务通过。
+- 已渲染并人工复查 375dp 浅色、375dp 深色、320dp 两倍字号的内容库组件截图；测试同时覆盖更大字号、触控区域、菜单/长按分流与刷新期间删除。这是组件夹具验证，不是登录账号或实体设备截图。
+- 三种 ABI 的 Release APK 均已核验包名、1.0.8（11）版本、最低 API 31、ZIP 完整性、对齐及签名。证书 SHA-256 与上一版测试渠道一致：`4876a7a04d24c8a89e82ca355a8f3fc404019d076af5aae2f5faaac32b5d6cdb`。
+- 构建来源为 [0a0991c](https://github.com/Rseam-07/Newbili/commit/0a0991c21a6e364c2afb302abeab99a8c0cb8fb2)，[最终候选工作流](https://github.com/Rseam-07/Newbili/actions/runs/34853317378)全部通过。候选归档的 SHA-256 已与 GitHub 产物记录匹配，最终签名 APK 的校验值见随包文件。
 
 仍需实体设备与真实账号验收收藏/历史同步、点赞提交、下载、锁屏音频、蓝牙、PiP 和长时间滚动/播放。不能将本轮描述为全 App 已与 iOS 完全一致。

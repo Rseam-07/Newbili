@@ -1,0 +1,3 @@
+e85bc7ab45536dbeb4e18650ece14c8dd5b50def671c3ac33e754613271dd8d1  Newbili-Android-1.0.8-11-armeabi-v7a-test.apk
+19570ebe6e4df603250bb161357dd7e0b7d25a50e4f80df1a01df8f0f4c19a89  Newbili-Android-1.0.8-11-arm64-v8a-test.apk
+4a552ba8d4d3fb2c92b6887b501f5069481bbd764966142040fea7f49e1a4708  Newbili-Android-1.0.8-11-x86_64-test.apk
