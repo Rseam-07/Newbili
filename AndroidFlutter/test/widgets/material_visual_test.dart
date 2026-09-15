@@ -1,3 +1,6 @@
+import 'package:PiliPlus/plugin/pl_player/widgets/compact_player_bar.dart';
+import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -321,7 +324,22 @@ class _PreviewState extends State<_Preview> {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     return Material(
       child: MainLayout(
-        sideBar: null,
+        sideBar: wide
+            ? NavigationRail(
+                scrollable: true,
+                groupAlignment: 0,
+                labelType: NavigationRailLabelType.all,
+                selectedIndex: selected,
+                onDestinationSelected: (i) => setState(() => selected = i),
+                destinations: [
+                  for (var i = 0; i < 5; i++)
+                    NavigationRailDestination(
+                      icon: Icon(icons[i]),
+                      label: Text(labels[i]),
+                    ),
+                ],
+              )
+            : null,
         bottomNav: wide
             ? null
             : NewbiliNavigationBar(
@@ -341,7 +359,7 @@ class _PreviewState extends State<_Preview> {
             children: [
               if (wide)
                 NewbiliTabletToolbar(
-                  labels: labels,
+                  labels: const [],
                   selectedIndex: selected,
                   onSelected: (i) => setState(() => selected = i),
                   onSearch: () {},
@@ -518,7 +536,7 @@ class _Detail extends StatelessWidget {
               child: NewbiliCoverHero(
                 tag: tag,
                 radius: 10,
-                child: _artwork(item),
+                child: _previewPlayer(item),
               ),
             ),
             details: ListView(
@@ -568,20 +586,24 @@ class _Detail extends StatelessWidget {
               ],
             ),
             related: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: _items.length - 1,
               separatorBuilder: (_, _) => const SizedBox(width: 16),
-              itemBuilder: (_, i) => SizedBox(
-                width: 212,
-                child: VideoCardV(
-                  videoItem: _items[i + 1],
-                  coverBuilder: (_) => _artwork(_items[i + 1]),
-                  onOpen: (_) {},
+              itemBuilder: (context, i) => LayoutBuilder(
+                builder: (context, box) => SizedBox(
+                  height:
+                      box.maxWidth * 9 / 16 +
+                      VideoCardV.metadataHeightOf(context),
+                  child: VideoCardV(
+                    videoItem: _items[i + 1],
+                    coverBuilder: (_) => _artwork(_items[i + 1]),
+                    onOpen: (_) {},
+                  ),
                 ),
               ),
             ),
             secondary: _FeedPreview(items: _items),
+            extraPane: _FeedPreview(items: _items),
             onSendDanmaku: () {},
           ),
         ),
@@ -600,7 +622,10 @@ class _Detail extends StatelessWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: NewbiliCoverHero(tag: tag, child: _artwork(item)),
+                  child: NewbiliCoverHero(
+                    tag: tag,
+                    child: _previewPlayer(item),
+                  ),
                 ),
                 const Positioned(
                   left: 4,
@@ -696,3 +721,48 @@ class _RcmdFixtureController extends RcmdController {
     requestError.value = null;
   }
 }
+
+Widget _previewPlayer(BaseRcmdVideoItemModel item) => Stack(
+  fit: StackFit.expand,
+  children: [
+    _artwork(item),
+    Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Color(0xBF000000)],
+          ),
+        ),
+        child: CompactPlayerBar(
+          playing: true,
+          time: '01:24',
+          total: '12:30',
+          fullscreen: false,
+          onPlay: () {},
+          onMore: () {},
+          onFullscreen: () {},
+          timeline: ProgressBar(
+            progress: 84,
+            total: 750,
+            buffered: 200,
+            barHeight: 3,
+            thumbRadius: 5,
+            thumbGlowRadius: 16,
+            onDragStart: (_) {},
+            onSeek: (_) {},
+            baseBarColor: Colors.white24,
+            progressBarColor: const Color(0xFFF8A3BD),
+            bufferedBarColor: Colors.white54,
+            thumbColor: Colors.white,
+            thumbGlowColor: Colors.white24,
+          ),
+        ),
+      ),
+    ),
+  ],
+);

@@ -381,3 +381,33 @@ class NewbiliTabletToolbar extends StatelessWidget {
     );
   }
 }
+
+/// Clips paint, input and semantics together, including at the final pixel.
+class NewbiliCollapsingToolbar extends StatelessWidget {
+  const NewbiliCollapsingToolbar({
+    super.key,
+    required this.offset,
+    required this.child,
+  });
+  final double offset;
+  final Widget child;
+  static const height = 60.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = (1 - offset / height).clamp(0.0, 1.0);
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        heightFactor: fraction,
+        child: ExcludeSemantics(
+          excluding: fraction == 0,
+          child: IgnorePointer(
+            ignoring: fraction == 0,
+            child: SizedBox(height: height, child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -17,9 +17,14 @@ import 'package:waterfall_flow/waterfall_flow.dart'
     hide SliverWaterfallFlowDelegateWithMaxCrossAxisExtent;
 
 class DynamicsTabPage extends StatefulWidget {
-  const DynamicsTabPage({super.key, required this.dynamicsType});
+  const DynamicsTabPage({
+    super.key,
+    required this.dynamicsType,
+    this.controllerTag,
+  });
 
   final DynamicsTabType dynamicsType;
+  final String? controllerTag;
 
   @override
   State<DynamicsTabPage> createState() => _DynamicsTabPageState();
@@ -36,14 +41,25 @@ class _DynamicsTabPageState extends State<DynamicsTabPage>
   @override
   void initState() {
     controller = Get.putOrFind(
-      () => DynamicsTabController(dynamicsType: widget.dynamicsType),
-      tag: widget.dynamicsType.name,
+      () => DynamicsTabController(
+        dynamicsType: widget.dynamicsType,
+        independent: widget.controllerTag != null,
+      ),
+      tag: widget.controllerTag ?? widget.dynamicsType.name,
     );
     super.initState();
   }
 
+  @override
+  void dispose() {
+    if (widget.controllerTag != null) {
+      Get.delete<DynamicsTabController>(tag: widget.controllerTag);
+    }
+    super.dispose();
+  }
+
   Future<void> onRefresh() {
-    dynamicsController.singleRefresh();
+    if (widget.controllerTag == null) dynamicsController.singleRefresh();
     return controller.onRefresh();
   }
 

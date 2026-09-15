@@ -678,7 +678,11 @@ class RenderProgressBar extends RenderBox implements MouseTrackerAnnotation {
   void _drawProgressBarWithoutLabels(Canvas canvas) {
     final barWidth = size.width;
     final barHeight = _heightWhenNoLabels();
-    _drawProgressBar(canvas, Offset.zero, Size(barWidth, barHeight));
+    _drawProgressBar(
+      canvas,
+      Offset(0, (size.height - barHeight) / 2),
+      Size(barWidth, barHeight),
+    );
   }
 
   void _drawProgressBar(Canvas canvas, Offset offset, Size localSize) {

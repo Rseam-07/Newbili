@@ -135,6 +135,7 @@ void main() {
           ),
           details: const Text('Details'),
           secondary: const Text('Comments'),
+          extraPane: const Text('Following feed'),
           onSendDanmaku: () {},
         ),
       ),
@@ -142,7 +143,11 @@ void main() {
     await tester.tap(find.text('评论与列表'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.text('收起评论'));
+    await tester.tap(find.text('边看边逛动态'));
+    await tester.pumpAndSettle();
+    expect(find.text('Following feed').hitTestable(), findsOneWidget);
+    expect(find.text('Comments').hitTestable(), findsNothing);
+    await tester.tap(find.text('收起动态'));
     await tester.pumpAndSettle();
     expect(mounts, 1);
     expect(tester.takeException(), isNull);

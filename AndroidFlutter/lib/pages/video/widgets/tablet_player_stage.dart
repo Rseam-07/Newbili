@@ -2,8 +2,8 @@ import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Wide playback retains the video's place while comments open beside it.
-/// The player stays in one subtree as the panel's width changes.
+/// Resizes the same live player while a nearby, independently scrolling pane
+/// opens. Changing pane content never navigates away from playback.
 class TabletPlayerStage extends StatefulWidget {
   const TabletPlayerStage({
     super.key,
@@ -11,6 +11,7 @@ class TabletPlayerStage extends StatefulWidget {
     required this.details,
     this.related,
     this.secondary,
+    this.extraPane,
     required this.onSendDanmaku,
     this.backButton = const BackButton(),
   });
@@ -18,6 +19,7 @@ class TabletPlayerStage extends StatefulWidget {
   final Widget details;
   final Widget? related;
   final Widget? secondary;
+  final Widget? extraPane;
   final VoidCallback onSendDanmaku;
   final Widget backButton;
   @override
@@ -30,12 +32,16 @@ class _TabletPlayerStageState extends State<TabletPlayerStage>
     vsync: this,
     duration: NewbiliMotion.container,
   );
-  bool _open = false;
-  bool _visited = false;
-  void _toggle() {
+  int? _selected;
+  final _visited = <int>{};
+  bool get _open => _selected != null;
+  int _lastSelected = 0;
+
+  void _select(int index) {
     setState(() {
-      _open = !_open;
-      _visited = true;
+      _selected = _selected == index ? null : index;
+      _lastSelected = index;
+      _visited.add(index);
     });
     if (NewbiliMotion.reduced(context)) {
       _pane.value = _open ? 1 : 0;
@@ -64,7 +70,7 @@ class _TabletPlayerStageState extends State<TabletPlayerStage>
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 16, 8),
+            padding: const EdgeInsets.fromLTRB(8, 4, 16, 4),
             child: Row(
               children: [
                 widget.backButton,
@@ -72,167 +78,209 @@ class _TabletPlayerStageState extends State<TabletPlayerStage>
                 NewbiliWordmark(
                   compact: MediaQuery.textScalerOf(context).scale(14) > 20,
                 ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: widget.onSendDanmaku,
-                  icon: const Icon(Icons.edit_note_rounded, size: 20),
-                  label: const Text('发弹幕'),
-                ),
-                if (widget.secondary != null) ...[
-                  const SizedBox(width: 12),
-                  TextButton.icon(
-                    onPressed: _toggle,
-                    icon: Icon(
-                      _open
-                          ? Icons.close_rounded
-                          : Icons.chat_bubble_outline_rounded,
-                      size: 18,
-                    ),
-                    label: Text(_open ? '收起评论' : '评论与列表'),
-                  ),
-                ],
               ],
             ),
           ),
           Expanded(
-            child: AnimatedBuilder(
-              animation: _pane,
-              builder: (context, _) => Row(
-                children: [
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, box) {
-                        final largeText =
-                            MediaQuery.textScalerOf(context).scale(14) > 20;
-                        final relatedHeight = widget.related == null
-                            ? 0.0
-                            : (230 +
-                                      (MediaQuery.textScalerOf(context)
-                                                  .scale(14) -
-                                              14) *
-                                          3)
-                                  .clamp(230.0, box.maxHeight * .5);
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  12,
-                                  24,
-                                  16,
+            child: LayoutBuilder(
+              builder: (context, bounds) {
+                final paneWidth = (bounds.maxWidth * .34).clamp(300.0, 400.0);
+                return AnimatedBuilder(
+                  animation: _pane,
+                  builder: (context, _) => Row(
+                    children: [
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final playerWidth = (box.maxWidth - 32).clamp(
+                              0.0,
+                              double.infinity,
+                            );
+                            final playerHeight = (playerWidth * 9 / 16).clamp(
+                              0.0,
+                              box.maxHeight * .62,
+                            );
+                            return Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: widget.playerBuilder(
+                                      playerWidth,
+                                      playerHeight,
+                                    ),
+                                  ),
                                 ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      flex: 6,
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final width = constraints.maxWidth;
-                                          final height = (width * 9 / 16).clamp(
-                                            0.0,
-                                            constraints.maxHeight,
-                                          );
-                                          return Align(
-                                            alignment: Alignment.topCenter,
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              child: widget.playerBuilder(
-                                                width,
-                                                height,
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 4,
+                                  ),
+                                  child: Wrap(
+                                    alignment: WrapAlignment.end,
+                                    spacing: 8,
+                                    children: [
+                                      TextButton.icon(
+                                        style: TextButton.styleFrom(
+                                          minimumSize: const Size(48, 48),
+                                        ),
+                                        onPressed: widget.onSendDanmaku,
+                                        icon: const Icon(
+                                          Icons.edit_note_rounded,
+                                          size: 20,
+                                        ),
+                                        label: const Text('发弹幕'),
+                                      ),
+                                      if (widget.secondary != null)
+                                        _paneButton(
+                                          0,
+                                          _selected == 0 ? '收起评论' : '评论与列表',
+                                          Icons.chat_bubble_outline_rounded,
+                                        ),
+                                      if (widget.extraPane != null)
+                                        _paneButton(
+                                          1,
+                                          _selected == 1 ? '收起动态' : '边看边逛动态',
+                                          Icons.dynamic_feed_outlined,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(child: widget.details),
+                                        if (widget.related != null) ...[
+                                          const SizedBox(width: 16),
+                                          Expanded(child: widget.related!),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      ClipRect(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          widthFactor: _pane.value,
+                          child: SizedBox(
+                            width: paneWidth,
+                            child: IgnorePointer(
+                              ignoring: !_open,
+                              child: ExcludeSemantics(
+                                excluding: !_open,
+                                child: TickerMode(
+                                  enabled: _open,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceContainerLowest,
+                                      border: Border(
+                                        left: BorderSide(
+                                          color: colors.outlineVariant,
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      flex: largeText ? 6 : 5,
-                                      child: widget.details,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            if (widget.related != null) ...[
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    '接下来播放',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                height: relatedHeight,
-                                child: widget.related,
-                              ),
-                            ],
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  ClipRect(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      widthFactor: _pane.value,
-                      child: SizedBox(
-                        width: 360,
-                        child: IgnorePointer(
-                          ignoring: !_open,
-                          child: ExcludeSemantics(
-                            excluding: !_open,
-                            child: TickerMode(
-                              enabled: _open,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.surfaceContainerLowest,
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: colors.outlineVariant,
-                                    ),
-                                  ),
-                                ),
-                                child: _visited && widget.secondary != null
-                                    ? LayoutBuilder(
-                                        builder: (context, constraints) =>
-                                            MediaQuery(
+                                    child: Column(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 16,
+                                            right: 4,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  _lastSelected == 0
+                                                      ? '评论'
+                                                      : '动态',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                tooltip: '关闭侧栏',
+                                                onPressed: () =>
+                                                    _select(_lastSelected),
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: LayoutBuilder(
+                                            builder: (context, constraints) => MediaQuery(
                                               data: MediaQuery.of(context)
                                                   .copyWith(
                                                     size: Size(
-                                                      360,
+                                                      paneWidth,
                                                       constraints.maxHeight,
                                                     ),
                                                     padding: EdgeInsets.zero,
                                                     viewPadding:
                                                         EdgeInsets.zero,
                                                   ),
-                                              child: widget.secondary!,
+                                              child: IndexedStack(
+                                                index: _lastSelected,
+                                                children: [
+                                                  _visited.contains(0)
+                                                      ? widget.secondary ??
+                                                            const SizedBox.shrink()
+                                                      : const SizedBox.shrink(),
+                                                  _visited.contains(1)
+                                                      ? widget.extraPane ??
+                                                            const SizedBox.shrink()
+                                                      : const SizedBox.shrink(),
+                                                ],
+                                              ),
                                             ),
-                                      )
-                                    : const SizedBox.shrink(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _paneButton(int index, String label, IconData icon) => TextButton.icon(
+    onPressed: () => _select(index),
+    style: TextButton.styleFrom(
+      minimumSize: const Size(48, 48),
+      backgroundColor: _selected == index
+          ? ColorScheme.of(context).secondaryContainer
+          : null,
+    ),
+    icon: Icon(icon, size: 20),
+    label: Text(label),
+  );
 }

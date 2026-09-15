@@ -1,3 +1,6 @@
+import 'package:PiliPlus/pages/dynamics_tab/view.dart';
+import 'package:PiliPlus/models/common/dynamic/dynamics_type.dart';
+import 'package:PiliPlus/utils/recommendation_history.dart';
 import 'package:PiliPlus/common/widgets/newbili_cover_hero.dart';
 
 import 'dart:io' show Platform;
@@ -189,6 +192,14 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
   void positionListener(Duration position) {
     videoDetailController.playedTime = position;
+    if (videoDetailController.isUgc) {
+      RecommendationHistory.record(
+        bvid: videoDetailController.bvid,
+        aid: videoDetailController.aid,
+        position: position,
+        playing: plPlayerController?.playerStatus.isPlaying ?? false,
+      );
+    }
   }
 
   @override
@@ -1316,6 +1327,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       body: Padding(
         padding: padding.copyWith(top: 0),
         child: TabletPlayerStage(
+          extraPane: DynamicsTabPage(
+            dynamicsType: DynamicsTabType.all,
+            controllerTag: 'playing-feed-$heroTag',
+          ),
           playerBuilder: (width, height) =>
               videoPlayer(width: width, height: height, heroRadius: 10),
           details: LayoutBuilder(
@@ -1330,10 +1345,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           related:
               videoDetailController.isUgc &&
                   videoDetailController.showRelatedVideo
-              ? RelatedVideoPanel(
-                  key: videoRelatedKey,
-                  heroTag: heroTag,
-                  horizontal: true,
+              ? CustomScrollView(
+                  slivers: [
+                    RelatedVideoPanel(key: videoRelatedKey, heroTag: heroTag),
+                  ],
                 )
               : null,
           secondary: videoDetailController.showReply || _shouldShowSeasonPanel
@@ -1561,21 +1576,24 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         SizedBox(
           width: width,
           height: height,
-          child: NewbiliCoverHero(
-            tag: isFullScreen ? null : coverHeroTag,
-            radius: isFullScreen ? 0 : heroRadius,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (heroCover?.isNotEmpty == true)
-                  NetworkImgLayer(
-                    src: heroCover,
-                    width: width,
-                    height: height,
-                    borderRadius: BorderRadius.zero,
-                  ),
-                plPlayer(width: width, height: height),
-              ],
+          child: Obx(
+            () => NewbiliCoverHero(
+              enabled: videoDetailController.scrollRatio.value <= 0,
+              tag: isFullScreen ? null : coverHeroTag,
+              radius: isFullScreen ? 0 : heroRadius,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (heroCover?.isNotEmpty == true)
+                    NetworkImgLayer(
+                      src: heroCover,
+                      width: width,
+                      height: height,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                  plPlayer(width: width, height: height),
+                ],
+              ),
             ),
           ),
         ),

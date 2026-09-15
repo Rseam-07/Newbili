@@ -57,18 +57,36 @@ class WhisperController extends CommonWhisperController<SessionMainReply> {
     queryData();
   }
 
+  bool _queryingUnread = false;
   Future<void> queryMsgFeedUnread() async {
-    final res = await ImGrpc.getTotalUnread(unreadType: 2);
-    if (res case Success(:final response)) {
-      final data = MsgFeedUnread.fromJson(response.msgFeedUnread.unread);
-      final unreadCounts = [data.reply, data.at, data.like, data.sysMsg];
-      if (!listEquals(this.unreadCounts, unreadCounts)) {
-        this.unreadCounts.value = unreadCounts;
+    if (isClosed || _queryingUnread) return;
+    _queryingUnread = true;
+    try {
+      final res = await ImGrpc.getTotalUnread(unreadType: 2);
+      if (isClosed) return;
+      if (res case Success(:final response)) {
+        final data = MsgFeedUnread.fromJson(response.msgFeedUnread.unread);
+        final counts = [data.reply, data.at, data.like, data.sysMsg];
+        if (!listEquals(unreadCounts, counts)) unreadCounts.value = counts;
       }
-    } else {
-      res.toast();
+    } catch (_) {
+      // Retain the last known counts and retry on the next foreground tick.
+    } finally {
+      _queryingUnread = false;
     }
   }
+
+  Future<void> refreshInbox() async {
+    if (scrollController.hasClients && scrollController.offset > 64) {
+      await queryMsgFeedUnread();
+    } else {
+      await onRefresh();
+    }
+  }
+
+  @override
+  bool handleError(String? errMsg) =>
+      loadingState.value.dataOrNull?.isNotEmpty == true;
 
   @override
   List<Session>? getDataList(SessionMainReply response) {

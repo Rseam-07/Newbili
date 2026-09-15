@@ -1,4 +1,6 @@
-import 'package:PiliPlus/common/widgets/newbili_surface.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/compact_player_bar.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
+import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
@@ -6,7 +8,6 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/view/view.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
-import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,6 +18,7 @@ class BottomControl extends StatelessWidget {
     required this.isFullScreen,
     required this.controller,
     required this.buildBottomControl,
+    required this.buildMoreControls,
     required this.videoDetailController,
   });
 
@@ -24,6 +26,7 @@ class BottomControl extends StatelessWidget {
   final bool isFullScreen;
   final PlPlayerController controller;
   final ValueGetter<Widget> buildBottomControl;
+  final ValueGetter<Widget> buildMoreControls;
   final VideoDetailController videoDetailController;
 
   void onDragStart(ThumbDragDetails duration) {
@@ -55,78 +58,86 @@ class BottomControl extends StatelessWidget {
     final thumbGlowColor = primary.withAlpha(80);
     final bufferedBarColor = primary.withValues(alpha: 0.4);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-      child: NewbiliSurface(
-        role: NewbiliSurfaceRole.player,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Obx(
+      () => CompactPlayerBar(
+        playing: controller.playerStatus.isPlaying,
+        time: DurationUtils.formatDuration(controller.position.value),
+        total: DurationUtils.formatDuration(controller.duration.value),
+        fullscreen: isFullScreen,
+        onPlay: controller.onDoubleTapCenter,
+        onFullscreen: () => controller.triggerFullScreen(status: !isFullScreen),
+        onMore: () {
+          showModalBottomSheet<void>(
+            context: context,
+            backgroundColor: const Color(0xFF202126),
+            showDragHandle: true,
+            builder: (context) => SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                child: buildMoreControls(),
+              ),
+            ),
+          );
+        },
+        timeline: Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 7),
-              child: Obx(
-                () => Offstage(
-                  offstage: !controller.showControls.value,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.bottomCenter,
-                    children: [
-                      Obx(
-                        () => ProgressBar(
-                          progress: controller.position.value,
-                          buffered: controller.buffered.value,
-                          total: controller.duration.value,
-                          progressBarColor: primary,
-                          baseBarColor: const Color(0x33FFFFFF),
-                          bufferedBarColor: bufferedBarColor,
-                          thumbColor: primary,
-                          thumbGlowColor: thumbGlowColor,
-                          barHeight: 3.5,
-                          thumbRadius: 7,
-                          thumbGlowRadius: 25,
-                          onDragStart: onDragStart,
-                          onDragUpdate: onDragUpdate,
-                          onSeek: onSeek,
-                        ),
-                      ),
-                      if (controller.enableBlock &&
-                          videoDetailController.segmentProgressList.isNotEmpty)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 5.25,
-                          child: SegmentProgressBar(
-                            segments: videoDetailController.segmentProgressList,
-                          ),
-                        ),
-                      if (controller.showViewPoints &&
-                          videoDetailController.viewPointList.isNotEmpty &&
-                          videoDetailController.showVP.value)
-                        Padding(
-                          padding: const .only(bottom: 8.75),
-                          child: ViewPointSegmentProgressBar(
-                            segments: videoDetailController.viewPointList,
-                            onSeek: PlatformUtils.isDesktop
-                                ? (position) =>
-                                      controller.seekTo(position, isSeek: false)
-                                : null,
-                          ),
-                        ),
-                      if (videoDetailController.showDmTrendChart.value)
-                        if (videoDetailController.dmTrend.value?.dataOrNull
-                            case final list?)
-                          buildDmChart(
-                            primary,
-                            list,
-                            videoDetailController,
-                            4.5,
-                          ),
-                    ],
+            ProgressBar(
+              progress: controller.position.value,
+              buffered: controller.buffered.value,
+              total: controller.duration.value,
+              progressBarColor: primary,
+              baseBarColor: const Color(0x55FFFFFF),
+              bufferedBarColor: bufferedBarColor,
+              thumbColor: Colors.white,
+              thumbGlowColor: thumbGlowColor,
+              barHeight: 3,
+              thumbRadius: 5,
+              thumbGlowRadius: 16,
+              onDragStart: onDragStart,
+              onDragUpdate: onDragUpdate,
+              onSeek: onSeek,
+            ),
+            if (controller.enableBlock &&
+                videoDetailController.segmentProgressList.isNotEmpty)
+              IgnorePointer(
+                child: Center(
+                  child: SizedBox(
+                    height: 3,
+                    width: double.infinity,
+                    child: SegmentProgressBar(
+                      segments: videoDetailController.segmentProgressList,
+                    ),
                   ),
                 ),
               ),
-            ),
-            buildBottomControl(),
+            if (controller.showViewPoints &&
+                videoDetailController.viewPointList.isNotEmpty &&
+                videoDetailController.showVP.value)
+              IgnorePointer(
+                child: Center(
+                  child: SizedBox(
+                    height: 3,
+                    width: double.infinity,
+                    child: ViewPointSegmentProgressBar(
+                      segments: videoDetailController.viewPointList,
+                    ),
+                  ),
+                ),
+              ),
+            if (videoDetailController.showDmTrendChart.value)
+              if (videoDetailController.dmTrend.value?.dataOrNull
+                  case final list?)
+                IgnorePointer(
+                  child: buildDmChart(
+                    primary,
+                    list,
+                    videoDetailController,
+                    4.5,
+                  ),
+                ),
           ],
         ),
       ),

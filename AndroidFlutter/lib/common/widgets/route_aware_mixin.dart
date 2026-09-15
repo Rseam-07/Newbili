@@ -4,7 +4,7 @@ import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:get/get_navigation/src/routes/default_route.dart'
     show GetPageRoute;
 
-final routeObserver = RouteObserver<GetPageRoute>();
+final routeObserver = RouteObserver<ModalRoute<dynamic>>();
 
 mixin RouteAwareMixin<T extends StatefulWidget> on State<T>, RouteAware {
   @override

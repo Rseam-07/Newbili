@@ -18,6 +18,7 @@ import 'package:PiliPlus/utils/enum_order.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/update.dart';
@@ -76,8 +77,8 @@ class MainController extends GetxController with AccountMixin {
 
     setNavBarConfig();
 
-    hideBottomBar =
-        !useSideBar && navigationBars.length > 1 && Pref.hideBottomBar;
+    // Material navigation stays reachable while browsing the feed.
+    hideBottomBar = false;
     if (hideBottomBar) {
       switch (barHideType) {
         case .instant:
@@ -119,6 +120,7 @@ class MainController extends GetxController with AccountMixin {
             response.unfollowPushMsg +
             response.customUnread;
       }
+      throw StateError('Unread request failed');
     }
     return 0;
   }
@@ -148,10 +150,14 @@ class MainController extends GetxController with AccountMixin {
               break;
           }
         }
+      } else {
+        throw StateError('Feed unread request failed');
       }
     }
     return count;
   }
+
+  bool _queryingUnread = false;
 
   Future<void> queryUnreadMsg([bool isChangeType = false]) async {
     if (!accountService.isLogin.value ||
@@ -162,21 +168,35 @@ class MainController extends GetxController with AccountMixin {
       return;
     }
 
-    final res = await Future.wait([_msgUnread(), _msgFeedUnread()]);
-
-    final count = res.sum;
-
-    final countStr = count == 0
-        ? ''
-        : count > 99
-        ? '99+'
-        : count.toString();
-    if (msgUnReadCount.value == countStr) {
-      if (isChangeType) {
-        msgUnReadCount.refresh();
+    if (isClosed || _queryingUnread) return;
+    _queryingUnread = true;
+    final account = Accounts.main;
+    try {
+      final res = await Future.wait([_msgUnread(), _msgFeedUnread()]);
+      if (isClosed ||
+          !accountService.isLogin.value ||
+          Accounts.main != account) {
+        return;
       }
-    } else {
-      msgUnReadCount.value = countStr;
+      lastCheckUnreadAt = DateTime.now().millisecondsSinceEpoch;
+      final count = res.sum;
+
+      final countStr = count == 0
+          ? ''
+          : count > 99
+          ? '99+'
+          : count.toString();
+      if (msgUnReadCount.value == countStr) {
+        if (isChangeType) {
+          msgUnReadCount.refresh();
+        }
+      } else {
+        msgUnReadCount.value = countStr;
+      }
+    } catch (_) {
+      // Keep the last known badge on network failures.
+    } finally {
+      _queryingUnread = false;
     }
   }
 
@@ -244,8 +264,7 @@ class MainController extends GetxController with AccountMixin {
         return;
       }
       int now = DateTime.now().millisecondsSinceEpoch;
-      if (now - lastCheckUnreadAt >= _period) {
-        lastCheckUnreadAt = now;
+      if (now - lastCheckUnreadAt >= 30000) {
         queryUnreadMsg();
       }
     }
@@ -330,6 +349,8 @@ class MainController extends GetxController with AccountMixin {
 
   @override
   void onChangeAccount(bool isLogin) {
+    lastCheckUnreadAt = 0;
+    queryUnreadMsg();
     if (isLogin) {
       getUnreadDynamic();
     } else {

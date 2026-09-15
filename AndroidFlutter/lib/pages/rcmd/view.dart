@@ -137,27 +137,7 @@ class _RcmdPageState extends State<RcmdPage>
   }
 
   Widget _buildRecommendations(List<BaseRcmdVideoItemModel> response) {
-    if (MediaQuery.sizeOf(context).width >= 840) {
-      return SliverToBoxAdapter(
-        child: TabletRecommendationStage(
-          items: response,
-          lastRefreshAt: controller.lastRefreshAt,
-          onRefresh: controller.onRefresh,
-          onLoadMore: controller.onLoadMore,
-          onRemove: (item) {
-            final index = response.indexOf(item);
-            if (index < 0) return;
-            if (controller.lastRefreshAt != null &&
-                index < controller.lastRefreshAt!) {
-              controller.lastRefreshAt = controller.lastRefreshAt! - 1;
-            }
-            controller.loadingState
-              ..value.data!.removeAt(index)
-              ..refresh();
-          },
-        ),
-      );
-    }
+    final wide = MediaQuery.sizeOf(context).width >= 840;
     const featuredCount = 0;
     final gridCount = response.length - featuredCount;
     final markerIndex = controller.lastRefreshAt == null
@@ -167,6 +147,15 @@ class _RcmdPageState extends State<RcmdPage>
 
     return SliverMainAxisGroup(
       slivers: [
+        if (wide)
+          SliverToBoxAdapter(
+            child: TabletRecommendationStage(
+              items: response,
+              showRecommendations: false,
+              onRefresh: controller.onRefresh,
+              onLoadMore: controller.onLoadMore,
+            ),
+          ),
         SliverGrid.builder(
           gridDelegate: gridDelegate,
           itemBuilder: (context, index) {

@@ -24,11 +24,13 @@ class NewbiliCoverHero extends StatefulWidget {
     required this.tag,
     required this.child,
     this.radius = 0,
+    this.enabled = true,
   });
 
   final Object? tag;
   final Widget child;
   final double radius;
+  final bool enabled;
 
   @override
   State<NewbiliCoverHero> createState() => _NewbiliCoverHeroState();
@@ -47,11 +49,11 @@ class _NewbiliCoverHeroState extends State<NewbiliCoverHero> {
     );
     if (tag == null) return endpoint;
     return HeroMode(
-      enabled: !NewbiliMotion.reduced(context),
+      enabled: widget.enabled && !NewbiliMotion.reduced(context),
       child: Hero(
         tag: tag,
-        transitionOnUserGestures: true,
-        createRectTween: (begin, end) => MaterialRectCenterArcTween(
+        transitionOnUserGestures: false,
+        createRectTween: (begin, end) => RectTween(
           begin: begin,
           end: end,
         ),

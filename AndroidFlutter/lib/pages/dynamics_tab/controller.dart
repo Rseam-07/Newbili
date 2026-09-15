@@ -14,7 +14,8 @@ import 'package:get/get.dart';
 class DynamicsTabController
     extends CommonListController<DynamicsDataModel, DynamicItemModel>
     with AccountMixin {
-  DynamicsTabController({required this.dynamicsType});
+  DynamicsTabController({required this.dynamicsType, this.independent = false});
+  final bool independent;
   final DynamicsTabType dynamicsType;
 
   String? offset;
@@ -48,7 +49,7 @@ class DynamicsTabController
       DynamicsHttp.followDynamic(
         offset: offset,
         type: dynamicsType,
-        hostMid: dynamicsController.hostMid,
+        hostMid: independent ? null : dynamicsController.hostMid,
         tempBannedList: dynamicsController.tempBannedList,
       );
 

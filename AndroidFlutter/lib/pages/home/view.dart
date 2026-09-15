@@ -1,5 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
-import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
+import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/pages/common/common_page.dart';
@@ -101,13 +101,9 @@ class _HomePageState extends CommonPageState<HomePage>
         return Obx(
           () {
             final offset = barOffset.value;
-            return CustomHeightWidget(
-              offset: Offset(0, -offset),
-              height: Style.topBarHeight - offset,
-              child: Padding(
-                padding: padding,
-                child: child,
-              ),
+            return NewbiliCollapsingToolbar(
+              offset: offset,
+              child: child,
             );
           },
         );
@@ -115,15 +111,14 @@ class _HomePageState extends CommonPageState<HomePage>
       if (_homeController.showTopBar case final showTopBar?) {
         return Obx(() {
           final showSearchBar = showTopBar.value;
-          return AnimatedOpacity(
-            opacity: showSearchBar ? 1 : 0,
-            duration: const Duration(milliseconds: 300),
-            child: AnimatedContainer(
-              curve: Curves.easeInOutCubicEmphasized,
-              duration: const Duration(milliseconds: 500),
-              height: showSearchBar ? Style.topBarHeight : 0,
-              padding: padding,
-              child: child,
+          return TweenAnimationBuilder<double>(
+            tween: Tween(end: showSearchBar ? 0 : Style.topBarHeight),
+            curve: NewbiliMotion.emphasized,
+            duration: NewbiliMotion.duration(context, NewbiliMotion.container),
+            child: child,
+            builder: (context, offset, child) => NewbiliCollapsingToolbar(
+              offset: offset,
+              child: child!,
             ),
           );
         });
@@ -227,10 +222,8 @@ Widget msgBadge(MainController mainController) {
         return IconButton(
           tooltip: '消息',
           onPressed: () {
-            mainController
-              ..msgUnReadCount.value = ''
-              ..lastCheckUnreadAt = DateTime.now().millisecondsSinceEpoch;
-            Get.toNamed('/whisper');
+            Get.toNamed('/whisper')
+                ?.whenComplete(mainController.queryUnreadMsg);
           },
           icon: Badge(
             isLabelVisible:

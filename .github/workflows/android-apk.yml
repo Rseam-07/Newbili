@@ -76,6 +76,7 @@ jobs:
             test/widgets/danmaku_composer_test.dart \
             test/widgets/tracking_library_test.dart \
             test/widgets/qr_login_panel_test.dart \
+            test/widgets/player_feedback_test.dart \
             test/widgets/material_visual_test.dart --no-pub \
             --dart-define=NEWBILI_VISUAL_FONT=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
             --dart-define=NEWBILI_VISUAL_COVERS=design/ui-review-2026-09-15/fixtures \

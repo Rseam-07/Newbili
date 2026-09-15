@@ -12,7 +12,7 @@ import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Tablet composition inspired by Richasy's original BiliBili-UWP:
-/// selected artwork + details, with a horizontally browsable recommendation row.
+/// selected artwork + details, followed by touch-first vertical recommendations.
 /// Selection is explicit; it never advances while someone is reading.
 class TabletRecommendationStage extends StatefulWidget {
   const TabletRecommendationStage({
@@ -24,6 +24,7 @@ class TabletRecommendationStage extends StatefulWidget {
     this.onOpen,
     this.coverBuilder,
     this.lastRefreshAt,
+    this.showRecommendations = true,
   });
   final List<BaseRcmdVideoItemModel> items;
   final VoidCallback onRefresh;
@@ -32,6 +33,7 @@ class TabletRecommendationStage extends StatefulWidget {
   final void Function(BaseRcmdVideoItemModel item, Object tag)? onOpen;
   final Widget Function(BaseRcmdVideoItemModel item)? coverBuilder;
   final int? lastRefreshAt;
+  final bool showRecommendations;
 
   @override
   State<TabletRecommendationStage> createState() =>
@@ -39,7 +41,6 @@ class TabletRecommendationStage extends StatefulWidget {
 }
 
 class _TabletRecommendationStageState extends State<TabletRecommendationStage> {
-  final _scroll = ScrollController();
   late BaseRcmdVideoItemModel _selected = widget.items.first;
   // Each selection keeps its own source, even if the feed contains duplicates.
   final _coverTags = <BaseRcmdVideoItemModel, Object>{};
@@ -49,12 +50,6 @@ class _TabletRecommendationStageState extends State<TabletRecommendationStage> {
     super.didUpdateWidget(oldWidget);
     if (!widget.items.contains(_selected)) _selected = widget.items.first;
     _coverTags.removeWhere((item, _) => !widget.items.contains(item));
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
   }
 
   Object get _tag => _coverTags.putIfAbsent(_selected, Object.new);
@@ -78,18 +73,6 @@ class _TabletRecommendationStageState extends State<TabletRecommendationStage> {
           borderRadius: BorderRadius.zero,
         ),
       );
-
-  void _move(int direction) {
-    if (!_scroll.hasClients) return;
-    _scroll.animateTo(
-      (_scroll.offset + direction * 456).clamp(
-        0.0,
-        _scroll.position.maxScrollExtent,
-      ),
-      duration: NewbiliMotion.duration(context, NewbiliMotion.container),
-      curve: NewbiliMotion.emphasized,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -321,129 +304,111 @@ class _TabletRecommendationStageState extends State<TabletRecommendationStage> {
                     icon: const Icon(Icons.refresh_rounded, size: 18),
                     label: const Text('换一换'),
                   ),
-                  IconButton(
-                    onPressed: () => _move(-1),
-                    tooltip: '上一组推荐',
-                    icon: const Icon(Icons.chevron_left_rounded),
-                  ),
-                  IconButton(
-                    onPressed: () => _move(1),
-                    tooltip: '下一组推荐',
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
                 ],
               ),
             ),
-            SizedBox(
-              height:
-                  218 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 3,
-              child: Scrollbar(
-                controller: _scroll,
-                child: NotificationListener<ScrollUpdateNotification>(
-                  onNotification: (notification) {
-                    if (notification.metrics.extentAfter < 400) {
-                      widget.onLoadMore();
-                    }
-                    return false;
-                  },
-                  child: ListView.separated(
-                    controller: _scroll,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                    itemCount: widget.items.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      final item = widget.items[index];
-                      final selected = identical(item, _selected);
-                      return SizedBox(
-                        width: 212,
-                        child: Semantics(
-                          selected: selected,
-                          button: true,
-                          label:
-                              '${item.title}${selected ? '，再次点击播放' : '，查看详情'}',
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: InkWell(
-                              key: ValueKey('tablet-recommendation-$index'),
-                              borderRadius: BorderRadius.circular(8),
-                              onTap: () {
-                                if (selected) {
-                                  _open();
-                                  return;
-                                }
-                                setState(() => _selected = item);
-                              },
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  AnimatedContainer(
-                                    duration: NewbiliMotion.duration(
-                                      context,
-                                      NewbiliMotion.feedback,
-                                    ),
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        width: 2,
-                                        color: selected
-                                            ? colors.primary
-                                            : Colors.transparent,
-                                      ),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: AspectRatio(
-                                        aspectRatio: Style.aspectRatio16x9,
-                                        child: _cover(item),
-                                      ),
-                                    ),
+            if (widget.showRecommendations)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: compact ? 280 : 300,
+                  mainAxisExtent:
+                      240 +
+                      (MediaQuery.textScalerOf(context).scale(14) - 14) * 3,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 20,
+                ),
+                itemCount: widget.items.length,
+                itemBuilder: (context, index) {
+                  final item = widget.items[index];
+                  final selected = identical(item, _selected);
+                  return SizedBox(
+                    width: 212,
+                    child: Semantics(
+                      selected: selected,
+                      button: true,
+                      label: '${item.title}${selected ? '，再次点击播放' : '，查看详情'}',
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: InkWell(
+                          key: ValueKey('tablet-recommendation-$index'),
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            if (selected) {
+                              _open();
+                              return;
+                            }
+                            setState(() => _selected = item);
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedContainer(
+                                duration: NewbiliMotion.duration(
+                                  context,
+                                  NewbiliMotion.feedback,
+                                ),
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    width: 2,
+                                    color: selected
+                                        ? colors.primary
+                                        : Colors.transparent,
                                   ),
-                                  const SizedBox(height: 6),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                    ),
-                                    child: Text(
-                                      item.title,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        height: 1.45,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: AspectRatio(
+                                    aspectRatio: Style.aspectRatio16x9,
+                                    child: _cover(item),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                    ),
-                                    child: Text(
-                                      index == widget.lastRefreshAt
-                                          ? '上次看到这里'
-                                          : item.owner.name ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: colors.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                ),
+                                child: Text(
+                                  item.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                ),
+                                child: Text(
+                                  index == widget.lastRefreshAt
+                                      ? '上次看到这里'
+                                      : item.owner.name ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            ),
           ],
         );
       },

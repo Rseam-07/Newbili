@@ -2,12 +2,11 @@ import 'dart:io';
 
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
-import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/main_layout.dart';
-import 'package:PiliPlus/common/theme/newbili_theme.dart';
+import 'package:PiliPlus/common/widgets/foreground_refresh.dart';
 import 'package:PiliPlus/common/widgets/newbili_destination_view.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
@@ -343,42 +342,6 @@ class _MainAppState extends PopScopeState<MainApp>
               .toList(),
         ),
       );
-
-      if (_mainController.hideBottomBar) {
-        if (_mainController.barOffset case final barOffset?) {
-          return Obx(
-            () => ClipRect(
-              child: Align(
-                alignment: Alignment.topCenter,
-                heightFactor: (1 - barOffset.value / Style.topBarHeight).clamp(
-                  0.0,
-                  1.0,
-                ),
-                child: bottomNav,
-              ),
-            ),
-          );
-        }
-        if (_mainController.showBottomBar case final showBottomBar?) {
-          return Obx(
-            () => AnimatedSize(
-              alignment: Alignment.bottomCenter,
-              curve: NewbiliMotion.emphasized,
-              duration: NewbiliMotion.duration(
-                context,
-                NewbiliMotion.container,
-              ),
-              child: ClipRect(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  heightFactor: showBottomBar.value ? 1 : 0,
-                  child: bottomNav,
-                ),
-              ),
-            ),
-          );
-        }
-      }
     }
 
     return bottomNav;
@@ -391,21 +354,45 @@ class _MainAppState extends PopScopeState<MainApp>
     final homeIndex = _mainController.navigationBars.indexOf(
       NavigationBarType.home,
     );
-    Widget child = Obx(
-      () => NewbiliDestinationView(
-        index: _mainController.selectedIndex.value,
-        baseIndex: size.width >= 1100 && homeIndex >= 0 ? homeIndex : null,
-        paneTitle: _mainController
-            .navigationBars[_mainController.selectedIndex.value]
-            .label,
-        onClosePane: homeIndex < 0
-            ? null
-            : () => _mainController.setIndex(homeIndex),
-        children: _pages,
+    Widget child = ForegroundRefresh(
+      onRefresh: _mainController.queryUnreadMsg,
+      child: Obx(
+        () => NewbiliDestinationView(
+          index: _mainController.selectedIndex.value,
+          baseIndex: size.width >= 1100 && homeIndex >= 0 ? homeIndex : null,
+          paneTitle: _mainController
+              .navigationBars[_mainController.selectedIndex.value]
+              .label,
+          onClosePane: homeIndex < 0
+              ? null
+              : () => _mainController.setIndex(homeIndex),
+          children: _pages,
+        ),
       ),
     );
     final layout = MainLayout(
-      sideBar: null,
+      sideBar: wide
+          ? SafeArea(
+              child: Obx(
+                () => NavigationRail(
+                  scrollable: true,
+                  groupAlignment: 0,
+                  labelType: NavigationRailLabelType.all,
+                  selectedIndex: _mainController.selectedIndex.value,
+                  onDestinationSelected: _mainController.setIndex,
+                  destinations: _mainController.navigationBars
+                      .map(
+                        (item) => NavigationRailDestination(
+                          icon: _buildIcon(type: item),
+                          selectedIcon: _buildIcon(type: item, selected: true),
+                          label: Text(item.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            )
+          : null,
       bottomNav: wide
           ? null
           : MediaQuery.removePadding(
@@ -425,9 +412,7 @@ class _MainAppState extends PopScopeState<MainApp>
             if (wide)
               Obx(
                 () => NewbiliTabletToolbar(
-                  labels: _mainController.navigationBars
-                      .map((e) => e.label)
-                      .toList(),
+                  labels: const [],
                   selectedIndex: _mainController.selectedIndex.value,
                   onSelected: _mainController.setIndex,
                   onSearch: () => Get.toNamed('/search'),

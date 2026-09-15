@@ -17,7 +17,7 @@ abstract final class Style {
   static const imgMaxRatio = 2.6;
   static const bottomSheetRadius = BorderRadius.vertical(top: .circular(26));
   static const dialogFixedConstraints = BoxConstraints.tightFor(width: 420);
-  static const topBarHeight = 52.0;
+  static const topBarHeight = 60.0;
   static const buttonStyle = ButtonStyle(
     minimumSize: WidgetStatePropertyAll(Size(48, 48)),
     tapTargetSize: .padded,

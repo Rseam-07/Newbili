@@ -1,3 +1,5 @@
+import 'package:PiliPlus/plugin/pl_player/models/pinch_fullscreen.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -388,8 +390,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   // 动态构建底部控制条
   Widget buildBottomControl(
     VideoDetailController videoDetailController,
-    bool isLandscape,
-  ) {
+    bool isLandscape, {
+    bool expanded = false,
+  }) {
     final videoDetail = introController.videoDetail.value;
     final isSeason = videoDetail.ugcSeason != null;
     final isPart = videoDetail.pages != null && videoDetail.pages!.length > 1;
@@ -397,7 +400,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     final isPlayAll = videoDetailController.isPlayAll;
     final anySeason = isSeason || isPart || isPgc || isPlayAll;
     final isFullScreen = this.isFullScreen;
-    final double widgetWidth = isLandscape && isFullScreen ? 42 : 35;
+    final double widgetWidth = expanded
+        ? 64
+        : (isLandscape && isFullScreen ? 42 : 35);
 
     Widget progressWidget(
       BottomControlType bottomControl,
@@ -410,7 +415,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       /// 上一集
       BottomControlType.pre => ComBtn(
         width: widgetWidth,
-        height: 30,
+        height: expanded ? 48 : 30,
         tooltip: '上一集',
         icon: const Icon(
           Icons.skip_previous,
@@ -427,7 +432,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       /// 下一集
       BottomControlType.next => ComBtn(
         width: widgetWidth,
-        height: 30,
+        height: expanded ? 48 : 30,
         tooltip: '下一集',
         icon: const Icon(
           Icons.skip_next,
@@ -461,7 +466,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             final show = videoDetailController.showDmTrendChart.value;
             return ComBtn(
               width: widgetWidth,
-              height: 30,
+              height: expanded ? 48 : 30,
               tooltip: '高能进度条',
               icon: DisabledIcon(
                 disable: !show,
@@ -523,7 +528,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           if (videoDetailController.viewPointList.isNotEmpty) {
             return ComBtn(
               width: widgetWidth,
-              height: 30,
+              height: expanded ? 48 : 30,
               tooltip: '分段信息',
               icon: DisabledIcon(
                 disable: !videoDetailController.showVP.value,
@@ -550,7 +555,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       /// 选集
       BottomControlType.episode => ComBtn(
         width: widgetWidth,
-        height: 30,
+        height: expanded ? 48 : 30,
         tooltip: '选集',
         icon: const Icon(
           Icons.list,
@@ -682,7 +687,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
               },
               child: SizedBox(
                 width: widgetWidth,
-                height: 30,
+                height: expanded ? 48 : 30,
                 child: const Icon(
                   Icons.translate,
                   size: 18,
@@ -736,7 +741,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
               },
               child: SizedBox(
                 width: widgetWidth,
-                height: 30,
+                height: expanded ? 48 : 30,
                 child: val == 0
                     ? const Icon(
                         Icons.closed_caption_off_outlined,
@@ -873,7 +878,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       /// 全屏
       BottomControlType.fullscreen => ComBtn(
         width: widgetWidth,
-        height: 30,
+        height: expanded ? 48 : 30,
         tooltip: isFullScreen ? '退出全屏' : '全屏',
         icon: isFullScreen
             ? const Icon(Icons.fullscreen_exit, size: 24, color: Colors.white)
@@ -896,7 +901,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     ];
 
     final flag =
-        isFullScreen || plPlayerController.isDesktopPip || maxWidth >= 500;
+        expanded ||
+        isFullScreen ||
+        plPlayerController.isDesktopPip ||
+        maxWidth >= 500;
     final List<BottomControlType> userSpecifyItemRight = [
       if (isNotFileSource && plPlayerController.showDmChart) .dmChart,
       if (plPlayerController.isAnim) .superResolution,
@@ -909,6 +917,59 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       if (isNotFileSource && flag) .qa,
       if (!plPlayerController.isDesktopPip) .fullscreen,
     ];
+    if (expanded) {
+      final types = {...userSpecifyItemLeft, ...userSpecifyItemRight}
+        ..removeAll([
+          BottomControlType.playOrPause,
+          BottomControlType.time,
+          BottomControlType.fullscreen,
+        ]);
+      const labels = [
+        '播放',
+        '上一集',
+        '下一集',
+        '时间',
+        '选集',
+        '画面比例',
+        '字幕',
+        '倍速',
+        '全屏',
+        '章节',
+        '超分辨率',
+        '高能进度',
+        '画质',
+        '字幕翻译',
+      ];
+      return Wrap(
+        spacing: 8,
+        runSpacing: 16,
+        alignment: WrapAlignment.center,
+        children: types
+            .map(
+              (type) => SizedBox(
+                width: 88,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 48,
+                      child: Center(child: progressWidget(type)),
+                    ),
+                    Text(
+                      labels[type.index],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      );
+    }
     return PlayerBar(
       children: [
         Row(
@@ -950,6 +1011,32 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   void _onPanStart(ScaleStartDetails details) {
     _gestureType = null;
     _initialFocalPoint = details.localFocalPoint;
+  }
+
+  void _cancelPanForPinch() {
+    // A second finger changes the interaction: discard any uncommitted seek.
+    plPlayerController
+      ..seekToPos = null
+      ..isSeeking.value = false
+      ..position.value =
+          plPlayerController.videoPlayerController?.state.position.inSeconds ??
+          0;
+    _gestureType = null;
+    _initialFocalPoint = null;
+    plPlayerController.setLongPressStatus(false);
+  }
+
+  void _onPinchEnd(double scale) {
+    if (plPlayerController.controlsLock.value) return;
+    final target = pinchFullscreenTarget(
+      scale: scale,
+      fullscreen: isFullScreen,
+    );
+    if (target != null) {
+      _transformationController.value = Matrix4.identity();
+      showRestoreScaleBtn.value = false;
+      plPlayerController.triggerFullScreen(status: target);
+    }
   }
 
   void _onScaleUpdate(double scale) {
@@ -1139,16 +1226,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     if (plPlayerController.isLive || plPlayerController.controlsLock.value) {
       return;
     }
-    final double tapPosition = details.localPosition.dx;
-    final double sectionWidth = maxWidth / 4;
-    DoubleTapType type;
-    if (tapPosition < sectionWidth) {
-      type = DoubleTapType.left;
-    } else if (tapPosition < sectionWidth * 3) {
-      type = DoubleTapType.center;
-    } else {
-      type = DoubleTapType.right;
-    }
+    final type = resolveDoubleTap(
+      x: details.localPosition.dx,
+      width: maxWidth,
+      fullscreen: isFullScreen,
+    );
     plPlayerController.doubleTapFuc(type);
   }
 
@@ -1612,6 +1694,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                           isFullScreen: isFullScreen,
                           controller: plPlayerController,
                           videoDetailController: videoDetailController,
+                          buildMoreControls: () => buildBottomControl(
+                            videoDetailController,
+                            maxWidth > maxHeight,
+                            expanded: true,
+                          ),
                           buildBottomControl: () => buildBottomControl(
                             videoDetailController,
                             maxWidth > maxHeight,
@@ -2013,6 +2100,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           onPointerPanZoomUpdate: _onPointerPanZoomUpdate,
           onPointerPanZoomEnd: _onPointerPanZoomEnd,
           onPointerDown: _onPointerDown,
+          onPinchStart: PlatformUtils.isMobile ? _cancelPanForPinch : null,
+          onPinchEnd: PlatformUtils.isMobile ? _onPinchEnd : null,
           onPanStart: _onPanStart,
           onPanUpdate: _onPanUpdate,
           onPanEnd: _onPanEnd,

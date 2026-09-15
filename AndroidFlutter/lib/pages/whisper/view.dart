@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/skeleton/whisper_item.dart';
+import 'package:PiliPlus/common/widgets/foreground_refresh.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
@@ -28,82 +29,86 @@ class _WhisperPageState extends State<WhisperPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final padding = MediaQuery.viewPaddingOf(context);
-    return SimpleScaffold(
-      appBar: AppBar(
-        title: const Text('消息'),
-        actions: [
-          IconButton(
-            tooltip: '新增粉丝',
-            onPressed: () => Get.toNamed(
-              '/webview',
-              parameters: {
-                'url':
-                    'https://www.bilibili.com/h5/follow/newFans?navhide=1&${ThemeUtils.themeUrl(theme.isDark)}',
-              },
-            ),
-            icon: const Icon(Icons.account_circle_outlined),
-          ),
-          Obx(() {
-            final outsideItem = _controller.outsideItem.value;
-            if (outsideItem != null && outsideItem.isNotEmpty) {
-              return Row(
-                mainAxisSize: .min,
-                children: outsideItem.map((e) {
-                  return IconButton(
-                    tooltip: e.hasTitle() ? e.title : null,
-                    onPressed: () => e.type.action(
-                      context: context,
-                      controller: _controller,
-                      item: e,
-                    ),
-                    icon: e.type.icon,
-                  );
-                }).toList(),
-              );
-            }
-            return const SizedBox.shrink();
-          }),
-          Obx(() {
-            final threeDotItems = _controller.threeDotItems.value;
-            if (threeDotItems != null && threeDotItems.isNotEmpty) {
-              return PopupMenuButton(
-                itemBuilder: (context) {
-                  return threeDotItems
-                      .map(
-                        (e) => PopupMenuItem(
-                          onTap: () => e.type.action(
-                            context: context,
-                            controller: _controller,
-                            item: e,
-                          ),
-                          child: Row(
-                            children: [
-                              e.type.icon,
-                              Text('  ${e.title}'),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList();
+    return ForegroundRefresh(
+      onRefresh: _controller.refreshInbox,
+      child: SimpleScaffold(
+        appBar: AppBar(
+          title: const Text('消息'),
+          actions: [
+            IconButton(
+              tooltip: '新增粉丝',
+              onPressed: () => Get.toNamed(
+                '/webview',
+                parameters: {
+                  'url':
+                      'https://www.bilibili.com/h5/follow/newFans?navhide=1&${ThemeUtils.themeUrl(theme.isDark)}',
                 },
-              );
-            }
-            return const SizedBox.shrink();
-          }),
-          const SizedBox(width: 5),
-        ],
-      ),
-      body: refreshIndicator(
-        onRefresh: _controller.onRefresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            _buildTopItems(theme, padding),
-            SliverPadding(
-              padding: EdgeInsets.only(bottom: padding.bottom + 100),
-              sliver: Obx(() => _buildBody(_controller.loadingState.value)),
+              ),
+              icon: const Icon(Icons.account_circle_outlined),
             ),
+            Obx(() {
+              final outsideItem = _controller.outsideItem.value;
+              if (outsideItem != null && outsideItem.isNotEmpty) {
+                return Row(
+                  mainAxisSize: .min,
+                  children: outsideItem.map((e) {
+                    return IconButton(
+                      tooltip: e.hasTitle() ? e.title : null,
+                      onPressed: () => e.type.action(
+                        context: context,
+                        controller: _controller,
+                        item: e,
+                      ),
+                      icon: e.type.icon,
+                    );
+                  }).toList(),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+            Obx(() {
+              final threeDotItems = _controller.threeDotItems.value;
+              if (threeDotItems != null && threeDotItems.isNotEmpty) {
+                return PopupMenuButton(
+                  itemBuilder: (context) {
+                    return threeDotItems
+                        .map(
+                          (e) => PopupMenuItem(
+                            onTap: () => e.type.action(
+                              context: context,
+                              controller: _controller,
+                              item: e,
+                            ),
+                            child: Row(
+                              children: [
+                                e.type.icon,
+                                Text('  ${e.title}'),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList();
+                  },
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+            const SizedBox(width: 5),
           ],
+        ),
+        body: refreshIndicator(
+          onRefresh: _controller.onRefresh,
+          child: CustomScrollView(
+            controller: _controller.scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              _buildTopItems(theme, padding),
+              SliverPadding(
+                padding: EdgeInsets.only(bottom: padding.bottom + 100),
+                sliver: Obx(() => _buildBody(_controller.loadingState.value)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -208,8 +213,7 @@ class _WhisperPageState extends State<WhisperPage> {
                   SmartDialog.showToast('已禁用');
                   return;
                 }
-                _controller.unreadCounts[index] = 0;
-                Get.toNamed(item.route);
+                Get.toNamed(item.route)?.whenComplete(_controller.refreshInbox);
               },
             );
           }),

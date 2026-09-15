@@ -162,7 +162,7 @@ List<SettingsModel> get styleSettings => [
         '当前消息类型：${Pref.msgUnReadTypeV2.map((item) => item.title).join('、')}',
   ),
   PopupModel(
-    title: '顶/底栏收起类型',
+    title: '顶栏收起类型',
     leading: const Icon(MdiIcons.arrowExpandVertical),
     value: () => Pref.barHideType,
     items: BarHideType.values,
@@ -178,14 +178,6 @@ List<SettingsModel> get styleSettings => [
     subtitle: '首页列表滑动时，收起顶栏',
     leading: const Icon(Icons.vertical_align_top_outlined),
     setKey: SettingBoxKey.hideTopBar,
-    defaultVal: PlatformUtils.isMobile,
-    needReboot: true,
-  ),
-  SwitchModel(
-    title: '首页底栏收起',
-    subtitle: '首页列表滑动时，收起底栏',
-    leading: const Icon(Icons.vertical_align_bottom_outlined),
-    setKey: SettingBoxKey.hideBottomBar,
     defaultVal: PlatformUtils.isMobile,
     needReboot: true,
   ),

@@ -27,6 +27,8 @@ class MouseInteractiveViewer extends StatefulWidget {
     this.onPointerPanZoomUpdate,
     this.onPointerPanZoomEnd,
     required this.onPointerDown,
+    this.onPinchStart,
+    this.onPinchEnd,
     required this.onPanEnd,
     required this.onPanStart,
     required this.onPanUpdate,
@@ -62,6 +64,8 @@ class MouseInteractiveViewer extends StatefulWidget {
   final PointerPanZoomUpdateEventListener? onPointerPanZoomUpdate;
   final PointerPanZoomEndEventListener? onPointerPanZoomEnd;
   final PointerDownEventListener onPointerDown;
+  final VoidCallback? onPinchStart;
+  final ValueChanged<double>? onPinchEnd;
   final GestureScaleEndCallback onPanEnd;
   final GestureScaleStartCallback onPanStart;
   final GestureScaleUpdateCallback onPanUpdate;
@@ -275,10 +279,54 @@ class _MouseInteractiveViewerState extends State<MouseInteractiveViewer>
   }
 
   bool _isSinglePointer = false;
+  final _touches = <int, Offset>{};
+  double? _pinchSpan;
+  double _pinchScale = 1;
+  bool _suppressPan = false;
+
+  void _pointerDown(PointerDownEvent event) {
+    if (widget.onPinchEnd != null && event.kind == PointerDeviceKind.touch) {
+      _touches[event.pointer] = event.localPosition;
+      if (_touches.length == 2 && widget.scaleEnabled && !_suppressPan) {
+        final points = _touches.values.toList();
+        _pinchSpan = (points[0] - points[1]).distance;
+        _pinchScale = 1;
+        _suppressPan = true;
+        widget.onPinchStart?.call();
+      }
+    }
+    widget.onPointerDown(event);
+  }
+
+  void _pointerMove(PointerMoveEvent event) {
+    if (!_touches.containsKey(event.pointer)) return;
+    _touches[event.pointer] = event.localPosition;
+    if (_touches.length == 2 && (_pinchSpan ?? 0) > 0) {
+      final points = _touches.values.toList();
+      _pinchScale = (points[0] - points[1]).distance / _pinchSpan!;
+    }
+  }
+
+  void _pointerEnd(PointerEvent event) {
+    if (!_touches.containsKey(event.pointer)) return;
+    if (_pinchSpan != null) {
+      final scale = _pinchScale;
+      _pinchSpan = null;
+      if (event is PointerUpEvent &&
+          _touches.length == 2 &&
+          widget.scaleEnabled) {
+        widget.onPinchEnd?.call(scale);
+      }
+    }
+    _touches.remove(event.pointer);
+    // Keep the remaining finger from becoming a seek/brightness gesture.
+    if (_touches.isEmpty) _suppressPan = false;
+  }
 
   // Handle the start of a gesture. All of pan, scale, and rotate are handled
   // with GestureDetector's scale gesture.
   void _onScaleStart(ScaleStartDetails details) {
+    if (_suppressPan) return;
     if (_isSinglePointer = details.pointerCount == 1) {
       widget.onPanStart(details);
       return;
@@ -309,6 +357,7 @@ class _MouseInteractiveViewerState extends State<MouseInteractiveViewer>
   // Handle an update to an ongoing gesture. All of pan, scale, and rotate are
   // handled with GestureDetector's scale gesture.
   void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (_suppressPan) return;
     if (_isSinglePointer) {
       widget.onPanUpdate(details);
       return;
@@ -403,6 +452,7 @@ class _MouseInteractiveViewerState extends State<MouseInteractiveViewer>
   // Handle the end of a gesture of _GestureType. All of pan, scale, and rotate
   // are handled with GestureDetector's scale gesture.
   void _onScaleEnd(ScaleEndDetails details) {
+    if (_suppressPan) return;
     if (_isSinglePointer) {
       widget.onPanEnd(details);
       return;
@@ -689,7 +739,10 @@ class _MouseInteractiveViewerState extends State<MouseInteractiveViewer>
       key: _parentKey,
       behavior: HitTestBehavior.opaque,
       onPointerSignal: _receivedPointerSignal,
-      onPointerDown: widget.onPointerDown,
+      onPointerDown: _pointerDown,
+      onPointerMove: _pointerMove,
+      onPointerUp: _pointerEnd,
+      onPointerCancel: _pointerEnd,
       onPointerPanZoomStart: _scaleGestureRecognizer.addPointerPanZoom,
       onPointerPanZoomUpdate: widget.onPointerPanZoomUpdate,
       onPointerPanZoomEnd: widget.onPointerPanZoomEnd,
