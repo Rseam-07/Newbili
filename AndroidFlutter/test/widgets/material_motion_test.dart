@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/main_layout.dart';
 import 'package:PiliPlus/common/widgets/newbili_cover_hero.dart';
 import 'package:PiliPlus/common/widgets/newbili_destination_view.dart';
 import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
+import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/pages/video/widgets/tablet_player_stage.dart';
 import 'package:PiliPlus/router/newbili_page_route.dart';
@@ -13,6 +14,41 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   tearDown(Get.reset);
+
+  testWidgets('tablet navigation stays in the top toolbar', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var selected = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: MainLayout(
+            sideBar: null,
+            bottomNav: null,
+            body: NewbiliTabletToolbar(
+              labels: const ['首页', '动态', '直播', '我的', '搜索'],
+              selectedIndex: selected,
+              onSelected: (index) => selected = index,
+              onSearch: () {},
+              trailing: const SizedBox.square(
+                dimension: 48,
+                child: Icon(Icons.person_outline_rounded),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(NavigationRail), findsNothing);
+    expect(find.text('首页'), findsOneWidget);
+    expect(find.text('动态'), findsOneWidget);
+    expect(find.text('直播'), findsOneWidget);
+    expect(find.text('我的'), findsOneWidget);
+    expect(find.text('搜索'), findsOneWidget);
+    await tester.tap(find.text('动态'));
+    expect(selected, 1);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'destination changes retain scroll and interrupt from the current frame',

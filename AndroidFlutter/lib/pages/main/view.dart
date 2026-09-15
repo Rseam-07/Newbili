@@ -371,28 +371,10 @@ class _MainAppState extends PopScopeState<MainApp>
       ),
     );
     final layout = MainLayout(
-      sideBar: wide
-          ? SafeArea(
-              child: Obx(
-                () => NavigationRail(
-                  scrollable: true,
-                  groupAlignment: 0,
-                  labelType: NavigationRailLabelType.all,
-                  selectedIndex: _mainController.selectedIndex.value,
-                  onDestinationSelected: _mainController.setIndex,
-                  destinations: _mainController.navigationBars
-                      .map(
-                        (item) => NavigationRailDestination(
-                          icon: _buildIcon(type: item),
-                          selectedIcon: _buildIcon(type: item, selected: true),
-                          label: Text(item.label),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            )
-          : null,
+      // Tablets keep the navigation in the same top canvas as the logo and
+      // search. A fixed rail made the content look like a phone beside a
+      // black strip and also stole width from the recommendation stage.
+      sideBar: null,
       bottomNav: wide
           ? null
           : MediaQuery.removePadding(
@@ -412,7 +394,9 @@ class _MainAppState extends PopScopeState<MainApp>
             if (wide)
               Obx(
                 () => NewbiliTabletToolbar(
-                  labels: const [],
+                  labels: _mainController.navigationBars
+                      .map((item) => item.label)
+                      .toList(),
                   selectedIndex: _mainController.selectedIndex.value,
                   onSelected: _mainController.setIndex,
                   onSearch: () => Get.toNamed('/search'),

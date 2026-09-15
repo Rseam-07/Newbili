@@ -356,22 +356,7 @@ class _PreviewState extends State<_Preview> {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     return Material(
       child: MainLayout(
-        sideBar: wide
-            ? NavigationRail(
-                scrollable: true,
-                groupAlignment: 0,
-                labelType: NavigationRailLabelType.all,
-                selectedIndex: selected,
-                onDestinationSelected: (i) => setState(() => selected = i),
-                destinations: [
-                  for (var i = 0; i < 5; i++)
-                    NavigationRailDestination(
-                      icon: Icon(icons[i]),
-                      label: Text(labels[i]),
-                    ),
-                ],
-              )
-            : null,
+        sideBar: null,
         bottomNav: wide
             ? null
             : NewbiliNavigationBar(
@@ -391,7 +376,7 @@ class _PreviewState extends State<_Preview> {
             children: [
               if (wide)
                 NewbiliTabletToolbar(
-                  labels: const [],
+                  labels: labels,
                   selectedIndex: selected,
                   onSelected: (i) => setState(() => selected = i),
                   onSearch: () {},
