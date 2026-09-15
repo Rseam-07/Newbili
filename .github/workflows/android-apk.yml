@@ -34,7 +34,8 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # setup-android v3 still defaults to the retired `tools` package.
+          cmdline-tools-version: 12266719
+          # setup-android still defaults to the retired `tools` package.
           packages: platform-tools
 
       - name: Install Android API 37 tools
