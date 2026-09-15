@@ -610,16 +610,13 @@ void main() {
         expect(tabs.index, 1);
         await tester.tap(find.text('评论'));
         expect(reselects, 1);
-        final menu = find.byTooltip('弹幕操作');
-        expect(tester.getRect(menu).width, greaterThanOrEqualTo(48));
-        expect(tester.getRect(menu).height, greaterThanOrEqualTo(48));
-        await tester.tap(menu);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('隐藏弹幕'));
+        final toggle = find.byTooltip('隐藏弹幕');
+        expect(tester.getRect(toggle).width, greaterThanOrEqualTo(48));
+        expect(tester.getRect(toggle).height, greaterThanOrEqualTo(48));
+        await tester.tap(toggle);
         await tester.pumpAndSettle();
         expect(toggles, 1);
-        await tester.tap(menu);
-        await tester.pumpAndSettle();
+        // Publishing is a primary action, never hidden in an overflow menu.
         await tester.tap(find.text('发弹幕'));
         await tester.pumpAndSettle();
         expect(sends, 1);

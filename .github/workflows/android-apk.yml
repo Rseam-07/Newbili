@@ -60,19 +60,21 @@ jobs:
           flutter analyze --no-pub --no-fatal-infos
           flutter test --no-pub
 
-      - name: Render library layout checks
+      - name: Render interaction layout checks
         working-directory: AndroidFlutter
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
-          flutter test test/widgets/library_visual_test.dart --no-pub \
+          flutter test test/widgets/library_visual_test.dart \
+            test/widgets/danmaku_composer_test.dart \
+            test/widgets/tracking_library_test.dart --no-pub \
             --dart-define=NEWBILI_VISUAL_FONT=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
             --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
 
-      - name: Upload library layout checks
+      - name: Upload interaction layout checks
         uses: actions/upload-artifact@v4
         with:
-          name: Newbili-Android-library-layouts
+          name: Newbili-Android-interaction-layouts
           path: AndroidFlutter/build/visual-verification/*.png
           if-no-files-found: error
 

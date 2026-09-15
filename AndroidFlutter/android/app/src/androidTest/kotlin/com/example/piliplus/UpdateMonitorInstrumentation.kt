@@ -61,6 +61,20 @@ class UpdateMonitorInstrumentation : Instrumentation() {
             check(state().getJSONArray("tracks").getJSONObject(0).getJSONArray("pages").length() == 3)
             checks++
 
+            val removed = monitor.unmark(bvid)!!
+            check(state().getJSONArray("tracks").length() == 0)
+            monitor.restore(removed)
+            monitor.restore(removed) // Retrying a successful restore is idempotent.
+            check(state().getJSONArray("tracks").length() == 1)
+            val restored = state().getJSONArray("tracks").getJSONObject(0)
+            check(restored.getLong("markedAt") == removed.getLong("markedAt"))
+            check(restored.getJSONArray("known").longs() == setOf(101L, 202L, 303L))
+            monitor.checkUpdates(true, request = { _, _ -> video(101, 303) })
+            monitor.checkUpdates(true, request = { _, _ -> video(101, 202, 303) })
+            check(state().getJSONArray("recent").length() == 1)
+            check(notifications.activeNotifications.none { it.tag == "series.$bvid" })
+            checks++
+
             monitor.checkUpdates(true, request = { _, _ -> monitor.unmark(bvid); video(101, 202, 303, 404) })
             check(state().getJSONArray("tracks").length() == 0)
             check(notifications.activeNotifications.none { it.tag == "series.$bvid" })

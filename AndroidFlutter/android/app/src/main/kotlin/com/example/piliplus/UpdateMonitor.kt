@@ -39,6 +39,7 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
     private val jobs = context.getSystemService(JobScheduler::class.java)
     private val runningCheck = AtomicReference<CompletableFuture<Unit>?>(null)
     private val lock = Any()
+    private var stateRevision = 0L
     private val aad = "Newbili update checks v1".toByteArray()
 
     init {
@@ -53,7 +54,7 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
         notifications.getNotificationChannel(id)?.importance != NotificationManager.IMPORTANCE_NONE
 
     fun state(): String = synchronized(lock) {
-        JSONObject().put("level", prefs.getString("level", "off"))
+        JSONObject().put("revision", ++stateRevision).put("level", prefs.getString("level", "off"))
             .put("tracks", JSONArray(tracks())).put("checking", runningCheck.get() != null)
             .put("permission", notifications.areNotificationsEnabled())
             .put("seriesPermission", channelEnabled(SERIES_CHANNEL))
@@ -93,22 +94,35 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
 
     fun mark(data: JSONObject) = synchronized(lock) {
         val snapshot = UpdatePolicy.snapshot(data, System.currentTimeMillis())
-        val current = tracks()
-        if (current.any { it.getString("bvid") == snapshot.getString("bvid") }) return@synchronized
         snapshot.put("known", JSONArray(snapshot.getJSONArray("pages").objects().map { it.getLong("cid") }))
-        check(prefs.edit().putString("tracks", JSONArray(listOf(snapshot) + current).toString())
-            .putString("status", "已添加追更，可检查新增分 P")
+        insertSnapshot(snapshot, "已添加追更，可检查新增分 P")
+    }
+
+    fun restore(data: JSONObject) = synchronized(lock) {
+        insertSnapshot(UpdatePolicy.restoredSnapshot(data), "已恢复追更")
+    }
+
+    private fun insertSnapshot(snapshot: JSONObject, status: String) {
+        val current = tracks()
+        if (current.any { it.getString("bvid") == snapshot.getString("bvid") }) return
+        val restored = (listOf(snapshot) + current).sortedByDescending { it.getLong("markedAt") }
+        check(prefs.edit().putString("tracks", JSONArray(restored).toString())
+            .putString("status", status)
             .putLong("lastChecked", 0)
             .putInt("generation", prefs.getInt("generation", 0) + 1).commit())
         schedule()
     }
 
-    fun unmark(bvid: String) = synchronized(lock) {
+    fun unmark(bvid: String): JSONObject? = synchronized(lock) {
         require(UpdatePolicy.validBvid(bvid))
-        check(prefs.edit().putString("tracks", JSONArray(tracks().filter { it.getString("bvid") != bvid }).toString())
+        val current = tracks()
+        val removed = current.firstOrNull { it.getString("bvid") == bvid } ?: return@synchronized null
+        check(prefs.edit().putString("tracks", JSONArray(current.filter { it.getString("bvid") != bvid }).toString())
+            .putString("status", "已取消追更")
             .putInt("generation", prefs.getInt("generation", 0) + 1).commit())
         notifications.cancel("series.$bvid", 0)
         schedule()
+        removed
     }
 
     fun schedule() = synchronized(lock) {
@@ -136,9 +150,10 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
         var checks = 0
         var failures = 0
         var sent = 0
+        var found = 0
         try {
             schedule()
-            if (!notifications.areNotificationsEnabled()) {
+            if (!manual && !notifications.areNotificationsEnabled()) {
                 prefs.edit().putString("status", "系统通知已关闭，请前往系统设置开启").apply()
                 return state()
             }
@@ -149,7 +164,7 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
             val current = synchronized(lock) { tracks() }
             val cursor = prefs.getInt("cursor", 0).let { if (current.isEmpty()) 0 else it % current.size }
             var checkedTracks = 0
-            if (channelEnabled(SERIES_CHANNEL)) {
+            if (UpdatePolicy.shouldCheck(manual, channelEnabled(SERIES_CHANNEL))) {
                 for (item in (current.drop(cursor) + current.take(cursor)).take(20)) {
                     if (stale() || SystemClock.elapsedRealtime() - start > 60_000) break
                     try {
@@ -169,8 +184,8 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
                                     val first = added.first()
                                     val body = if (added.size == 1) "${first.optString("title").ifBlank { "新分 P" }} 已更新，点此继续观看。"
                                         else "新增 ${added.size} 个分 P，点此继续观看。"
-                                    post(SERIES_CHANNEL, "series.$bvid", title, body, bvid, first.optInt("page", 1))
-                                    sent++
+                                    if (post(SERIES_CHANNEL, "series.$bvid", title, body, bvid, first.optInt("page", 1))) sent++
+                                    found++
                                 }
                                 updated.put("known", JSONArray((pages.map { it.getLong("cid") } + known).distinct().take(4096)))
                                 check(prefs.edit().putString("tracks", JSONArray(tracks().map {
@@ -186,7 +201,7 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
             }
             val level = prefs.getString("level", "off")
             val mid = prefs.getLong("mid", 0)
-            if (!stale() && level != "off" && mid > 0 && channelEnabled(UP_CHANNEL)) {
+            if (!stale() && level != "off" && mid > 0 && UpdatePolicy.shouldCheck(manual, channelEnabled(UP_CHANNEL))) {
                 try {
                     val cookie = unseal(prefs.getString("credential", "")!!)
                     val allowed = if (level == "specialOnly") {
@@ -206,12 +221,12 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
                             val seen = JSONArray(prefs.getString("seen", "[]")).strings().toMutableSet()
                             val fresh = UpdatePolicy.newRecords(records, seen, prefs.getBoolean("baseline", false), allowed)
                             for (record in fresh.take(20)) {
-                                post(UP_CHANNEL, "up.${record.getString("id")}",
+                                if (post(UP_CHANNEL, "up.${record.getString("id")}",
                                     "${record.getString("owner").ifBlank { "关注的 UP" }} 更新了",
-                                    record.getString("title"), record.getString("bvid"), 1)
+                                    record.getString("title"), record.getString("bvid"), 1)) sent++
                                 seen.add(record.getString("id"))
                                 check(prefs.edit().putString("seen", JSONArray(seen.toList().takeLast(512)).toString()).commit())
-                                sent++
+                                found++
                             }
                             check(prefs.edit().putBoolean("baseline", true)
                                 .putString("seen", JSONArray((records.map { it.getString("id") } + seen).distinct().take(512)).toString()).commit())
@@ -223,7 +238,7 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
             if (!stale()) {
                 val message = when {
                     failures > 0 -> "已检查 $checks 项，$failures 项暂时失败，将在下次检查时重试"
-                    sent > 0 -> "发现 $sent 条更新，已发送通知"
+                    found > 0 -> "发现 $found 条更新，已保存到最近更新" + if (sent > 0) "（已发送 $sent 条通知）" else "（未发送系统通知）"
                     checks > 0 -> "已检查 $checks 项，目前没有新内容"
                     else -> "没有可执行的更新检查"
                 } + if (level != "off" && mid == 0L) "；关注 UP 未登录，本次未检查" else ""
@@ -262,8 +277,21 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
         } finally { connection.disconnect() }
     }
 
-    private fun post(channel: String, tag: String, title: String, body: String, bvid: String, page: Int) {
-        check(channelEnabled(channel)) { "Notification channel disabled" }
+    private fun post(channel: String, tag: String, title: String, body: String, bvid: String, page: Int): Boolean {
+        val delivered = if (channelEnabled(channel)) {
+            try {
+                notify(channel, tag, title, body, bvid, page)
+                true
+            } catch (_: SecurityException) { false } // Permission can change during a check.
+        } else false
+        val entry = JSONObject().put("id", tag).put("title", title).put("body", body)
+            .put("bvid", bvid).put("page", page).put("time", System.currentTimeMillis())
+        val recent = JSONArray(prefs.getString("recent", "[]")).objects().filter { it.optString("id") != tag }
+        check(prefs.edit().putString("recent", JSONArray((listOf(entry) + recent).take(50)).toString()).commit())
+        return delivered
+    }
+
+    private fun notify(channel: String, tag: String, title: String, body: String, bvid: String, page: Int) {
         val intent = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
             .setData(Uri.parse("https://www.bilibili.com/video/$bvid?p=${page.coerceAtLeast(1)}"))
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -274,10 +302,6 @@ internal class UpdateMonitor(private val context: Context, preferencesName: Stri
             .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE).build()
         notifications.notify(tag, 0, notification)
-        val entry = JSONObject().put("id", tag).put("title", title).put("body", body)
-            .put("bvid", bvid).put("page", page).put("time", System.currentTimeMillis())
-        val recent = JSONArray(prefs.getString("recent", "[]")).objects().filter { it.optString("id") != tag }
-        prefs.edit().putString("recent", JSONArray((listOf(entry) + recent).take(50)).toString()).apply()
     }
 
     private fun seal(value: String): String {

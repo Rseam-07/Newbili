@@ -6,6 +6,35 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class UpdatePolicyTest {
+    @Test fun manualChecksWorkWithoutSystemNotificationPermission() {
+        assertTrue(UpdatePolicy.shouldCheck(true, false))
+        assertTrue(UpdatePolicy.shouldCheck(true, true))
+        assertTrue(UpdatePolicy.shouldCheck(false, true))
+        assertFalse(UpdatePolicy.shouldCheck(false, false))
+    }
+
+    @Test fun undoKeepsOriginalDatesAndHistoricalCids() {
+        val saved = JSONObject().put("bvid", "BV1td8R6EE2L").put("title", "追更")
+            .put("owner", "UP").put("cover", "cover.jpg")
+            .put("markedAt", 10).put("checkedAt", 20)
+            .put("pages", JSONArray(pages(101, 303)))
+            .put("known", JSONArray(listOf(101, 202, 303, 202, -1)))
+        val restored = UpdatePolicy.restoredSnapshot(saved)
+        assertEquals(10L, restored.getLong("markedAt"))
+        assertEquals(20L, restored.getLong("checkedAt"))
+        assertEquals("UP", restored.getString("owner"))
+        assertEquals("cover.jpg", restored.getString("cover"))
+        assertEquals(setOf(101L, 202L, 303L), restored.getJSONArray("known").longs())
+        assertTrue(UpdatePolicy.addedPages(restored.getJSONArray("known").longs(), pages(101, 202, 303)).isEmpty())
+        assertEquals(listOf(404L), UpdatePolicy.addedPages(restored.getJSONArray("known").longs(), pages(101, 404)).map { it.getLong("cid") })
+    }
+
+    @Test fun legacySnapshotsRebuildKnownFromSavedParts() {
+        val saved = JSONObject().put("bvid", "BV1td8R6EE2L")
+            .put("markedAt", 0).put("checkedAt", 0).put("pages", JSONArray(pages(101)))
+        assertEquals(setOf(101L), UpdatePolicy.restoredSnapshot(saved).getJSONArray("known").longs())
+    }
+
     private fun pages(vararg ids: Long) = ids.mapIndexed { index, id ->
         JSONObject().put("cid", id).put("page", index + 1).put("title", "P${index + 1}")
     }

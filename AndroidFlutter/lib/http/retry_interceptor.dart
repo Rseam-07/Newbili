@@ -49,6 +49,15 @@ class RetryInterceptor extends Interceptor {
       }
       return handler.next(err);
     } else {
+      // A lost response does not mean a write failed. Never replay a publish,
+      // coin or other mutation just because its acknowledgement was lost.
+      if (!const {
+        'GET',
+        'HEAD',
+        'OPTIONS',
+      }.contains(err.requestOptions.method)) {
+        return handler.next(err);
+      }
       switch (err.type) {
         case DioExceptionType.connectionError:
         case DioExceptionType.connectionTimeout:

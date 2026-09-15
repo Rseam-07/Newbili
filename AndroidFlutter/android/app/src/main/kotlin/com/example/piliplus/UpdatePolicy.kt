@@ -10,6 +10,18 @@ internal object UpdatePolicy {
 
     fun validBvid(value: String) = videoID.matches(value)
 
+    fun shouldCheck(manual: Boolean, channelEnabled: Boolean) = manual || channelEnabled
+
+    fun restoredSnapshot(data: JSONObject): JSONObject {
+        val restored = snapshot(data, data.getLong("markedAt"), data.getLong("checkedAt"))
+        require(restored.getLong("markedAt") >= 0 && restored.getLong("checkedAt") >= 0)
+        // Keep previously observed, now removed CIDs: undo must not notify again
+        // when an uploader later restores an old part.
+        val known = restored.getJSONArray("pages").objects().map { it.getLong("cid") } +
+            data.optJSONArray("known").longs().filter { it > 0 }
+        return restored.put("known", JSONArray(known.distinct().take(4096)))
+    }
+
     fun pages(data: JSONObject): List<JSONObject> =
         data.optJSONArray("pages").objects().filter { it.optLong("cid") > 0 }
             .distinctBy { it.getLong("cid") }.sortedBy { it.optInt("page") }

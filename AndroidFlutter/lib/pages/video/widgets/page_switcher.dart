@@ -22,12 +22,17 @@ class PlayerPageSwitcher extends StatelessWidget {
   final VoidCallback onReselect;
 
   static double contentInsetOf(BuildContext context) =>
-      FloatingNavigationBar.heightOf(context) + 24;
+      FloatingNavigationBar.heightOf(context) +
+      24 +
+      (MediaQuery.textScalerOf(context).scale(14) > 20 ? 56 : 0);
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 352),
-    child: Row(
+    constraints: const BoxConstraints(maxWidth: 560),
+    child: Flex(
+      direction: MediaQuery.textScalerOf(context).scale(14) > 20
+          ? Axis.vertical
+          : Axis.horizontal,
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
@@ -67,25 +72,36 @@ class PlayerPageSwitcher extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 8, height: 8),
         NewbiliGlassSurface(
           role: NewbiliGlassRole.toolbar,
           borderRadius: BorderRadius.circular(24),
-          child: SizedBox.square(
-            dimension: 48,
-            child: PopupMenuButton<int>(
-              tooltip: '弹幕操作',
-              icon: const Icon(CupertinoIcons.ellipsis, size: 22),
-              onSelected: (action) =>
-                  action == 0 ? onSendDanmaku() : onToggleDanmaku(),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 0, child: Text('发弹幕')),
-                PopupMenuItem(
-                  value: 1,
-                  child: Text(showsDanmaku ? '隐藏弹幕' : '显示弹幕'),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(64, 48),
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
                 ),
-              ],
-            ),
+                onPressed: onSendDanmaku,
+                child: const Text('发弹幕'),
+              ),
+              IconButton(
+                constraints: const BoxConstraints.tightFor(
+                  width: 48,
+                  height: 48,
+                ),
+                tooltip: showsDanmaku ? '隐藏弹幕' : '显示弹幕',
+                isSelected: showsDanmaku,
+                onPressed: onToggleDanmaku,
+                icon: const Icon(CupertinoIcons.text_bubble, size: 22),
+                selectedIcon: const Icon(
+                  CupertinoIcons.text_bubble_fill,
+                  size: 22,
+                ),
+              ),
+            ],
           ),
         ),
       ],

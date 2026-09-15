@@ -3,10 +3,12 @@ import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/danmaku/post.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:dio/dio.dart';
 
 abstract final class DanmakuHttp {
   static Future<LoadingState<DanmakuPost>> shootDanmaku({
+    Account? account,
     int type = 1, //弹幕类选择(1：视频弹幕 2：漫画弹幕)
     required int oid, // 视频cid
     required String msg, //弹幕文本(长度小于 100 字符)
@@ -25,6 +27,7 @@ abstract final class DanmakuHttp {
     // String? csrf,//CSRF Token（位于 Cookie）	Cookie 方式必要
     // String? access_key,//	APP 登录 Token		APP 方式必要
   }) async {
+    final sender = account ?? Accounts.main;
     // 构建参数对象
     // assert(aid != null || bvid != null);
     // assert(csrf != null || access_key != null);
@@ -43,21 +46,35 @@ abstract final class DanmakuHttp {
       'rnd': DateTime.now().microsecondsSinceEpoch,
       'colorful': ?colorful ? 60001 : null,
       'checkbox_type': ?checkboxType,
-      'csrf': Accounts.main.csrf,
+      'csrf': sender.csrf,
       // 'access_key': access_key,
     };
 
     final res = await Request().post(
       Api.shootDanmaku,
       data: data,
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': sender},
+        sendTimeout: const Duration(seconds: 10),
+      ),
+      showErrorToast: false,
     );
 
-    if (res.data['code'] == 0) {
-      return Success(DanmakuPost.fromJson(res.data['data']));
-    } else {
-      return Error(res.data['message'], code: res.data['code']);
+    if (res.extra.containsKey('transportError')) {
+      return const Error('网络中断，无法确认是否已发送。请先检查弹幕后再试，避免重复发送。');
     }
+    return switch (res.data) {
+      {'code': 0, 'data': final Map<String, dynamic> data} => Success(
+        DanmakuPost.fromJson(data),
+      ),
+      {'code': 0} => Success(DanmakuPost(dmid: null)),
+      {'code': final int code, 'message': final String message} => Error(
+        message,
+        code: code,
+      ),
+      _ => const Error('服务返回异常，无法确认发送结果。请先检查弹幕后再试。'),
+    };
   }
 
   static Future<LoadingState<void>> danmakuLike({

@@ -287,6 +287,7 @@ class Request {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
+    bool showErrorToast = true,
   }) async {
     // if (kDebugMode) debugPrint('post-data: $data');
     try {
@@ -298,8 +299,9 @@ class Request {
         cancelToken: cancelToken,
       );
     } on DioException catch (e) {
-      AccountManager.toast(e);
+      if (showErrorToast) AccountManager.toast(e);
       return Response(
+        extra: {'transportError': e.type},
         data: {
           'message': await AccountManager.dioError(e),
         }, // 将自定义 Map 数据赋值给 Response 的 data 属性

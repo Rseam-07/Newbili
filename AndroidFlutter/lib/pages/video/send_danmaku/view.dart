@@ -1,492 +1,430 @@
-import 'dart:async';
-
-import 'package:PiliPlus/common/widgets/button/icon_button.dart';
-import 'package:PiliPlus/common/widgets/scroll_physics.dart'
-    show platformClampingPhysics;
-import 'package:PiliPlus/common/widgets/view_safe_area.dart';
-import 'package:PiliPlus/http/danmaku.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/models/common/publish_panel_type.dart';
-import 'package:PiliPlus/pages/common/publish/common_text_pub_page.dart';
-import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/setting/slide_color_picker.dart';
-import 'package:PiliPlus/plugin/pl_player/controller.dart';
-import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:canvas_danmaku/models/danmaku_content_item.dart';
-import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
-import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
-class SendDanmakuPanel extends CommonTextPubPage {
-  // video
-  final dynamic cid;
-  final dynamic bvid;
-  final dynamic progress;
+typedef DanmakuDraft = ({String text, int mode, int fontSize, Color color});
+typedef DanmakuStyle = ({int mode, int fontSize, Color color});
 
-  final ValueChanged<DanmakuContentItem<DanmakuExtra>> onSuccess;
-
-  // config
-  final ({int? mode, int? fontSize, Color? color})? dmConfig;
-  final ValueChanged<({int mode, int fontSize, Color color})>? onSaveDmConfig;
-
+/// The route owns a fixed video/time; the editor owns only the draft. Keeping
+/// player/account lookups out of this widget also makes failure paths testable.
+class SendDanmakuPanel extends StatefulWidget {
   const SendDanmakuPanel({
     super.key,
-    super.initialValue,
-    super.onSave,
-    this.cid,
-    this.bvid,
-    this.progress,
-    required this.onSuccess,
+    this.initialValue,
+    required this.progress,
+    required this.onSend,
+    this.onSave,
+    this.onSent,
     this.dmConfig,
     this.onSaveDmConfig,
+    this.isVip = false,
   });
+
+  final String? initialValue;
+  final int progress;
+  final Future<LoadingState<void>> Function(DanmakuDraft draft) onSend;
+  final ValueChanged<String>? onSave;
+  final VoidCallback? onSent;
+  final DanmakuStyle? dmConfig;
+  final ValueChanged<DanmakuStyle>? onSaveDmConfig;
+  final bool isVip;
 
   @override
   State<SendDanmakuPanel> createState() => _SendDanmakuPanelState();
 }
 
-class _SendDanmakuPanelState extends CommonTextPubPageState<SendDanmakuPanel> {
-  late final RxInt _mode;
-  late final RxInt _fontSize;
-  late final Rx<Color> _color;
+class _SendDanmakuPanelState extends State<SendDanmakuPanel> {
+  late final TextEditingController _text;
+  late int _mode;
+  late int _fontSize;
+  late Color _color;
+  bool _stylesVisible = false;
+  bool _sending = false;
+  bool _sent = false;
+  String? _error;
 
-  final List<Color> _colorList = [
-    Colors.white,
-    const Color(0xFFFE0302),
-    const Color(0xFFFF7204),
-    const Color(0xFFFFAA02),
-    const Color(0xFFFFD302),
-    const Color(0xFFFFFF00),
-    const Color(0xFFA0EE00),
-    const Color(0xFF00CD00),
-    const Color(0xFF019899),
-    const Color(0xFF4266BE),
-    const Color(0xFF89D5FF),
-    const Color(0xFFCC0273),
-    const Color(0xFF222222),
-    const Color(0xFF9B9B9B),
-  ];
+  static final _colors = {
+    Colors.white: '白色',
+    const Color(0xFFFE0302): '红色',
+    const Color(0xFFFF7204): '橙色',
+    const Color(0xFFFFAA02): '浅橙色',
+    const Color(0xFFFFD302): '金黄色',
+    const Color(0xFFFFFF00): '黄色',
+    const Color(0xFFA0EE00): '黄绿色',
+    const Color(0xFF00CD00): '绿色',
+    const Color(0xFF019899): '青色',
+    const Color(0xFF4266BE): '蓝色',
+    const Color(0xFF89D5FF): '浅蓝色',
+    const Color(0xFFCC0273): '紫红色',
+    const Color(0xFF222222): '黑色',
+    const Color(0xFF9B9B9B): '灰色',
+  };
 
   @override
   void initState() {
     super.initState();
-    _mode = (widget.dmConfig?.mode ?? 1).obs;
-    _fontSize = (widget.dmConfig?.fontSize ?? 25).obs;
-    _color = (widget.dmConfig?.color ?? Colors.white).obs;
-    if (Pref.userInfoCache?.vipStatus == 1) {
-      _colorList.add(Colors.transparent);
-    }
+    _text = TextEditingController(text: widget.initialValue);
+    _mode = widget.dmConfig?.mode ?? 1;
+    _fontSize = widget.dmConfig?.fontSize ?? 25;
+    _color = widget.dmConfig?.color ?? Colors.white;
+    if (!widget.isVip && _color == Colors.transparent) _color = Colors.white;
   }
 
   @override
   void dispose() {
+    widget.onSave?.call(_sent ? '' : _text.text);
     widget.onSaveDmConfig?.call((
-      mode: _mode.value,
-      fontSize: _fontSize.value,
-      color: _color.value,
+      mode: _mode,
+      fontSize: _fontSize,
+      color: _color,
     ));
+    _text.dispose();
     super.dispose();
   }
 
-  Widget get _buildColorPanel => Expanded(
-    child: Obx(
-      () {
-        final bool isCustomColor = !_colorList.contains(_color.value);
-        final int length = _colorList.length + (isCustomColor ? 1 : 0) + 1;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 42,
-            crossAxisSpacing: 4,
-            mainAxisSpacing: 4,
-          ),
-          itemCount: length,
-          itemBuilder: (context, index) {
-            if (index == length - 1) {
-              return GestureDetector(
-                onTap: _showColorPicker,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: themeData.colorScheme.secondaryContainer,
-                    borderRadius: const BorderRadius.all(
-                      Radius.circular(8),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  margin: const EdgeInsets.all(2),
-                  child: Icon(
-                    size: 22,
-                    Icons.edit,
-                    color: themeData.colorScheme.onSecondaryContainer,
-                  ),
-                ),
-              );
-            } else if (index == length - 2 && isCustomColor) {
-              return _buildColorItem(_color.value);
-            }
-            return _buildColorItem(_colorList[index]);
-          },
-        );
-      },
-    ),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    themeData = Theme.of(context);
+  Future<void> _submit() async {
+    if (_sending || _sent || _text.text.trim().isEmpty) return;
+    // Snapshot before the first await: the API and local echo must agree.
+    final draft = (
+      text: _text.text.trim(),
+      mode: _mode,
+      fontSize: _fontSize,
+      color: _color,
+    );
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    LoadingState<void> result;
+    try {
+      result = await widget.onSend(draft);
+    } on Exception {
+      result = const Error('无法确认发送结果。请先检查弹幕后再试，避免重复发送。');
+    }
+    if (!mounted) return;
+    if (result is Success) {
+      setState(() {
+        _sending = false;
+        _sent = true;
+      });
+      widget.onSave?.call('');
+      widget.onSent?.call();
+      if (ModalRoute.of(context)?.isCurrent == true) {
+        Navigator.of(context).pop();
+      }
+    } else {
+      setState(() {
+        _sending = false;
+        _error = result.toString().isEmpty ? '发送未成功，请稍后再试。' : result.toString();
+      });
+    }
   }
 
-  late ThemeData themeData;
+  String get _timestamp {
+    final seconds = widget.progress ~/ 1000;
+    final minutes = seconds ~/ 60;
+    return '${minutes.toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ViewSafeArea(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 450),
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            color: themeData.colorScheme.surface,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildInputView(),
-              buildPanelContainer(themeData, Colors.transparent),
-            ],
-          ),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PopScope(
+      canPop: !_sending,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
         ),
-      ),
-    );
-  }
-
-  @override
-  Widget? get customPanel => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    decoration: BoxDecoration(
-      border: Border(
-        top: BorderSide(
-          color: themeData.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-      ),
-    ),
-    child: ListView(
-      physics: platformClampingPhysics,
-      padding: .only(
-        top: 12,
-        bottom: 12 + MediaQuery.viewPaddingOf(context).bottom,
-      ),
-      children: [
-        Row(
-          children: [
-            Text(
-              '弹幕字号',
-              style: TextStyle(
-                fontSize: 15,
-                color: themeData.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(width: 16),
-            _buildFontSizeItem(18, '小'),
-            const SizedBox(width: 5),
-            _buildFontSizeItem(25, '标准'),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Text(
-              '弹幕样式',
-              style: TextStyle(
-                fontSize: 15,
-                color: themeData.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(width: 16),
-            _buildPositionItem(1, '滚动'),
-            const SizedBox(width: 5),
-            _buildPositionItem(5, '顶部'),
-            const SizedBox(width: 5),
-            _buildPositionItem(4, '底部'),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '弹幕颜色',
-              style: TextStyle(
-                fontSize: 15,
-                color: themeData.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(width: 16),
-            _buildColorPanel,
-          ],
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildColorItem(Color color) {
-    return GestureDetector(
-      onTap: () => _color.value = color,
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-          border: _color.value != color
-              ? null
-              : Border.all(
-                  width: 2,
-                  color: themeData.colorScheme.primary,
+        child: SafeArea(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: 560,
+              child: Material(
+                color: scheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: const BorderRadius.all(Radius.circular(6)),
-          ),
-          child: color == Colors.transparent
-              ? Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      decoration: const BoxDecoration(
-                        borderRadius: BorderRadius.all(Radius.circular(6)),
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xFFDD94DA),
-                            Color(0xFF72B2EA),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '发弹幕',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '关闭并保留草稿',
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 48,
+                                    height: 48,
+                                  ),
+                                  onPressed: _sending
+                                      ? null
+                                      : () => Navigator.of(context).maybePop(),
+                                  icon: const Icon(Icons.close_rounded),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '发送到 $_timestamp · 关闭后保留草稿',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _text,
+                              autofocus: true,
+                              readOnly: _sending || _sent,
+                              minLines: 1,
+                              maxLines: 3,
+                              maxLength: 100,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _submit(),
+                              decoration: InputDecoration(
+                                labelText: '弹幕内容',
+                                floatingLabelStyle: TextStyle(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                                hintText: '和正在看的人聊聊这一刻',
+                                border: const OutlineInputBorder(
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(16),
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.all(16),
+                              ),
+                            ),
+                            if (_error != null) ...[
+                              const SizedBox(height: 8),
+                              Semantics(
+                                liveRegion: true,
+                                child: Text(
+                                  '$_error\n草稿已保留。',
+                                  style: TextStyle(color: scheme.error),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_stylesVisible) ...[
+                              const Divider(height: 24),
+                              Text('字号', style: theme.textTheme.titleSmall),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  _choice(
+                                    '小',
+                                    _fontSize == 18,
+                                    () => _fontSize = 18,
+                                  ),
+                                  _choice(
+                                    '标准',
+                                    _fontSize == 25,
+                                    () => _fontSize = 25,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text('位置', style: theme.textTheme.titleSmall),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  _choice('滚动', _mode == 1, () => _mode = 1),
+                                  _choice('顶部', _mode == 5, () => _mode = 5),
+                                  _choice('底部', _mode == 4, () => _mode = 4),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text('颜色', style: theme.textTheme.titleSmall),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final entry in _colors.entries)
+                                    _colorButton(entry.key, entry.value),
+                                  if (widget.isVip)
+                                    _colorButton(Colors.transparent, '会员渐变色'),
+                                  if (!_colors.containsKey(_color) &&
+                                      _color != Colors.transparent)
+                                    _colorButton(_color, '自定义颜色'),
+                                  IconButton.filledTonal(
+                                    tooltip: '自定义颜色',
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 48,
+                                      height: 48,
+                                    ),
+                                    onPressed: _sending || _sent
+                                        ? null
+                                        : _showColorPicker,
+                                    icon: const Icon(Icons.colorize_rounded),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                    Container(
-                      margin: const EdgeInsets.all(5),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(4)),
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: _buildActions(scheme),
                     ),
                   ],
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPositionItem(int mode, String title) {
-    return Obx(
-      () => Expanded(
-        child: GestureDetector(
-          onTap: () => _mode.value = mode,
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _mode.value == mode
-                  ? themeData.colorScheme.secondaryContainer
-                  : themeData.colorScheme.onInverseSurface,
-              borderRadius: const BorderRadius.all(Radius.circular(8)),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Text(
-              title,
-              style: TextStyle(
-                color: _mode.value == mode
-                    ? themeData.colorScheme.onSecondaryContainer
-                    : themeData.colorScheme.outline,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFontSizeItem(int fontSize, String title) {
-    return Obx(
-      () => Expanded(
-        child: GestureDetector(
-          onTap: () => _fontSize.value = fontSize,
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _fontSize.value == fontSize
-                  ? themeData.colorScheme.secondaryContainer
-                  : themeData.colorScheme.onInverseSurface,
-              borderRadius: const BorderRadius.all(Radius.circular(8)),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Text(
-              title,
-              style: TextStyle(
-                color: _fontSize.value == fontSize
-                    ? themeData.colorScheme.onSecondaryContainer
-                    : themeData.colorScheme.outline,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputView() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, top: 2, right: 8),
-      child: Row(
-        children: [
-          Obx(
-            () {
-              final isEmoji = panelType.value == PanelType.emoji;
-              return iconButton(
-                tooltip: '弹幕样式',
-                onPressed: () {
-                  updatePanelType(
-                    isEmoji ? PanelType.keyboard : PanelType.emoji,
-                  );
-                },
-                iconSize: 24,
-                icon: const Icon(Icons.text_format),
-                iconColor: isEmoji
-                    ? themeData.colorScheme.primary
-                    : themeData.colorScheme.onSurfaceVariant,
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Listener(
-              onPointerUp: (event) {
-                if (readOnly.value) {
-                  updatePanelType(PanelType.keyboard);
-                }
-              },
-              child: Obx(
-                () => TextField(
-                  controller: editController,
-                  autofocus: false,
-                  readOnly: readOnly.value,
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(100),
-                  ],
-                  onChanged: onChanged,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: onSubmitted,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                    hintText: "输入弹幕内容",
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(
-                      fontSize: 15,
-                      color: themeData.colorScheme.outline,
-                    ),
-                  ),
-                  style: themeData.textTheme.bodyLarge,
                 ),
               ),
             ),
           ),
-          Obx(
-            () => enablePublish.value
-                ? iconButton(
-                    iconSize: 22,
-                    iconColor: themeData.colorScheme.onSurfaceVariant,
-                    onPressed: () {
-                      editController.clear();
-                      enablePublish.value = false;
-                    },
-                    icon: const Icon(Icons.clear),
-                  )
-                : const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions(ColorScheme scheme) => Wrap(
+    alignment: WrapAlignment.spaceBetween,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    spacing: 12,
+    runSpacing: 8,
+    children: [
+      TextButton.icon(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: scheme.onSurface,
+        ),
+        onPressed: _sending || _sent
+            ? null
+            : () {
+                FocusScope.of(context).unfocus();
+                setState(() => _stylesVisible = !_stylesVisible);
+              },
+        icon: Icon(
+          _stylesVisible ? Icons.keyboard_arrow_up : Icons.text_format_rounded,
+        ),
+        label: Text(_stylesVisible ? '收起样式' : '弹幕样式'),
+      ),
+      ValueListenableBuilder(
+        valueListenable: _text,
+        builder: (context, value, _) => FilledButton.icon(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(104, 48),
+            backgroundColor: scheme.primaryContainer,
+            foregroundColor: scheme.onPrimaryContainer,
           ),
-          const SizedBox(width: 12),
-          Obx(
-            () => iconButton(
-              tooltip: '发送',
-              iconSize: 22,
-              iconColor: enablePublish.value
-                  ? themeData.colorScheme.primary
-                  : themeData.colorScheme.outline,
-              onPressed: enablePublish.value ? onPublishThrottle : null,
-              icon: const Icon(Icons.send),
+          onPressed: _sending || _sent || value.text.trim().isEmpty
+              ? null
+              : _submit,
+          icon: _sending
+              ? SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                )
+              : Icon(
+                  _sent ? Icons.check_rounded : Icons.send_rounded,
+                  size: 20,
+                ),
+          label: Text(
+            _sending
+                ? '发送中'
+                : _sent
+                ? '已发送'
+                : '发送',
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _choice(String label, bool selected, VoidCallback change) =>
+      ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        materialTapTargetSize: MaterialTapTargetSize.padded,
+        onSelected: _sending || _sent ? null : (_) => setState(change),
+      );
+
+  Widget _colorButton(Color color, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: _color == color,
+      label: label,
+      enabled: !_sending && !_sent,
+      child: Tooltip(
+        message: label,
+        excludeFromSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _sending || _sent
+              ? null
+              : () => setState(() => _color = color),
+          child: Container(
+            width: 48,
+            height: 48,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _color == color ? scheme.primary : scheme.outlineVariant,
+                width: 2,
+              ),
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(6),
+                gradient: color == Colors.transparent
+                    ? const LinearGradient(
+                        colors: [Color(0xFFDD94DA), Color(0xFF72B2EA)],
+                      )
+                    : null,
+              ),
+              child: _color == color
+                  ? Icon(
+                      Icons.check_rounded,
+                      size: 22,
+                      color:
+                          color.computeLuminance() > .4 ||
+                              color == Colors.transparent
+                          ? Colors.black
+                          : Colors.white,
+                    )
+                  : null,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showColorPicker() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        clipBehavior: Clip.hardEdge,
-        contentPadding: const EdgeInsets.symmetric(vertical: 16),
-        title: const Text('Color Picker'),
-        content: SlideColorPicker(
-          color: _color.value,
-          onChanged: (Color? color) {
-            if (color != null) {
-              _color.value = color;
-            }
-          },
         ),
       ),
     );
   }
 
-  @override
-  Future<void> onCustomPublish({List? pictures}) async {
-    SmartDialog.showLoading(msg: '发送中...');
-    bool isColorful = _color.value == Colors.transparent;
-    final res = await DanmakuHttp.shootDanmaku(
-      oid: widget.cid,
-      bvid: widget.bvid,
-      progress: widget.progress,
-      msg: editController.text,
-      mode: _mode.value,
-      fontSize: _fontSize.value,
-      color: isColorful ? null : _color.value.toARGB32() & 0xFFFFFF,
-      colorful: isColorful,
-    );
-    SmartDialog.dismiss();
-    if (res case Success(:final response)) {
-      hasPub = true;
-      Get.back();
-      SmartDialog.showToast('发送成功');
-      VideoDanmaku? extra;
-      if (response.dmid case final dmid?) {
-        extra = VideoDanmaku(
-          id: dmid,
-          mid: PlPlayerController.instance!.midHash,
-        );
-      }
-      widget.onSuccess(
-        DanmakuContentItem(
-          editController.text,
-          color: isColorful ? Colors.white : _color.value,
-          type: switch (_mode.value) {
-            5 => DanmakuItemType.top,
-            4 => DanmakuItemType.bottom,
-            _ => DanmakuItemType.scroll,
-          },
-          selfSend: true,
-          isColorful: isColorful,
-          extra: extra,
-        ),
-      );
-    } else {
-      res.toast();
-    }
-  }
+  Future<void> _showColorPicker() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      clipBehavior: Clip.hardEdge,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      title: const Text('自定义弹幕颜色'),
+      content: SlideColorPicker(
+        color: _color,
+        onChanged: (color) {
+          if (mounted && color != null) setState(() => _color = color);
+        },
+      ),
+    ),
+  );
 }

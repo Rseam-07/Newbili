@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show ascii;
 import 'dart:math' show min;
 import 'dart:ui';
 
@@ -10,6 +11,7 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pbenum.dart'
     show PlaylistSource;
 import 'package:PiliPlus/grpc/dm.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
+import 'package:PiliPlus/http/danmaku.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -37,6 +39,7 @@ import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
+import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/pages/video/download_panel/view.dart';
@@ -59,6 +62,7 @@ import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -67,6 +71,8 @@ import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:collection/collection.dart';
+import 'package:archive/archive.dart' show getCrc32;
+import 'package:canvas_danmaku/models/danmaku_content_item.dart';
 import 'package:dio/dio.dart' show Options;
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart'
     show ExtendedNestedScrollViewState;
@@ -602,43 +608,129 @@ class VideoDetailController extends GetxController
 
   ({int mode, int fontSize, Color color})? dmConfig;
   String? savedDanmaku;
+  bool _danmakuSheetOpen = false;
 
   /// 发送弹幕
   Future<void> showShootDanmakuSheet() async {
-    if (plPlayerController.dmState.contains(cid.value)) {
+    if (_danmakuSheetOpen || isClosed) return;
+    final player = plPlayerController;
+    final targetCid = cid.value;
+    final targetBvid = bvid;
+    final progress = player.cid == targetCid
+        ? player.positionInMilliseconds
+        : 0;
+    bool ownsTarget() =>
+        !isClosed && cid.value == targetCid && bvid == targetBvid;
+    bool ownsPlayback() =>
+        ownsTarget() &&
+        identical(PlPlayerController.instance, player) &&
+        player.cid == targetCid;
+    if (targetCid <= 0 || targetBvid.isEmpty) {
+      SmartDialog.showToast('视频信息尚未就绪，请稍后再发弹幕');
+      return;
+    }
+    if (player.dmState.contains(targetCid)) {
       SmartDialog.showToast('UP主已关闭弹幕');
       return;
     }
-    final isPlaying =
-        _autoPlay.value && plPlayerController.playerStatus.isPlaying;
-    if (isPlaying) {
-      await plPlayerController.pause();
-    }
-    await Get.key.currentState!.push(
-      PublishRoute(
-        pageBuilder: (buildContext, animation, secondaryAnimation) {
-          final child = SendDanmakuPanel(
-            cid: cid.value,
-            bvid: bvid,
-            progress: plPlayerController.positionInMilliseconds,
-            initialValue: savedDanmaku,
-            onSave: (danmaku) => savedDanmaku = danmaku,
-            onSuccess: (danmakuModel) {
-              savedDanmaku = null;
-              plPlayerController.danmakuController?.addDanmaku(danmakuModel);
-            },
-            dmConfig: dmConfig,
-            onSaveDmConfig: (dmConfig) => this.dmConfig = dmConfig,
-          );
-          if (plPlayerController.darkVideoPage) {
-            return Theme(data: ThemeUtils.darkTheme, child: child);
-          }
-          return child;
-        },
-      ),
-    );
-    if (isPlaying) {
-      plPlayerController.play();
+    _danmakuSheetOpen = true;
+    bool pausedForComposer = false;
+    try {
+      if (!Accounts.main.isLogin) {
+        SmartDialog.showToast('登录后即可发送弹幕');
+        await Get.toNamed('/loginPage');
+        return;
+      }
+      final sender = Accounts.main;
+      final senderHash = getCrc32(
+        ascii.encode(sender.mid.toString()),
+        0,
+      ).toRadixString(16);
+      if (ownsPlayback() && player.playerStatus.isPlaying) {
+        await player.pause();
+        pausedForComposer = true;
+      }
+      if (!ownsTarget() || (pausedForComposer && !ownsPlayback())) return;
+      await Get.key.currentState!.push(
+        PublishRoute(
+          barrierLabel: '关闭并保留弹幕草稿',
+          transitionDuration: MediaQuery.disableAnimationsOf(Get.context!)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          pageBuilder: (buildContext, animation, secondaryAnimation) {
+            final child = SendDanmakuPanel(
+              progress: progress,
+              initialValue: savedDanmaku,
+              onSave: (danmaku) {
+                if (ownsTarget()) {
+                  savedDanmaku = danmaku.isEmpty ? null : danmaku;
+                }
+              },
+              onSend: (draft) async {
+                if (!ownsTarget()) return const Error('视频已切换，请返回当前视频重新发送。');
+                if (!sender.isLogin || Accounts.main != sender) {
+                  return const Error('登录账号已变化，请关闭后重新打开发送。');
+                }
+                if (player.dmState.contains(targetCid)) {
+                  return const Error('UP主已关闭弹幕。');
+                }
+                final colorful = draft.color == Colors.transparent;
+                final result = await DanmakuHttp.shootDanmaku(
+                  account: sender,
+                  oid: targetCid,
+                  bvid: targetBvid,
+                  progress: progress,
+                  msg: draft.text,
+                  mode: draft.mode,
+                  fontSize: draft.fontSize,
+                  color: colorful ? null : draft.color.toARGB32() & 0xFFFFFF,
+                  colorful: colorful,
+                );
+                if (result case Success(:final response)) {
+                  if (ownsTarget()) savedDanmaku = null;
+                  if (ownsPlayback()) {
+                    player.danmakuController?.addDanmaku(
+                      DanmakuContentItem(
+                        draft.text,
+                        color: colorful ? Colors.white : draft.color,
+                        type: switch (draft.mode) {
+                          5 => DanmakuItemType.top,
+                          4 => DanmakuItemType.bottom,
+                          _ => DanmakuItemType.scroll,
+                        },
+                        selfSend: true,
+                        isColorful: colorful,
+                        extra: response.dmid == null
+                            ? null
+                            : VideoDanmaku(id: response.dmid!, mid: senderHash),
+                      ),
+                    );
+                  }
+                  return const Success(null);
+                }
+                return result is Error ? result : const Error('发送未成功，请稍后再试。');
+              },
+              onSent: () {
+                feedBack();
+                SmartDialog.showToast('弹幕已发送');
+              },
+              dmConfig: dmConfig,
+              onSaveDmConfig: (config) => dmConfig = config,
+              isVip: Pref.userInfoCache?.vipStatus == 1,
+            );
+            return player.darkVideoPage
+                ? Theme(data: ThemeUtils.darkTheme, child: child)
+                : child;
+          },
+        ),
+      );
+    } finally {
+      _danmakuSheetOpen = false;
+      if (pausedForComposer &&
+          ownsPlayback() &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        await player.play();
+      }
     }
   }
 

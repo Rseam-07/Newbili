@@ -35,6 +35,8 @@ Android 当前首页、个人页、搜索、分组设置及播放器详情/评�
 
 v1.0.7 新增 Android 的关注 UP 分档通知、我的追更、新增分 P 通知与三档后台播放。通知通过系统周期检查，非服务端即时推送；验证范围与剩余差距见 [本轮对齐记录](PERFORMANCE_PARITY_2026-09-05.md) 和 [版本说明](RELEASE_NOTES_1.0.7.md)。
 
+Android v1.0.9 补齐弹幕直接发布与失败草稿恢复、追更搜索/选集/撤销，以及关闭系统通知后的手动更新检查。[更新说明](RELEASE_NOTES_1.0.9.md) · [下载安装](https://github.com/Rseam-07/Newbili/releases/tag/v1.0.9)。iOS/iPadOS 仍使用 [v1.0.7](https://github.com/Rseam-07/Newbili/releases/tag/v1.0.7)，本轮未修改或重发 iOS 包。
+
 ## 播放器设计
 
 设置 → 播放设置中可以选择控件模式：

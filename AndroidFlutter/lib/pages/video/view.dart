@@ -1431,7 +1431,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ),
       ),
       child: SizedBox(
-        height: 45,
+        height: 48,
         child: Row(
           children: [
             if (tabs.isEmpty)
@@ -1447,7 +1447,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 ),
               ),
             SizedBox(
-              height: 32,
+              height: 48,
               child: TextButton(
                 style: const ButtonStyle(
                   padding: WidgetStatePropertyAll(.zero),
@@ -1463,7 +1463,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               ),
             ),
             SizedBox.square(
-              dimension: 38,
+              dimension: 48,
               child: Obx(
                 () {
                   final ctr = videoDetailController.plPlayerController;

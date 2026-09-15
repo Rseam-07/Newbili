@@ -22,6 +22,7 @@ class MainActivity : AudioServiceActivity() {
                 updateExecutor.execute {
                     try {
                         val monitor = UpdateMonitor.get(this)
+                        var removed: JSONObject? = null
                         when (call.method) {
                             "state" -> monitor.schedule()
                             "configure" -> monitor.configure(
@@ -30,14 +31,17 @@ class MainActivity : AudioServiceActivity() {
                                 call.argument<String>("cookie") ?: "",
                             )
                             "mark" -> monitor.mark(JSONObject(call.argument<String>("video")!!))
-                            "unmark" -> monitor.unmark(call.argument<String>("bvid")!!)
+                            "unmark" -> { removed = monitor.unmark(call.argument<String>("bvid")!!) }
+                            "restore" -> monitor.restore(JSONObject(call.argument<String>("snapshot")!!))
                             "check" -> monitor.checkUpdates(call.argument<Boolean>("manual") == true)
                             else -> {
                                 runOnUiThread { result.notImplemented() }
                                 return@execute
                             }
                         }
-                        val state = monitor.state()
+                        val state = JSONObject(monitor.state()).apply {
+                            removed?.let { put("removed", it) }
+                        }.toString()
                         runOnUiThread { result.success(state) }
                     } catch (_: Exception) {
                         runOnUiThread { result.error("update_monitor", "更新检查暂时不可用，请稍后重试", null) }

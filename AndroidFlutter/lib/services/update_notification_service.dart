@@ -23,6 +23,7 @@ class UpdateNotificationService extends GetxService
   StreamSubscription<bool>? _accountListener;
   Future<void>? _refreshTask;
   Future<void> _configuration = Future.value();
+  int _stateRevision = -1;
 
   @override
   void onInit() {
@@ -34,13 +35,21 @@ class UpdateNotificationService extends GetxService
     refresh();
   }
 
-  Future<void> _invoke(String method, [Map<String, Object?>? arguments]) async {
+  Future<Map<String, dynamic>> _invoke(
+    String method, [
+    Map<String, Object?>? arguments,
+  ]) async {
     final json = await _channel.invokeMethod<String>(method, arguments);
-    state.value = UpdateNotificationState.fromJson(
-      jsonDecode(json!) as Map<String, dynamic>,
-    );
-    loaded.value = true;
-    error.value = null;
+    final result = jsonDecode(json!) as Map<String, dynamic>;
+    final revision = result['revision'] as int?;
+    // Native checks and edits can finish in a different order from their replies.
+    if (revision == null || revision >= _stateRevision) {
+      state.value = UpdateNotificationState.fromJson(result);
+      if (revision != null) _stateRevision = revision;
+      loaded.value = true;
+      error.value = null;
+    }
+    return result;
   }
 
   /// Serializes tier/account changes; no cookies leave the app except to Bilibili.
@@ -121,14 +130,32 @@ class UpdateNotificationService extends GetxService
     }
   }
 
-  Future<void> remove(String bvid) async {
-    if (!pending.add(bvid)) return;
+  Future<TrackedSeries?> remove(String bvid) async {
+    if (!pending.add(bvid)) return null;
     try {
-      await _invoke('unmark', {'bvid': bvid});
+      // The native store returns the exact snapshot removed under its lock,
+      // including CID history from any check completed since the UI loaded.
+      final result = await _invoke('unmark', {'bvid': bvid});
+      final removed = result['removed'] as Map<String, dynamic>?;
+      return removed == null ? null : TrackedSeries.fromJson(removed);
     } catch (_) {
       error.value = '无法移除追更，请重试';
+      return null;
     } finally {
       pending.remove(bvid);
+    }
+  }
+
+  Future<bool> restore(TrackedSeries snapshot) async {
+    if (!pending.add(snapshot.bvid)) return false;
+    try {
+      await _invoke('restore', {'snapshot': jsonEncode(snapshot.toJson())});
+      return true;
+    } catch (_) {
+      error.value = '恢复追更失败，请点击撤销重试';
+      return false;
+    } finally {
+      pending.remove(snapshot.bvid);
     }
   }
 
