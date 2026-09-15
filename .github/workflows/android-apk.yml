@@ -23,16 +23,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # setup-android v3 still defaults to the retired `tools` package.
           packages: platform-tools
@@ -75,7 +75,7 @@ jobs:
             --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
 
       - name: Upload interaction layout checks
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-interaction-layouts
           path: AndroidFlutter/build/visual-verification/*.png
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload debug APK
         if: ${{ !inputs.release_candidate }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-ci-debug
           path: AndroidFlutter/build/app/outputs/flutter-apk/app-debug.apk
@@ -116,7 +116,7 @@ jobs:
       # channel key and verify its digest before attaching APKs to a release.
       - name: Upload release candidates
         if: ${{ inputs.release_candidate }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-release-candidates
           path: AndroidFlutter/build/app/outputs/flutter-apk/app-*-release.apk
