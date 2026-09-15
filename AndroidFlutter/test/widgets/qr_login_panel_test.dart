@@ -92,19 +92,19 @@ void main() {
           await tester.pump();
           expect(tester.takeException(), isNull);
           if (outputPath.isNotEmpty && scale == 1) {
-            final image =
-                await (boundary.currentContext!.findRenderObject()
-                        as RenderRepaintBoundary)
-                    .toImage(pixelRatio: 2);
-            final bytes = await image.toByteData(
-              format: ui.ImageByteFormat.png,
-            );
             await tester.runAsync(() async {
+              final image =
+                  await (boundary.currentContext!.findRenderObject()
+                          as RenderRepaintBoundary)
+                      .toImage(pixelRatio: 2);
+              final bytes = await image.toByteData(
+                format: ui.ImageByteFormat.png,
+              );
               await Directory(outputPath).create(recursive: true);
               await File('$outputPath/qr-$name.png')
                   .writeAsBytes(bytes!.buffer.asUint8List());
+              image.dispose();
             });
-            image.dispose();
           }
           final save = find.widgetWithText(TextButton, '保存二维码');
           final open = find.widgetWithText(TextButton, '打开 bilibili');
