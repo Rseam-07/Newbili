@@ -1222,53 +1222,64 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     required double width,
     required double height,
     bool isPipMode = false,
-  }) => popScope(
-    key: videoDetailController.videoPlayerKey,
-    canPop:
+  }) {
+    final canPop =
         !isFullScreen &&
         !videoDetailController.plPlayerController.isDesktopPip &&
         (videoDetailController.horizontalScreen ||
             isPortrait ||
-            (maxWidth >= 840 && maxHeight >= 600)),
-    onPopInvokedWithResult:
-        videoDetailController.plPlayerController.onPopInvokedWithResult,
-    child: Obx(
-      () =>
-          !videoDetailController.videoState.value ||
-              !videoDetailController.autoPlay ||
-              plPlayerController?.videoController == null
-          ? const SizedBox.shrink()
-          : PLVideoPlayer(
-              maxWidth: width,
-              maxHeight: height,
-              plPlayerController: plPlayerController!,
-              videoDetailController: videoDetailController,
-              introController: introController,
-              headerControl: HeaderControl(
-                key: videoDetailController.headerCtrKey,
-                isPortrait: isPortrait,
-                controller: videoDetailController.plPlayerController,
-                videoDetailCtr: videoDetailController,
-                heroTag: heroTag,
-              ),
-              danmuWidget: isPipMode && pipNoDanmaku
-                  ? null
-                  : Obx(
-                      () => PlDanmaku(
-                        key: ValueKey(videoDetailController.cid.value),
-                        isPipMode: isPipMode,
-                        cid: videoDetailController.cid.value,
-                        playerController: plPlayerController!,
-                        isFullScreen: plPlayerController!.isFullScreen.value,
-                        isFileSource: videoDetailController.isFileSource,
-                        size: Size(width, height),
+            (maxWidth >= 840 && maxHeight >= 600));
+    return popScope(
+      key: videoDetailController.videoPlayerKey,
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        // Another surface (such as the tablet card) can consume Back first.
+        // Only resolve a blocked pop when the player itself blocked it.
+        if (didPop || !canPop) {
+          videoDetailController.plPlayerController.onPopInvokedWithResult(
+            didPop,
+            result,
+          );
+        }
+      },
+      child: Obx(
+        () =>
+            !videoDetailController.videoState.value ||
+                !videoDetailController.autoPlay ||
+                plPlayerController?.videoController == null
+            ? const SizedBox.shrink()
+            : PLVideoPlayer(
+                maxWidth: width,
+                maxHeight: height,
+                plPlayerController: plPlayerController!,
+                videoDetailController: videoDetailController,
+                introController: introController,
+                headerControl: HeaderControl(
+                  key: videoDetailController.headerCtrKey,
+                  isPortrait: isPortrait,
+                  controller: videoDetailController.plPlayerController,
+                  videoDetailCtr: videoDetailController,
+                  heroTag: heroTag,
+                ),
+                danmuWidget: isPipMode && pipNoDanmaku
+                    ? null
+                    : Obx(
+                        () => PlDanmaku(
+                          key: ValueKey(videoDetailController.cid.value),
+                          isPipMode: isPipMode,
+                          cid: videoDetailController.cid.value,
+                          playerController: plPlayerController!,
+                          isFullScreen: plPlayerController!.isFullScreen.value,
+                          isFileSource: videoDetailController.isFileSource,
+                          size: Size(width, height),
+                        ),
                       ),
-                    ),
-              showEpisodes: showEpisodes,
-              showViewPoints: showViewPoints,
-            ),
-    ),
-  );
+                showEpisodes: showEpisodes,
+                showViewPoints: showViewPoints,
+              ),
+      ),
+    );
+  }
 
   late ThemeData theme;
   ColorScheme get colorScheme => theme.colorScheme;
@@ -1315,6 +1326,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         : child;
   }
 
+  String _tabletPane = '简介';
+  bool _tabletPaneOpen = false;
+
   Widget get childWhenTablet => Obx(() {
     if (isFullScreen) return childWhenDisabledLandscape;
     return SimpleScaffold(
@@ -1327,52 +1341,27 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       body: Padding(
         padding: padding.copyWith(top: 0),
         child: TabletPlayerStage(
+          selectedPane: _tabletPane,
+          initialOpen: _tabletPaneOpen,
+          onOpenChanged: (open) => _tabletPaneOpen = open,
+          onPaneChanged: (name) => setState(() => _tabletPane = name),
           extraPane: DynamicsTabPage(
             dynamicsType: DynamicsTabType.all,
             controllerTag: 'playing-feed-$heroTag',
           ),
           playerBuilder: (width, height) =>
-              videoPlayer(width: width, height: height, heroRadius: 10),
+              videoPlayer(width: width, height: height, heroRadius: 0),
           details: LayoutBuilder(
             builder: (context, constraints) => videoIntro(
               width: constraints.maxWidth,
               height: constraints.maxHeight,
               isHorizontal: false,
-              needRelated: false,
+              needRelated: true,
               needCtr: false,
             ),
           ),
-          related:
-              videoDetailController.isUgc &&
-                  videoDetailController.showRelatedVideo
-              ? CustomScrollView(
-                  slivers: [
-                    RelatedVideoPanel(key: videoRelatedKey, heroTag: heroTag),
-                  ],
-                )
-              : null,
-          secondary: videoDetailController.showReply || _shouldShowSeasonPanel
-              ? Builder(
-                  builder: (context) {
-                    final bar = buildTabBar(showIntro: false);
-                    return Column(
-                      children: [
-                        bar,
-                        Expanded(
-                          child: tabBarView(
-                            controller: videoDetailController.tabCtr,
-                            children: [
-                              if (videoDetailController.showReply)
-                                videoReplyPanel(),
-                              if (_shouldShowSeasonPanel) seasonPanel,
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                )
-              : null,
+          secondary: videoDetailController.showReply ? videoReplyPanel() : null,
+          playlist: _shouldShowSeasonPanel ? seasonPanel : null,
           onSendDanmaku: videoDetailController.showShootDanmakuSheet,
         ),
       ),

@@ -140,15 +140,26 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('评论与列表'));
+    final closedBounds = tester.getRect(find.byType(_MountedPage));
+    expect(closedBounds.width, 1280);
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
+    await tester.pumpAndSettle();
+    final playerBounds = tester.getRect(find.byType(_MountedPage));
+    expect(playerBounds.width, 1280 * .7);
+    await tester.tap(find.text('评论'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.text('边看边逛动态'));
+    await tester.tap(find.text('动态'));
     await tester.pumpAndSettle();
     expect(find.text('Following feed').hitTestable(), findsOneWidget);
     expect(find.text('Comments').hitTestable(), findsNothing);
-    await tester.tap(find.text('收起动态'));
+    await tester.tap(find.text('简介'));
     await tester.pumpAndSettle();
+    expect(mounts, 1);
+    expect(tester.getRect(find.byType(_MountedPage)), playerBounds);
+    await tester.tap(find.byTooltip('收起内容卡片'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(_MountedPage)), closedBounds);
     expect(mounts, 1);
     expect(tester.takeException(), isNull);
   });
@@ -170,18 +181,86 @@ void main() {
           child: TabletPlayerStage(
             playerBuilder: (w, h) => SizedBox(width: w, height: h),
             details: ListView(children: const [Text('标题与简介')]),
-            related: ListView(
-              scrollDirection: Axis.horizontal,
-              children: const [SizedBox(width: 200)],
-            ),
-            secondary: const Text('评论'),
+            secondary: const Text('评论内容'),
             onSendDanmaku: () {},
           ),
         ),
       ),
     );
-    await tester.tap(find.text('评论与列表'));
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('评论'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Back reverses the expanding card without leaving playback', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final navigator = GlobalKey<NavigatorState>();
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    var mounts = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        home: const Text('Home'),
+      ),
+    );
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => TabletPlayerStage(
+          playerBuilder: (w, h) => SizedBox(
+            width: w,
+            height: h,
+            child: _MountedPage(
+              onInit: () => mounts++,
+              child: const ColoredBox(color: Colors.black),
+            ),
+          ),
+          details: ListView(
+            controller: scroll,
+            children: const [SizedBox(height: 2000)],
+          ),
+          onSendDanmaku: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final surface = find.byKey(const ValueKey('tablet-content-surface'));
+    final initial = tester.getRect(surface);
+    final element = tester.element(surface);
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final intermediate = tester.getRect(surface);
+    expect(intermediate.width, greaterThan(initial.width));
+    expect(intermediate.width, lessThan(1280 * .3 - 24));
+    await navigator.currentState!.maybePop();
+    await tester.pump();
+    expect(tester.getRect(surface), intermediate);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(surface), initial);
+    expect(tester.element(surface), same(element));
+    expect(mounts, 1);
+    expect(navigator.currentState!.canPop(), isTrue);
+
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
+    await tester.pumpAndSettle();
+    scroll.jumpTo(220);
+    await navigator.currentState!.maybePop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 220);
+    expect(mounts, 1);
+    await navigator.currentState!.maybePop();
+    await tester.pumpAndSettle();
+    await navigator.currentState!.maybePop();
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -1,25 +1,36 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:PiliPlus/common/theme/newbili_theme.dart';
+import 'package:PiliPlus/common/widgets/newbili_destination_view.dart';
 import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Resizes the same live player while a nearby, independently scrolling pane
-/// opens. Changing pane content never navigates away from playback.
+/// One surface grows from its circular entry into a right-hand content card.
+/// The same animation pushes the live player into the remaining 70% of space.
 class TabletPlayerStage extends StatefulWidget {
   const TabletPlayerStage({
     super.key,
     required this.playerBuilder,
     required this.details,
-    this.related,
     this.secondary,
     this.extraPane,
+    this.playlist,
+    this.selectedPane,
+    this.onPaneChanged,
+    this.initialOpen = false,
+    this.onOpenChanged,
     required this.onSendDanmaku,
     this.backButton = const BackButton(),
   });
   final Widget Function(double width, double height) playerBuilder;
   final Widget details;
-  final Widget? related;
   final Widget? secondary;
   final Widget? extraPane;
+  final Widget? playlist;
+  final String? selectedPane;
+  final ValueChanged<String>? onPaneChanged;
+  final bool initialOpen;
+  final ValueChanged<bool>? onOpenChanged;
   final VoidCallback onSendDanmaku;
   final Widget backButton;
   @override
@@ -28,259 +39,304 @@ class TabletPlayerStage extends StatefulWidget {
 
 class _TabletPlayerStageState extends State<TabletPlayerStage>
     with SingleTickerProviderStateMixin {
-  late final _pane = AnimationController(
+  String _selected = '简介';
+  late bool _open = widget.initialOpen;
+  late bool _visited = _open;
+  late final _expansion = AnimationController(
     vsync: this,
+    value: _open ? 1 : 0,
     duration: NewbiliMotion.container,
   );
-  int? _selected;
-  final _visited = <int>{};
-  bool get _open => _selected != null;
-  int _lastSelected = 0;
 
-  void _select(int index) {
+  void _toggle() {
     setState(() {
-      _selected = _selected == index ? null : index;
-      _lastSelected = index;
-      _visited.add(index);
+      _open = !_open;
+      _visited = true;
     });
+    widget.onOpenChanged?.call(_open);
     if (NewbiliMotion.reduced(context)) {
-      _pane.value = _open ? 1 : 0;
+      _expansion.value = _open ? 1 : 0;
     } else {
-      _pane.animateTo(_open ? 1 : 0, curve: NewbiliMotion.emphasized);
+      _expansion.animateTo(
+        _open ? 1 : 0,
+        duration: _open ? NewbiliMotion.container : NewbiliMotion.exit,
+        curve: NewbiliMotion.emphasized,
+      );
     }
+  }
+
+  void _select(String name) {
+    setState(() => _selected = name);
+    widget.onPaneChanged?.call(name);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (NewbiliMotion.reduced(context)) _pane.value = _open ? 1 : 0;
+    if (NewbiliMotion.reduced(context)) _expansion.value = _open ? 1 : 0;
   }
 
   @override
   void dispose() {
-    _pane.dispose();
+    _expansion.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = ColorScheme.of(context);
-    return Material(
-      color: colors.surface,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 16, 4),
-            child: Row(
-              children: [
-                widget.backButton,
-                const SizedBox(width: 12),
-                NewbiliWordmark(
-                  compact: MediaQuery.textScalerOf(context).scale(14) > 20,
-                ),
-              ],
+    final panes = <String, Widget>{
+      '简介': widget.details,
+      if (widget.secondary != null) '评论': widget.secondary!,
+      if (widget.extraPane != null) '动态': widget.extraPane!,
+      if (widget.playlist != null) '选集': widget.playlist!,
+    };
+    final names = panes.keys.toList();
+    final selected = names.indexOf(widget.selectedPane ?? _selected);
+    final index = selected < 0 ? 0 : selected;
+    return PopScope(
+      canPop: !_open,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _open) _toggle();
+      },
+      child: Material(
+        color: colors.surface,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 16, 4),
+              child: Row(
+                children: [
+                  widget.backButton,
+                  const SizedBox(width: 12),
+                  NewbiliWordmark(
+                    compact: MediaQuery.textScalerOf(context).scale(14) > 20,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, bounds) {
-                final paneWidth = (bounds.maxWidth * .34).clamp(300.0, 400.0);
-                return AnimatedBuilder(
-                  animation: _pane,
-                  builder: (context, _) => Row(
-                    children: [
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, box) {
-                            final playerWidth = (box.maxWidth - 32).clamp(
-                              0.0,
-                              double.infinity,
-                            );
-                            final playerHeight = (playerWidth * 9 / 16).clamp(
-                              0.0,
-                              box.maxHeight * .62,
-                            );
-                            return Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: widget.playerBuilder(
-                                      playerWidth,
-                                      playerHeight,
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final paneExtent = box.maxWidth * .3;
+                  final card = Rect.fromLTWH(
+                    box.maxWidth - paneExtent + 12,
+                    12,
+                    paneExtent - 24,
+                    box.maxHeight - 24,
+                  );
+                  final ball = Rect.fromLTWH(
+                    box.maxWidth - 76,
+                    box.maxHeight * .5 - 28,
+                    56,
+                    56,
+                  );
+                  return AnimatedBuilder(
+                    animation: _expansion,
+                    builder: (context, _) {
+                      final t = _expansion.value;
+                      final bounds = Rect.lerp(ball, card, t)!;
+                      final contentOpacity = ((t - .25) / .75).clamp(0.0, 1.0);
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            right: paneExtent * t,
+                            child: ColoredBox(
+                              color: Colors.black,
+                              child: LayoutBuilder(
+                                builder: (context, playerBox) =>
+                                    widget.playerBuilder(
+                                      playerBox.maxWidth,
+                                      playerBox.maxHeight,
                                     ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 4,
-                                  ),
-                                  child: Wrap(
-                                    alignment: WrapAlignment.end,
-                                    spacing: 8,
-                                    children: [
-                                      TextButton.icon(
-                                        style: TextButton.styleFrom(
-                                          minimumSize: const Size(48, 48),
-                                        ),
-                                        onPressed: widget.onSendDanmaku,
-                                        icon: const Icon(
-                                          Icons.edit_note_rounded,
-                                          size: 20,
-                                        ),
-                                        label: const Text('发弹幕'),
-                                      ),
-                                      if (widget.secondary != null)
-                                        _paneButton(
-                                          0,
-                                          _selected == 0 ? '收起评论' : '评论与列表',
-                                          Icons.chat_bubble_outline_rounded,
-                                        ),
-                                      if (widget.extraPane != null)
-                                        _paneButton(
-                                          1,
-                                          _selected == 1 ? '收起动态' : '边看边逛动态',
-                                          Icons.dynamic_feed_outlined,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(child: widget.details),
-                                        if (widget.related != null) ...[
-                                          const SizedBox(width: 16),
-                                          Expanded(child: widget.related!),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                      ClipRect(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          widthFactor: _pane.value,
-                          child: SizedBox(
-                            width: paneWidth,
-                            child: IgnorePointer(
-                              ignoring: !_open,
-                              child: ExcludeSemantics(
-                                excluding: !_open,
-                                child: TickerMode(
-                                  enabled: _open,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: colors.surfaceContainerLowest,
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: colors.outlineVariant,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 16,
-                                            right: 4,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  _lastSelected == 0
-                                                      ? '评论'
-                                                      : '动态',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                              IconButton(
-                                                tooltip: '关闭侧栏',
-                                                onPressed: () =>
-                                                    _select(_lastSelected),
-                                                icon: const Icon(
-                                                  Icons.close_rounded,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: LayoutBuilder(
-                                            builder: (context, constraints) => MediaQuery(
+                              ),
+                            ),
+                          ),
+                          Positioned.fromRect(
+                            rect: bounds,
+                            child: Material(
+                              key: const ValueKey('tablet-content-surface'),
+                              color: Color.lerp(
+                                colors.secondaryContainer,
+                                colors.surfaceContainerLow,
+                                t,
+                              ),
+                              elevation: lerpDouble(4, 1, t)!,
+                              shadowColor: colors.shadow.withValues(alpha: .24),
+                              borderRadius: BorderRadius.circular(
+                                lerpDouble(28, 20, t)!,
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_visited)
+                                    IgnorePointer(
+                                      ignoring: !_open || t < .99,
+                                      child: ExcludeSemantics(
+                                        excluding: !_open || t < .99,
+                                        child: Opacity(
+                                          opacity: contentOpacity,
+                                          child: OverflowBox(
+                                            alignment: Alignment.topRight,
+                                            minWidth: card.width,
+                                            maxWidth: card.width,
+                                            minHeight: card.height,
+                                            maxHeight: card.height,
+                                            child: MediaQuery(
                                               data: MediaQuery.of(context)
                                                   .copyWith(
-                                                    size: Size(
-                                                      paneWidth,
-                                                      constraints.maxHeight,
-                                                    ),
+                                                    size: card.size,
                                                     padding: EdgeInsets.zero,
                                                     viewPadding:
                                                         EdgeInsets.zero,
                                                   ),
-                                              child: IndexedStack(
-                                                index: _lastSelected,
-                                                children: [
-                                                  _visited.contains(0)
-                                                      ? widget.secondary ??
-                                                            const SizedBox.shrink()
-                                                      : const SizedBox.shrink(),
-                                                  _visited.contains(1)
-                                                      ? widget.extraPane ??
-                                                            const SizedBox.shrink()
-                                                      : const SizedBox.shrink(),
-                                                ],
+                                              child: ExcludeFocus(
+                                                excluding: !_open,
+                                                child: TickerMode(
+                                                  enabled: _open,
+                                                  child: _cardContent(
+                                                    context,
+                                                    panes,
+                                                    index,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                  if (t < .35)
+                                    IgnorePointer(
+                                      ignoring: _open,
+                                      child: ExcludeSemantics(
+                                        excluding: _open,
+                                        child: Opacity(
+                                          opacity: (1 - t / .35).clamp(
+                                            0.0,
+                                            1.0,
+                                          ),
+                                          child: Tooltip(
+                                            message: '打开简介、评论与动态',
+                                            child: InkWell(
+                                              onTap: _toggle,
+                                              child: Icon(
+                                                Icons.forum_outlined,
+                                                size: 26,
+                                                color:
+                                                    colors.onSecondaryContainer,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cardContent(
+    BuildContext context,
+    Map<String, Widget> panes,
+    int index,
+  ) {
+    final colors = ColorScheme.of(context);
+    final names = panes.keys.toList();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < names.length; i++)
+                      Semantics(
+                        selected: i == index,
+                        button: true,
+                        child: InkWell(
+                          onTap: () => _select(names[i]),
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minHeight: 52,
+                              minWidth: 64,
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: i == index
+                                      ? colors.primary
+                                      : Colors.transparent,
+                                  width: 3,
                                 ),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              names[i],
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: i == index
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: i == index
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: '收起内容卡片',
+              onPressed: _toggle,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+        Expanded(
+          child: NewbiliDestinationView(
+            key: ValueKey(names.join('|')),
+            index: index,
+            children: panes.values.toList(),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+              onPressed: widget.onSendDanmaku,
+              icon: const Icon(Icons.edit_note_rounded, size: 20),
+              label: const Text('发弹幕'),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-
-  Widget _paneButton(int index, String label, IconData icon) => TextButton.icon(
-    onPressed: () => _select(index),
-    style: TextButton.styleFrom(
-      minimumSize: const Size(48, 48),
-      backgroundColor: _selected == index
-          ? ColorScheme.of(context).secondaryContainer
-          : null,
-    ),
-    icon: Icon(icon, size: 20),
-    label: Text(label),
-  );
 }

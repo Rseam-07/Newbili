@@ -201,11 +201,43 @@ void main() {
     await tester.tap(find.text('播放视频'));
     await tester.pumpAndSettle();
     if (output.isNotEmpty) await _capture(tester, key, 'uwp-tablet-player.png');
-    await tester.tap(find.text('评论与列表'));
-    await tester.pumpAndSettle();
+    var frame = 0;
+    Future<void> frames(int count) async {
+      for (var i = 0; i < count; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+        if (output.isNotEmpty) {
+          await _capture(
+            tester,
+            key,
+            'tablet-motion/frame-${(frame++).toString().padLeft(3, '0')}.png',
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+    }
+
+    await frames(12);
+    await tester.tap(find.byTooltip('打开简介、评论与动态'));
+    await tester.pump();
+    await frames(20);
+    if (output.isNotEmpty) {
+      await _capture(tester, key, 'uwp-tablet-player-details.png');
+    }
+    await tester.tap(find.text('评论'));
+    await tester.pump();
+    await frames(20);
     if (output.isNotEmpty) {
       await _capture(tester, key, 'uwp-tablet-player-comments.png');
     }
+    await tester.tap(find.text('动态'));
+    await tester.pump();
+    await frames(20);
+    if (output.isNotEmpty) {
+      await _capture(tester, key, 'uwp-tablet-player-feed.png');
+    }
+    await tester.tap(find.byTooltip('收起内容卡片'));
+    await tester.pump();
+    await frames(20);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -540,7 +572,7 @@ class _Detail extends StatelessWidget {
               ),
             ),
             details: ListView(
-              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               children: [
                 Text(
                   item.title,
@@ -583,26 +615,49 @@ class _Detail extends StatelessWidget {
                   'Blender 开源动画短片。一个女孩、一只小狗，和森林中等待苏醒的春天。',
                   style: TextStyle(fontSize: 14, height: 1.8),
                 ),
+                const SizedBox(height: 24),
+                const Text(
+                  '相关推荐',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                for (final related in _items.skip(1))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: LayoutBuilder(
+                      builder: (context, box) => SizedBox(
+                        height:
+                            box.maxWidth * 9 / 16 +
+                            VideoCardV.metadataHeightOf(context),
+                        child: VideoCardV(
+                          videoItem: related,
+                          coverBuilder: (_) => _artwork(related),
+                          onOpen: (_) {},
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
-            related: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: _items.length - 1,
-              separatorBuilder: (_, _) => const SizedBox(width: 16),
-              itemBuilder: (context, i) => LayoutBuilder(
-                builder: (context, box) => SizedBox(
-                  height:
-                      box.maxWidth * 9 / 16 +
-                      VideoCardV.metadataHeightOf(context),
-                  child: VideoCardV(
-                    videoItem: _items[i + 1],
-                    coverBuilder: (_) => _artwork(_items[i + 1]),
-                    onOpen: (_) {},
-                  ),
+            secondary: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const Text(
+                  '评论 1,040',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
+                const SizedBox(height: 20),
+                for (final text in ['这段光影和角色表情太细腻了。', '春天终于到了。', '感谢分享开源动画！'])
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.person_outline),
+                    ),
+                    title: const Text('动画爱好者'),
+                    subtitle: Text(text),
+                  ),
+              ],
             ),
-            secondary: _FeedPreview(items: _items),
             extraPane: _FeedPreview(items: _items),
             onSendDanmaku: () {},
           ),
@@ -725,7 +780,10 @@ class _RcmdFixtureController extends RcmdController {
 Widget _previewPlayer(BaseRcmdVideoItemModel item) => Stack(
   fit: StackFit.expand,
   children: [
-    _artwork(item),
+    const ColoredBox(color: Colors.black),
+    Center(
+      child: AspectRatio(aspectRatio: 16 / 9, child: _artwork(item)),
+    ),
     Positioned(
       left: 0,
       right: 0,
