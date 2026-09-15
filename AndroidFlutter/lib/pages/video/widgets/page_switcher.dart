@@ -1,9 +1,7 @@
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Shares the root navigation's capsule, motion and accessible touch targets.
+/// Secondary tabs attach to the player; actions never cover the page content.
 class PlayerPageSwitcher extends StatelessWidget {
   const PlayerPageSwitcher({
     super.key,
@@ -14,6 +12,7 @@ class PlayerPageSwitcher extends StatelessWidget {
     required this.showsDanmaku,
     required this.onReselect,
   });
+
   final TabController controller;
   final List<String> labels;
   final VoidCallback onSendDanmaku;
@@ -21,90 +20,89 @@ class PlayerPageSwitcher extends StatelessWidget {
   final bool showsDanmaku;
   final VoidCallback onReselect;
 
-  static double contentInsetOf(BuildContext context) =>
-      FloatingNavigationBar.heightOf(context) +
-      24 +
-      (MediaQuery.textScalerOf(context).scale(14) > 20 ? 56 : 0);
-
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 560),
-    child: Flex(
-      direction: MediaQuery.textScalerOf(context).scale(14) > 20
-          ? Axis.vertical
-          : Axis.horizontal,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final actions = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: NewbiliGlassSurface(
-            role: NewbiliGlassRole.navigation,
-            borderRadius: BorderRadius.circular(36),
-            child: ListenableBuilder(
-              listenable: controller,
-              builder: (context, _) => FloatingNavigationBar(
-                destinations: [
-                  for (final (index, label) in labels.indexed)
-                    NavigationDestination(
-                      label: label == '简介' ? '详情' : label,
-                      icon: Icon(
-                        index == 0
-                            ? CupertinoIcons.text_alignleft
-                            : label == '评论'
-                            ? CupertinoIcons.chat_bubble_2_fill
-                            : CupertinoIcons.list_bullet,
-                      ),
-                    ),
-                ],
-                selectedIndex: controller.index,
-                onDestinationSelected: (index) {
-                  if (index == controller.index) {
-                    onReselect();
-                  } else {
-                    controller.animateTo(
-                      index,
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : null,
-                    );
-                  }
-                },
-              ),
-            ),
-          ),
+        TextButton.icon(
+          onPressed: onSendDanmaku,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('发弹幕'),
+          style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
         ),
-        const SizedBox(width: 8, height: 8),
-        NewbiliGlassSurface(
-          role: NewbiliGlassRole.toolbar,
-          borderRadius: BorderRadius.circular(24),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(64, 48),
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                ),
-                onPressed: onSendDanmaku,
-                child: const Text('发弹幕'),
-              ),
-              IconButton(
-                constraints: const BoxConstraints.tightFor(
-                  width: 48,
-                  height: 48,
-                ),
-                tooltip: showsDanmaku ? '隐藏弹幕' : '显示弹幕',
-                isSelected: showsDanmaku,
-                onPressed: onToggleDanmaku,
-                icon: const Icon(CupertinoIcons.text_bubble, size: 22),
-                selectedIcon: const Icon(
-                  CupertinoIcons.text_bubble_fill,
-                  size: 22,
-                ),
-              ),
-            ],
-          ),
+        IconButton(
+          tooltip: showsDanmaku ? '隐藏弹幕' : '显示弹幕',
+          isSelected: showsDanmaku,
+          onPressed: onToggleDanmaku,
+          icon: const Icon(Icons.subtitles_off_outlined),
+          selectedIcon: const Icon(Icons.subtitles_rounded),
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
       ],
-    ),
-  );
+    );
+    return Material(
+      color: scheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              final selectedIndex = controller.index;
+              final tabs = TabBar.secondary(
+                controller: controller,
+                isScrollable: largeText || labels.length > 2,
+                tabAlignment: largeText || labels.length > 2
+                    ? TabAlignment.start
+                    : TabAlignment.fill,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+                labelStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                labelColor: scheme.primary,
+                unselectedLabelColor: scheme.onSurfaceVariant,
+                dividerHeight: 0,
+                tabs: [
+                  for (final label in labels)
+                    Tab(
+                      height: (MediaQuery.textScalerOf(context).scale(14) + 24)
+                          .clamp(48.0, double.infinity),
+                      text: label == '简介' ? '详情' : label,
+                    ),
+                ],
+                onTap: (index) {
+                  if (index == selectedIndex) {
+                    onReselect();
+                  } else if (NewbiliMotion.reduced(context)) {
+                    controller.animateTo(index, duration: Duration.zero);
+                  }
+                },
+              );
+              if (largeText || labels.length > 2) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    tabs,
+                    Align(alignment: Alignment.centerRight, child: actions),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: tabs),
+                  actions,
+                ],
+              );
+            },
+          ),
+          Divider(height: 1, color: scheme.outlineVariant),
+        ],
+      ),
+    );
+  }
 }

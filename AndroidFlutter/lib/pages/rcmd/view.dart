@@ -2,7 +2,7 @@ import 'package:PiliPlus/common/skeleton/video_card_v.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_v.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -24,13 +24,6 @@ class RcmdPage extends StatefulWidget {
 class _RcmdPageState extends State<RcmdPage>
     with AutomaticKeepAliveClientMixin {
   final RcmdController controller = Get.put(RcmdController());
-  final _featuredVisible = ValueNotifier(true);
-
-  @override
-  void dispose() {
-    _featuredVisible.dispose();
-    super.dispose();
-  }
 
   @override
   bool get wantKeepAlive => true;
@@ -40,17 +33,15 @@ class _RcmdPageState extends State<RcmdPage>
     super.build(context);
     final colorScheme = ColorScheme.of(context);
     return Container(
-      clipBehavior: .hardEdge,
-      margin: const .symmetric(horizontal: 16),
-      decoration: const BoxDecoration(borderRadius: Style.mdRadius),
+      margin: EdgeInsets.symmetric(
+        horizontal: MediaQuery.sizeOf(context).width >= 840 ? 0 : 16,
+      ),
+
       child: refreshIndicator(
         onRefresh: controller.onRefresh,
         child: NotificationListener<ScrollUpdateNotification>(
           onNotification: (notification) {
             if (notification.depth == 0) {
-              _featuredVisible.value =
-                  notification.metrics.pixels <
-                  FeaturedRecommendationCarousel.height(context);
               if (notification.metrics.extentAfter < 500) {
                 controller.onLoadMore();
               }
@@ -63,8 +54,8 @@ class _RcmdPageState extends State<RcmdPage>
             slivers: [
               SliverPadding(
                 padding: .only(
-                  top: 28,
-                  bottom: FloatingNavigationBar.bottomContentInsetOf(context),
+                  top: 16,
+                  bottom: NewbiliNavigationBar.bottomContentInsetOf(context),
                 ),
                 sliver: Obx(
                   () => _buildBody(colorScheme, controller.loadingState.value),
@@ -83,11 +74,13 @@ class _RcmdPageState extends State<RcmdPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     gridDelegate = SliverGridDelegateWithExtentAndRatio(
-      mainAxisSpacing: Style.cardSpace,
-      crossAxisSpacing: Style.cardSpace,
-      maxCrossAxisExtent: Pref.recommendCardWidth,
+      mainAxisSpacing: 20,
+      crossAxisSpacing: 12,
+      maxCrossAxisExtent: MediaQuery.textScalerOf(context).scale(14) > 20
+          ? 10000
+          : Pref.recommendCardWidth,
       childAspectRatio: Style.aspectRatio,
-      mainAxisExtent: MediaQuery.textScalerOf(context).scale(90),
+      mainAxisExtent: VideoCardV.metadataHeightOf(context),
     );
   }
 
@@ -109,7 +102,28 @@ class _RcmdPageState extends State<RcmdPage>
   }
 
   Widget _buildRecommendations(List<BaseRcmdVideoItemModel> response) {
-    final featuredCount = response.length.clamp(1, 5);
+    if (MediaQuery.sizeOf(context).width >= 840) {
+      return SliverToBoxAdapter(
+        child: TabletRecommendationStage(
+          items: response,
+          lastRefreshAt: controller.lastRefreshAt,
+          onRefresh: controller.onRefresh,
+          onLoadMore: controller.onLoadMore,
+          onRemove: (item) {
+            final index = response.indexOf(item);
+            if (index < 0) return;
+            if (controller.lastRefreshAt != null &&
+                index < controller.lastRefreshAt!) {
+              controller.lastRefreshAt = controller.lastRefreshAt! - 1;
+            }
+            controller.loadingState
+              ..value.data!.removeAt(index)
+              ..refresh();
+          },
+        ),
+      );
+    }
+    const featuredCount = 0;
     final gridCount = response.length - featuredCount;
     final markerIndex = controller.lastRefreshAt == null
         ? null
@@ -118,54 +132,6 @@ class _RcmdPageState extends State<RcmdPage>
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: ValueListenableBuilder(
-              valueListenable: _featuredVisible,
-              builder: (context, visible, _) => FeaturedRecommendationCarousel(
-                isVisible: visible,
-                items: response.take(featuredCount).toList(growable: false),
-              ),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 4,
-                    children: [
-                      const Text(
-                        '继续发现',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        '根据你的内容偏好持续更新',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_downward_rounded,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
-          ),
-        ),
         SliverGrid.builder(
           gridDelegate: gridDelegate,
           itemBuilder: (context, index) {

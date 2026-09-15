@@ -1,4 +1,4 @@
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/widgets/newbili_surface.dart';
 import 'package:PiliPlus/models/common/search/search_type.dart';
 import 'package:PiliPlus/models/common/search/video_search_type.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
@@ -44,8 +44,8 @@ class SearchResultControls extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) => NewbiliGlassSurface(
-    role: NewbiliGlassRole.navigation,
+  Widget build(BuildContext context) => NewbiliSurface(
+    role: NewbiliSurfaceRole.navigation,
     borderRadius: BorderRadius.circular(32),
     child: Padding(
       padding: const EdgeInsets.all(4),

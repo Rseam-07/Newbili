@@ -4,7 +4,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/button/more_btn.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
@@ -77,7 +77,7 @@ class _LivePageState extends State<LivePage>
             SliverPadding(
               padding: EdgeInsets.only(
                 top: Style.cardSpace,
-                bottom: FloatingNavigationBar.bottomContentInsetOf(context),
+                bottom: NewbiliNavigationBar.bottomContentInsetOf(context),
               ),
               sliver: SliverMainAxisGroup(
                 slivers: [

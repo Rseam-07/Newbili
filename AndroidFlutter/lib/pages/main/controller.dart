@@ -26,8 +26,7 @@ import 'package:easy_debounce/easy_throttle.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
-class MainController extends GetxController
-    with GetSingleTickerProviderStateMixin, AccountMixin {
+class MainController extends GetxController with AccountMixin {
   @override
   final AccountService accountService = Get.find<AccountService>();
 
@@ -38,7 +37,6 @@ class MainController extends GetxController
   late final bool hideBottomBar;
   late final barHideType = Pref.barHideType;
   bool useBottomNav = false;
-  late dynamic controller;
   final RxInt selectedIndex = 0.obs;
 
   final RxInt dynCount = 0.obs;
@@ -57,10 +55,7 @@ class MainController extends GetxController
   late final RxString msgUnReadCount = ''.obs;
   late int lastCheckUnreadAt = 0;
 
-  final enableMYBar = Pref.enableMYBar;
-  final floatingNavBar = Pref.floatingNavBar;
   final useSideBar = Pref.useSideBar;
-  final mainTabBarView = Pref.mainTabBarView;
   late final optTabletNav = Pref.optTabletNav;
 
   late bool directExitOnBack = Pref.directExitOnBack;
@@ -80,14 +75,6 @@ class MainController extends GetxController
     }
 
     setNavBarConfig();
-
-    controller = mainTabBarView
-        ? TabController(
-            vsync: this,
-            initialIndex: selectedIndex.value,
-            length: navigationBars.length,
-          )
-        : PageController(initialPage: selectedIndex.value);
 
     hideBottomBar =
         !useSideBar && navigationBars.length > 1 && Pref.hideBottomBar;
@@ -288,11 +275,6 @@ class MainController extends GetxController
     if (value != selectedIndex.value) {
       FocusManager.instance.primaryFocus?.unfocus();
       selectedIndex.value = value;
-      if (mainTabBarView) {
-        controller.animateTo(value);
-      } else {
-        controller.jumpToPage(value);
-      }
       if (currentNav == NavigationBarType.home) {
         checkDefaultSearch();
         checkUnread();
@@ -343,7 +325,6 @@ class MainController extends GetxController
   @override
   void onClose() {
     barOffset?.close();
-    controller.dispose();
     super.onClose();
   }
 

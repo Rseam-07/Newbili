@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/newbili_cover_hero.dart';
+
 import 'dart:io' show Platform;
 import 'dart:math';
 
@@ -47,6 +49,7 @@ import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
 import 'package:PiliPlus/pages/video/widgets/page_switcher.dart';
+import 'package:PiliPlus/pages/video/widgets/tablet_player_stage.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
@@ -87,6 +90,8 @@ class VideoDetailPageV extends StatefulWidget {
 class _VideoDetailPageVState extends State<VideoDetailPageV>
     with RouteAware, RouteAwareMixin, WidgetsBindingObserver {
   final heroTag = Get.arguments['heroTag'];
+  final Object? coverHeroTag = Get.arguments['coverHeroTag'];
+  final String? heroCover = Get.arguments['cover'];
 
   late final VideoDetailController videoDetailController;
   late final VideoReplyController _videoReplyController;
@@ -587,7 +592,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 builder: (context) {
                   final bar = buildTabBar(
                     onTap: videoDetailController.animToTop,
-                    floating: isPortrait,
+                    materialControls: isPortrait,
                   );
                   Widget pages = tabBarView(
                     hitTestBehavior: .translucent,
@@ -599,36 +604,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                       if (_shouldShowSeasonPanel) seasonPanel,
                     ],
                   );
-                  if (!isPortrait) {
-                    return Column(
-                      children: [
-                        bar,
-                        Expanded(child: pages),
-                      ],
-                    );
-                  }
-                  final media = MediaQuery.of(context);
-                  pages = MediaQuery(
-                    data: media.copyWith(
-                      viewPadding: media.viewPadding.copyWith(
-                        bottom:
-                            media.viewPadding.bottom +
-                            PlayerPageSwitcher.contentInsetOf(context),
-                      ),
-                    ),
-                    child: pages,
-                  );
-                  return Stack(
-                    fit: StackFit.expand,
+                  return Column(
                     children: [
-                      pages,
-                      if (!isFullScreen)
-                        Positioned(
-                          left: 16,
-                          right: 16,
-                          bottom: padding.bottom + 12,
-                          child: Center(child: bar),
-                        ),
+                      if (!isFullScreen) bar,
+                      Expanded(child: pages),
                     ],
                   );
                 },
@@ -1237,7 +1216,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     canPop:
         !isFullScreen &&
         !videoDetailController.plPlayerController.isDesktopPip &&
-        (videoDetailController.horizontalScreen || isPortrait),
+        (videoDetailController.horizontalScreen ||
+            isPortrait ||
+            (maxWidth >= 840 && maxHeight >= 600)),
     onPopInvokedWithResult:
         videoDetailController.plPlayerController.onPopInvokedWithResult,
     child: Obx(
@@ -1291,6 +1272,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     Widget child;
     if (videoDetailController.plPlayerController.isPipMode) {
       child = plPlayer(width: maxWidth, height: maxHeight, isPipMode: true);
+    } else if (maxWidth >= 840 && maxHeight >= 600) {
+      child = childWhenTablet;
     } else if (!videoDetailController.horizontalScreen) {
       child = childWhenDisabled;
     } else if (maxWidth / maxHeight >= kScreenRatio) {
@@ -1321,8 +1304,68 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         : child;
   }
 
+  Widget get childWhenTablet => Obx(() {
+    if (isFullScreen) return childWhenDisabledLandscape;
+    return SimpleScaffold(
+      appBar: removeAppBar(false)
+          ? null
+          : SimpleAppBar(
+              height: padding.top,
+              brightness: colorScheme.brightness,
+            ),
+      body: Padding(
+        padding: padding.copyWith(top: 0),
+        child: TabletPlayerStage(
+          playerBuilder: (width, height) =>
+              videoPlayer(width: width, height: height, heroRadius: 10),
+          details: LayoutBuilder(
+            builder: (context, constraints) => videoIntro(
+              width: constraints.maxWidth,
+              height: constraints.maxHeight,
+              isHorizontal: false,
+              needRelated: false,
+              needCtr: false,
+            ),
+          ),
+          related:
+              videoDetailController.isUgc &&
+                  videoDetailController.showRelatedVideo
+              ? RelatedVideoPanel(
+                  key: videoRelatedKey,
+                  heroTag: heroTag,
+                  horizontal: true,
+                )
+              : null,
+          secondary: videoDetailController.showReply || _shouldShowSeasonPanel
+              ? Builder(
+                  builder: (context) {
+                    final bar = buildTabBar(showIntro: false);
+                    return Column(
+                      children: [
+                        bar,
+                        Expanded(
+                          child: tabBarView(
+                            controller: videoDetailController.tabCtr,
+                            children: [
+                              if (videoDetailController.showReply)
+                                videoReplyPanel(),
+                              if (_shouldShowSeasonPanel) seasonPanel,
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                )
+              : null,
+          onSendDanmaku: videoDetailController.showShootDanmakuSheet,
+        ),
+      ),
+    );
+  });
+
   Widget buildTabBar({
-    bool floating = false,
+    bool materialControls = false,
     bool needIndicator = true,
     String? introText,
     bool showIntro = true,
@@ -1346,7 +1389,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       );
     }
 
-    if (floating && tabs.isNotEmpty) {
+    if (materialControls && tabs.isNotEmpty) {
       return Obx(
         () => PlayerPageSwitcher(
           controller: videoDetailController.tabCtr,
@@ -1499,7 +1542,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     }
   }
 
-  Widget videoPlayer({required double width, required double height}) {
+  Widget videoPlayer({
+    required double width,
+    required double height,
+    double heroRadius = 0,
+  }) {
     final isFullScreen = this.isFullScreen;
     return Stack(
       clipBehavior: Clip.none,
@@ -1511,7 +1558,27 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           ),
         ),
 
-        plPlayer(width: width, height: height),
+        SizedBox(
+          width: width,
+          height: height,
+          child: NewbiliCoverHero(
+            tag: isFullScreen ? null : coverHeroTag,
+            radius: isFullScreen ? 0 : heroRadius,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (heroCover?.isNotEmpty == true)
+                  NetworkImgLayer(
+                    src: heroCover,
+                    width: width,
+                    height: height,
+                    borderRadius: BorderRadius.zero,
+                  ),
+                plPlayer(width: width, height: height),
+              ],
+            ),
+          ),
+        ),
 
         Obx(() {
           if (!videoDetailController.autoPlay) {
@@ -1738,8 +1805,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 (videoDetailController.isPlayAll && !isPortrait
                     ? 80
                     : Style.safeSpace) +
-                padding.bottom +
-                (isPortrait ? PlayerPageSwitcher.contentInsetOf(context) : 0),
+                padding.bottom,
           ),
         ),
       ],

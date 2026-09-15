@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - master
+      - android
     paths:
       - AndroidFlutter/**
       - Scripts/*android*.sh
@@ -20,6 +21,8 @@ jobs:
   build:
     name: Test and build Android APK
     runs-on: ubuntu-latest
+    env:
+      RELEASE_CANDIDATE: ${{ inputs.release_candidate || github.ref == 'refs/heads/android' }}
 
     steps:
       - name: Checkout
@@ -71,8 +74,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
           flutter test test/widgets/library_visual_test.dart \
             test/widgets/danmaku_composer_test.dart \
-            test/widgets/tracking_library_test.dart --no-pub \
+            test/widgets/tracking_library_test.dart \
+            test/widgets/material_visual_test.dart --no-pub \
             --dart-define=NEWBILI_VISUAL_FONT=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+            --dart-define=NEWBILI_VISUAL_COVERS=design/ui-review-2026-09-15/fixtures \
             --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
 
       - name: Upload interaction layout checks
@@ -83,12 +88,12 @@ jobs:
           if-no-files-found: error
 
       - name: Build debug APK
-        if: ${{ !inputs.release_candidate }}
+        if: ${{ env.RELEASE_CANDIDATE != 'true' }}
         working-directory: AndroidFlutter
         run: flutter build apk --debug --no-pub
 
       - name: Build release candidates
-        if: ${{ inputs.release_candidate }}
+        if: ${{ env.RELEASE_CANDIDATE == 'true' }}
         working-directory: AndroidFlutter
         env:
           GRADLE_OPTS: -Dorg.gradle.project.newbiliDebugReleaseSigning=true
@@ -103,10 +108,26 @@ jobs:
 
       - name: Run Android native unit tests
         working-directory: AndroidFlutter/android
-        run: ./gradlew :app:testDebugUnitTest
+        run: |
+          set -euo pipefail
+          # Reuse the candidate variant instead of compiling three extra debug
+          # engines in parallel, which previously exhausted the Jetifier heap.
+          if [[ "$RELEASE_CANDIDATE" == "true" ]]; then
+            ./gradlew :app:testReleaseUnitTest -PnewbiliDebugReleaseSigning=true --max-workers=2
+          else
+            ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-arm64 --max-workers=2
+          fi
+
+      - name: Upload native test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Newbili-Android-native-tests
+          path: AndroidFlutter/build/app/test-results/**/TEST-*.xml
+          if-no-files-found: warn
 
       - name: Upload debug APK
-        if: ${{ !inputs.release_candidate }}
+        if: ${{ env.RELEASE_CANDIDATE != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-ci-debug
@@ -116,7 +137,7 @@ jobs:
       # The CI key is ephemeral. Re-sign locally with the existing public test
       # channel key and verify its digest before attaching APKs to a release.
       - name: Upload release candidates
-        if: ${{ inputs.release_candidate }}
+        if: ${{ env.RELEASE_CANDIDATE == 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-release-candidates

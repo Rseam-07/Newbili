@@ -1,6 +1,6 @@
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/widgets/newbili_surface.dart';
 import 'package:PiliPlus/models/common/search/video_search_type.dart';
 import 'package:PiliPlus/pages/search_panel/video/controller.dart';
 import 'package:PiliPlus/pages/search_result/controls.dart';
@@ -96,8 +96,8 @@ class _SearchResultPageState extends State<SearchResultPage>
             }
           },
           behavior: HitTestBehavior.opaque,
-          child: NewbiliGlassSurface(
-            role: NewbiliGlassRole.toolbar,
+          child: NewbiliSurface(
+            role: NewbiliSurfaceRole.toolbar,
             borderRadius: BorderRadius.circular(24),
             child: SizedBox(
               width: double.infinity,

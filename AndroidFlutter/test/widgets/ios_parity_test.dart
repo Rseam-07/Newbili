@@ -1,6 +1,5 @@
-import 'package:PiliPlus/common/theme/newbili_theme.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_surface.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_v.dart';
 import 'package:PiliPlus/common/widgets/newbili_library.dart';
@@ -209,7 +208,7 @@ void main() {
         Column(
           children: List.generate(
             8,
-            (index) => NewbiliGlassSurface(child: Text('卡片 $index')),
+            (index) => NewbiliSurface(child: Text('卡片 $index')),
           ),
         ),
       ),
@@ -217,7 +216,7 @@ void main() {
     expect(find.byType(BackdropFilter), findsNothing);
     expect(
       find.descendant(
-        of: find.byType(NewbiliGlassSurface),
+        of: find.byType(NewbiliSurface),
         matching: find.byType(ListenableBuilder),
       ),
       findsNothing,
@@ -355,40 +354,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('player glass keeps white controls legible in light appearance', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _app(
-        const Size(375, 812),
-        1,
-        Brightness.light,
-        const NewbiliGlassSurface(
-          role: NewbiliGlassRole.player,
-          child: Icon(Icons.play_arrow, color: Colors.white),
+  testWidgets(
+    'player Material keeps white controls legible in light appearance',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          const Size(375, 812),
+          1,
+          Brightness.light,
+          const NewbiliSurface(
+            role: NewbiliSurfaceRole.player,
+            child: Icon(Icons.play_arrow, color: Colors.white),
+          ),
         ),
-      ),
-    );
-    final decoration =
-        tester
-                .widget<DecoratedBox>(
-                  find
-                      .descendant(
-                        of: find.byType(NewbiliGlassSurface),
-                        matching: find.byType(DecoratedBox),
-                      )
-                      .first,
-                )
-                .decoration
-            as BoxDecoration;
-    for (final color in decoration.gradient!.colors) {
-      final background = Color.alphaBlend(color, Colors.white);
+      );
+      final surface = tester.widget<Material>(
+        find.descendant(
+          of: find.byType(NewbiliSurface),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(surface.color!.a, 1);
       expect(
-        1.05 / (background.computeLuminance() + .05),
+        1.05 / (surface.color!.computeLuminance() + .05),
         greaterThanOrEqualTo(4.5),
       );
-    }
-  });
+      expect(find.byType(BackdropFilter), findsNothing);
+    },
+  );
 
   testWidgets(
     'root background changes do not remount pages or reset selection',
@@ -405,8 +400,8 @@ void main() {
           StatefulBuilder(
             builder: (context, setState) {
               update = setState;
-              return NewbiliAtmosphere(
-                backgroundColor: background,
+              return ColoredBox(
+                color: background ?? Theme.of(context).colorScheme.surface,
                 child: PageView(
                   controller: controller,
                   children: const [Text('首页内容'), Text('个人页内容')],
@@ -772,7 +767,7 @@ void main() {
           Brightness.dark,
           Align(
             alignment: Alignment.bottomCenter,
-            child: FloatingNavigationBar(
+            child: NewbiliNavigationBar(
               selectedIndex: 0,
               onDestinationSelected: (value) => selected = value,
               destinations: [
@@ -792,7 +787,13 @@ void main() {
       for (final label in NavigationBarType.defaultTabs.map(
         (tab) => tab.label,
       )) {
-        final rect = tester.getRect(find.widgetWithText(InkWell, label));
+        final rect = tester.getRect(
+          find.byKey(
+            ValueKey(
+              'newbili-destination-${NavigationBarType.defaultTabs.indexWhere((tab) => tab.label == label)}',
+            ),
+          ),
+        );
         expect(rect.width, greaterThanOrEqualTo(48));
         expect(rect.height, greaterThanOrEqualTo(48));
       }
@@ -801,7 +802,7 @@ void main() {
   );
 
   testWidgets(
-    'carousel pauses offscreen, in background, and on explicit pause',
+    'tablet selection stays stable until the user selects another video',
     (tester) async {
       final items = List.generate(
         3,
@@ -815,36 +816,36 @@ void main() {
           'stat': <String, dynamic>{},
         }),
       );
-      Widget carousel({bool visible = true, bool reduced = false}) => _app(
-        const Size(375, 812),
-        1,
-        Brightness.light,
-        FeaturedRecommendationCarousel(items: items, isVisible: visible),
-        reducedMotion: reduced,
+      final opened = <int?>[];
+      await tester.binding.setSurfaceSize(const Size(1024, 812));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _app(
+          const Size(1024, 812),
+          1,
+          Brightness.light,
+          SingleChildScrollView(
+            child: TabletRecommendationStage(
+              items: items,
+              onRefresh: () {},
+              onLoadMore: () {},
+              onOpen: (item, _) => opened.add(item.aid),
+              coverBuilder: (_) => const ColoredBox(color: Colors.blueGrey),
+            ),
+          ),
+        ),
       );
-      double page() =>
-          tester.widget<PageView>(find.byType(PageView)).controller!.page!;
-
-      await tester.pumpWidget(carousel(visible: false));
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 8));
-      expect(page(), 0);
-      await tester.pumpWidget(carousel());
-      await tester.pump(const Duration(seconds: 6));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(page(), 1);
-      await tester.tap(find.byTooltip('暂停轮播'));
+      await tester.tap(find.byKey(const ValueKey('tablet-recommendation-1')));
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+      await tester.tap(find.text('播放视频'));
+      expect(opened, [2]);
       await tester.pump(const Duration(seconds: 8));
-      expect(page(), 1);
-      await tester.tap(find.byTooltip('继续轮播'));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      await tester.pump(const Duration(seconds: 8));
-      expect(page(), 1);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpWidget(carousel(reduced: true));
-      await tester.pump(const Duration(seconds: 8));
-      expect(page(), 1);
+      await tester.tap(find.text('播放视频'));
+      expect(opened, [2, 2]);
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
     },
   );
 }
@@ -863,7 +864,6 @@ Widget _app(
   return MaterialApp(
     theme: ThemeData(
       colorScheme: scheme,
-      extensions: [NewbiliVisualTheme.from(scheme)],
     ),
     home: MediaQuery(
       data: MediaQueryData(

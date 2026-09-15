@@ -3,21 +3,21 @@ import 'dart:io';
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/main_layout.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/theme/newbili_theme.dart';
+import 'package:PiliPlus/common/widgets/newbili_destination_view.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/home/view.dart';
+import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
-import 'package:PiliPlus/utils/extension/context_ext.dart';
-import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/mobile_observer.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -49,14 +49,10 @@ class _MainAppState extends PopScopeState<MainApp>
   late EdgeInsets _padding;
   late ColorScheme _colorScheme;
   Brightness? _brightness;
-  late final _pages = _mainController.navigationBars.indexed
+  late final _pages = _mainController.navigationBars
       .map(
-        (entry) => Obx(
-          () => TickerMode(
-            enabled: _mainController.selectedIndex.value == entry.$1,
-            child: entry.$2.page,
-          ),
-        ),
+        (destination) =>
+            KeyedSubtree(key: GlobalKey(), child: destination.page),
       )
       .toList(growable: false);
 
@@ -98,9 +94,7 @@ class _MainAppState extends PopScopeState<MainApp>
         windowManager.setBrightness(brightness);
       }
     }
-    if (!_mainController.useSideBar) {
-      _mainController.useBottomNav = MediaQuery.sizeOf(context).isPortrait;
-    }
+    _mainController.useBottomNav = MediaQuery.sizeOf(context).width < 840;
   }
 
   @override
@@ -334,95 +328,53 @@ class _MainAppState extends PopScopeState<MainApp>
   Widget? get _bottomNav {
     Widget? bottomNav;
     if (_mainController.navigationBars.length > 1) {
-      if (_mainController.floatingNavBar) {
-        bottomNav = Obx(
-          () => FloatingNavigationBar(
-            onDestinationSelected: _mainController.setIndex,
-            selectedIndex: _mainController.selectedIndex.value,
-            destinations: _mainController.navigationBars
-                .map(
-                  (e) => NavigationDestination(
-                    label: e.label,
-                    icon: _buildIcon(type: e),
-                    selectedIcon: _buildIcon(type: e, selected: true),
-                  ),
-                )
-                .toList(),
-          ),
-        );
-      } else if (_mainController.enableMYBar) {
-        bottomNav = Obx(
-          () => NavigationBar(
-            maintainBottomViewPadding: true,
-            onDestinationSelected: _mainController.setIndex,
-            selectedIndex: _mainController.selectedIndex.value,
-            destinations: _mainController.navigationBars
-                .map(
-                  (e) => NavigationDestination(
-                    label: e.label,
-                    icon: _buildIcon(type: e),
-                    selectedIcon: _buildIcon(type: e, selected: true),
-                  ),
-                )
-                .toList(),
-          ),
-        );
-      } else {
-        bottomNav = Obx(
-          () => BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            currentIndex: _mainController.selectedIndex.value,
-            onTap: _mainController.setIndex,
-            iconSize: 16,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
-            type: .fixed,
-            items: _mainController.navigationBars
-                .map(
-                  (e) => BottomNavigationBarItem(
-                    label: e.label,
-                    icon: _buildIcon(type: e),
-                    activeIcon: _buildIcon(type: e, selected: true),
-                  ),
-                )
-                .toList(),
-          ),
-        );
-      }
-
-      bottomNav = SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: NewbiliGlassSurface(
-            role: NewbiliGlassRole.navigation,
-            borderRadius: BorderRadius.circular(32),
-            child: bottomNav,
-          ),
+      bottomNav = Obx(
+        () => NewbiliNavigationBar(
+          onDestinationSelected: _mainController.setIndex,
+          selectedIndex: _mainController.selectedIndex.value,
+          destinations: _mainController.navigationBars
+              .map(
+                (e) => NavigationDestination(
+                  label: e.label,
+                  icon: _buildIcon(type: e),
+                  selectedIcon: _buildIcon(type: e, selected: true),
+                ),
+              )
+              .toList(),
         ),
       );
 
       if (_mainController.hideBottomBar) {
         if (_mainController.barOffset case final barOffset?) {
           return Obx(
-            () => FractionalTranslation(
-              translation: Offset(
-                0.0,
-                barOffset.value / Style.topBarHeight,
+            () => ClipRect(
+              child: Align(
+                alignment: Alignment.topCenter,
+                heightFactor: (1 - barOffset.value / Style.topBarHeight).clamp(
+                  0.0,
+                  1.0,
+                ),
+                child: bottomNav,
               ),
-              child: bottomNav,
             ),
           );
         }
         if (_mainController.showBottomBar case final showBottomBar?) {
           return Obx(
-            () => AnimatedSlide(
-              curve: Curves.easeInOutCubicEmphasized,
-              duration: const Duration(milliseconds: 500),
-              offset: Offset(0, showBottomBar.value ? 0 : 1),
-              child: bottomNav,
+            () => AnimatedSize(
+              alignment: Alignment.bottomCenter,
+              curve: NewbiliMotion.emphasized,
+              duration: NewbiliMotion.duration(
+                context,
+                NewbiliMotion.container,
+              ),
+              child: ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  heightFactor: showBottomBar.value ? 1 : 0,
+                  child: bottomNav,
+                ),
+              ),
             ),
           );
         }
@@ -432,139 +384,72 @@ class _MainAppState extends PopScopeState<MainApp>
     return bottomNav;
   }
 
-  Widget _sideBar() {
-    if (_mainController.navigationBars.length > 1) {
-      if (context.isTablet && _mainController.optTabletNav) {
-        return Padding(
-          padding: const .only(top: 25),
-          child: MediaQuery.removePadding(
-            context: context,
-            removeRight: true,
-            child: DrawerTheme(
-              data: DrawerThemeData(width: 130 + _padding.left),
-              child: Obx(
-                () => NavigationDrawer(
-                  /// apply `lib/scripts/navigation_drawer.patch`
-                  flex: 5,
-                  backgroundColor: Colors.transparent,
-                  onDestinationSelected: _mainController.setIndex,
-                  selectedIndex: _mainController.selectedIndex.value,
-                  header: Expanded(flex: 4, child: userAndSearchVertical()),
-                  tilePadding: const .symmetric(vertical: 5, horizontal: 12),
-                  indicatorShape: const RoundedRectangleBorder(
-                    borderRadius: .all(.circular(16)),
-                  ),
-                  children: _mainController.navigationBars
-                      .map(
-                        (e) => NavigationDrawerDestination(
-                          label: Text(e.label),
-                          icon: _buildIcon(type: e),
-                          selectedIcon: _buildIcon(
-                            type: e,
-                            selected: true,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-      return Obx(
-        () => NavigationRail(
-          groupAlignment: 0.5,
-          labelType: .selected,
-          leading: userAndSearchVertical(),
-          backgroundColor: Colors.transparent,
-          onDestinationSelected: _mainController.setIndex,
-          selectedIndex: _mainController.selectedIndex.value,
-          destinations: _mainController.navigationBars
-              .map(
-                (e) => NavigationRailDestination(
-                  label: Text(e.label),
-                  icon: _buildIcon(type: e),
-                  selectedIcon: _buildIcon(type: e, selected: true),
-                ),
-              )
-              .toList(),
-        ),
-      );
-    }
-    return Container(
-      width: 80,
-      margin: .only(top: 12 + _padding.top, left: _padding.left),
-      child: userAndSearchVertical(),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    Widget child;
-    if (_mainController.mainTabBarView) {
-      child = TabBarView(
-        controller: _mainController.controller,
-        physics: const NeverScrollableScrollPhysics(),
-        scrollDirection: _mainController.useBottomNav ? .horizontal : .vertical,
+    final size = MediaQuery.sizeOf(context);
+    final wide = size.width >= 840;
+    final homeIndex = _mainController.navigationBars.indexOf(
+      NavigationBarType.home,
+    );
+    Widget child = Obx(
+      () => NewbiliDestinationView(
+        index: _mainController.selectedIndex.value,
+        baseIndex: size.width >= 1100 && homeIndex >= 0 ? homeIndex : null,
+        paneTitle: _mainController
+            .navigationBars[_mainController.selectedIndex.value]
+            .label,
+        onClosePane: homeIndex < 0
+            ? null
+            : () => _mainController.setIndex(homeIndex),
         children: _pages,
-      );
-    } else {
-      child = PageView(
-        controller: _mainController.controller,
-        physics: const NeverScrollableScrollPhysics(),
-        children: _pages,
-      );
-    }
-
-    Widget? sideBar;
-    Widget? bottomNav;
-    final EdgeInsets padding;
-    if (_mainController.useBottomNav) {
-      bottomNav = _bottomNav;
-      if (bottomNav != null) {
-        bottomNav = MediaQuery.removePadding(
-          context: context,
-          removeTop: true,
-          child: bottomNav,
-        );
-      }
-      padding = .only(
-        top: _padding.top,
-        left: _padding.left,
-        right: _padding.right,
-      );
-    } else {
-      sideBar = NewbiliGlassSurface(
-        role: NewbiliGlassRole.navigation,
-        borderRadius: const BorderRadius.horizontal(right: Radius.circular(28)),
-        child: _sideBar(),
-      );
-      padding = .only(top: _padding.top, right: _padding.right);
-    }
-
+      ),
+    );
     final layout = MainLayout(
-      sideBar: sideBar,
-      bottomNav: bottomNav,
-      body: Padding(padding: padding, child: child),
+      sideBar: null,
+      bottomNav: wide
+          ? null
+          : MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: _bottomNav ?? const SizedBox.shrink(),
+            ),
+      body: Padding(
+        padding: EdgeInsets.only(
+          top: _padding.top,
+          left: _padding.left,
+          right: _padding.right,
+          bottom: wide ? _padding.bottom : 0,
+        ),
+        child: Column(
+          children: [
+            if (wide)
+              Obx(
+                () => NewbiliTabletToolbar(
+                  labels: _mainController.navigationBars
+                      .map((e) => e.label)
+                      .toList(),
+                  selectedIndex: _mainController.selectedIndex.value,
+                  onSelected: _mainController.setIndex,
+                  onSearch: () => Get.toNamed('/search'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      msgBadge(_mainController),
+                      const SizedBox(width: 4),
+                      userAvatar(
+                        colorScheme: _colorScheme,
+                        mainController: _mainController,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(child: child),
+          ],
+        ),
+      ),
     );
-    child = Material(
-      color: Colors.transparent,
-      child: Obx(() {
-        final tab =
-            _mainController.navigationBars[_mainController.selectedIndex.value];
-        return NewbiliAtmosphere(
-          backgroundColor: tab == NavigationBarType.home
-              ? null
-              : tab == NavigationBarType.mine || tab == NavigationBarType.search
-              ? (_colorScheme.brightness == Brightness.dark
-                    ? Colors.black
-                    : const Color(0xFFF2F2F7))
-              : _colorScheme.surface,
-          child: layout,
-        );
-      }),
-    );
+    child = Material(color: _colorScheme.surface, child: layout);
 
     if (PlatformUtils.isMobile) {
       return AnnotatedRegion<SystemUiOverlayStyle>(

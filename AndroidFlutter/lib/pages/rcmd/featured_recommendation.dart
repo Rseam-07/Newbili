@@ -1,368 +1,452 @@
-import 'dart:async';
+import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/newbili_cover_hero.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_v.dart';
+import 'package:PiliPlus/common/widgets/video_popup_menu.dart';
 import 'package:PiliPlus/models/model_rec_video_item.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:material_ui/material_ui.dart';
 
-class FeaturedRecommendationCarousel extends StatefulWidget {
-  const FeaturedRecommendationCarousel({
+/// Tablet composition inspired by Richasy's original BiliBili-UWP:
+/// selected artwork + details, with a horizontally browsable recommendation row.
+/// Selection is explicit; it never advances while someone is reading.
+class TabletRecommendationStage extends StatefulWidget {
+  const TabletRecommendationStage({
     super.key,
     required this.items,
-    this.isVisible = true,
+    required this.onRefresh,
+    required this.onLoadMore,
+    this.onRemove,
+    this.onOpen,
+    this.coverBuilder,
+    this.lastRefreshAt,
   });
-
   final List<BaseRcmdVideoItemModel> items;
-  final bool isVisible;
-
-  static double height(BuildContext context) =>
-      (MediaQuery.sizeOf(context).width >= 720 ? 320.0 : 270.0) +
-      (MediaQuery.textScalerOf(context).scale(32) - 32).clamp(
-            0,
-            double.infinity,
-          ) *
-          2;
+  final VoidCallback onRefresh;
+  final VoidCallback onLoadMore;
+  final ValueChanged<BaseRcmdVideoItemModel>? onRemove;
+  final void Function(BaseRcmdVideoItemModel item, Object tag)? onOpen;
+  final Widget Function(BaseRcmdVideoItemModel item)? coverBuilder;
+  final int? lastRefreshAt;
 
   @override
-  State<FeaturedRecommendationCarousel> createState() =>
-      _FeaturedRecommendationCarouselState();
+  State<TabletRecommendationStage> createState() =>
+      _TabletRecommendationStageState();
 }
 
-class _FeaturedRecommendationCarouselState
-    extends State<FeaturedRecommendationCarousel>
-    with WidgetsBindingObserver {
-  late final PageController _pageController;
-  Timer? _timer;
-  int _index = 0;
-  bool? _reduceMotion;
-  bool _isActive = true;
-  bool _isCurrentRoute = true;
-  bool _tickerEnabled = true;
-  bool _isDragging = false;
-  bool _pausedByUser = false;
+class _TabletRecommendationStageState extends State<TabletRecommendationStage> {
+  final _scroll = ScrollController();
+  late BaseRcmdVideoItemModel _selected = widget.items.first;
+  // Each selection keeps its own source, even if the feed contains duplicates.
+  final _coverTags = <BaseRcmdVideoItemModel, Object>{};
 
   @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reduceMotion =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
-    _tickerEnabled = TickerMode.valuesOf(context).enabled;
-    _isCurrentRoute = ModalRoute.isCurrentOf(context) ?? true;
-    _restartTimer();
-  }
-
-  @override
-  void didUpdateWidget(FeaturedRecommendationCarousel oldWidget) {
+  void didUpdateWidget(TabletRecommendationStage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.items.length != oldWidget.items.length) {
-      _index = 0;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pageController.hasClients) {
-          _pageController.jumpToPage(0);
-        }
-      });
-    }
-    _restartTimer();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _isActive = state == AppLifecycleState.resumed;
-    _restartTimer();
-  }
-
-  void _restartTimer() {
-    _timer?.cancel();
-    if (_reduceMotion == true ||
-        widget.items.length < 2 ||
-        !widget.isVisible ||
-        !_isActive ||
-        !_isCurrentRoute ||
-        !_tickerEnabled ||
-        _isDragging ||
-        _pausedByUser) {
-      return;
-    }
-    _timer = Timer(const Duration(seconds: 6), () {
-      if (!_pageController.hasClients) return;
-      _nextPage();
-    });
-  }
-
-  void _nextPage() {
-    if (!_pageController.hasClients || widget.items.length < 2) return;
-    _timer?.cancel();
-    _pageController
-        .animateToPage(
-          (_index + 1) % widget.items.length,
-          duration: _reduceMotion == true
-              ? Duration.zero
-              : NewbiliMotion.container,
-          curve: Curves.easeOutCubic,
-        )
-        .whenComplete(() {
-          if (mounted) _restartTimer();
-        });
+    if (!widget.items.contains(_selected)) _selected = widget.items.first;
+    _coverTags.removeWhere((item, _) => !widget.items.contains(item));
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    _pageController.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final height = FeaturedRecommendationCarousel.height(context);
-    return Semantics(
-      container: true,
-      label: '为你推荐，共${widget.items.length}个视频',
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (notification.depth != 0) return false;
-                  if (notification is ScrollStartNotification &&
-                      notification.dragDetails != null) {
-                    _isDragging = true;
-                    _restartTimer();
-                  } else if (notification is ScrollEndNotification) {
-                    _isDragging = false;
-                    _restartTimer();
-                  }
-                  return false;
-                },
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: widget.items.length,
-                  onPageChanged: (value) => setState(() => _index = value),
-                  itemBuilder: (context, index) =>
-                      _FeaturedRecommendation(item: widget.items[index]),
-                ),
-              ),
-            ),
-            if (widget.items.length > 1)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: IconButton.filledTonal(
-                  tooltip: _pausedByUser ? '继续轮播' : '暂停轮播',
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size.square(48),
-                    backgroundColor: Colors.black.withValues(alpha: .28),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    setState(() => _pausedByUser = !_pausedByUser);
-                    _restartTimer();
-                  },
-                  icon: Icon(
-                    _pausedByUser
-                        ? CupertinoIcons.play_fill
-                        : CupertinoIcons.pause_fill,
-                    size: 18,
-                  ),
-                ),
-              ),
-            if (widget.items.length > 1)
-              Positioned(
-                right: 18,
-                top: MediaQuery.textScalerOf(context).scale(15) > 20
-                    ? 66
-                    : null,
-                bottom: MediaQuery.textScalerOf(context).scale(15) > 20
-                    ? null
-                    : 13,
-                child: Semantics(
-                  label: '第${_index + 1}个，共${widget.items.length}个推荐，下一条',
-                  button: true,
-                  child: Material(
-                    color: Colors.black.withValues(alpha: .32),
-                    shape: StadiumBorder(
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: .22),
-                      ),
-                    ),
-                    child: InkWell(
-                      customBorder: const StadiumBorder(),
-                      onTap: _nextPage,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: 48,
-                          minHeight: 48,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(
-                              widget.items.length,
-                              (index) => AnimatedContainer(
-                                duration: _reduceMotion == true
-                                    ? Duration.zero
-                                    : NewbiliMotion.feedback,
-                                curve: Curves.easeOutCubic,
-                                width: index == _index ? 18 : 6,
-                                height: 6,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: index == _index
-                                      ? Colors.white
-                                      : Colors.white.withValues(alpha: .45),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+  Object get _tag => _coverTags.putIfAbsent(_selected, Object.new);
+
+  void _open() {
+    if (widget.onOpen case final onOpen?) {
+      onOpen(_selected, _tag);
+    } else {
+      VideoCardV(videoItem: _selected)
+          .onPushDetail(coverHeroTag: _tag, context: context);
+    }
+  }
+
+  Widget _cover(BaseRcmdVideoItemModel item) =>
+      widget.coverBuilder?.call(item) ??
+      LayoutBuilder(
+        builder: (context, constraints) => NetworkImgLayer(
+          src: item.cover,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          borderRadius: BorderRadius.zero,
         ),
+      );
+
+  void _move(int direction) {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      (_scroll.offset + direction * 456).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
       ),
+      duration: NewbiliMotion.duration(context, NewbiliMotion.container),
+      curve: NewbiliMotion.emphasized,
     );
   }
-}
-
-class _FeaturedRecommendation extends StatelessWidget {
-  const _FeaturedRecommendation({required this.item});
-
-  final BaseRcmdVideoItemModel item;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) => NetworkImgLayer(
-            src: item.cover,
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
-            borderRadius: BorderRadius.zero,
-          ),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Color(0x33000000),
-                Color(0xE6000000),
-                Color(0xF5000000),
+    final colors = ColorScheme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 760 ||
+            MediaQuery.textScalerOf(context).scale(16) > 24;
+        final titleStyle = TextStyle(
+          fontSize: compact ? 22 : 26,
+          fontWeight: FontWeight.w600,
+          height: 1.45,
+        );
+        final cover = Semantics(
+          label: '播放 ${_selected.title}',
+          button: true,
+          child: AspectRatio(
+            aspectRatio: Style.aspectRatio16x9,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                NewbiliCoverHero(
+                  tag: _tag,
+                  radius: 10,
+                  child: _cover(_selected),
+                ),
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: _open,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Center(
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: .48),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 34,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_selected.duration > 0)
+                  Positioned(
+                    right: 10,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: .64),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        DurationUtils.formatDuration(_selected.duration),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-              stops: [.2, .54, .94, 1],
             ),
           ),
-        ),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: VideoCardV(videoItem: item).onPushDetail,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Spacer(),
-                  const Text(
-                    '为你推荐',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xD1FFFFFF),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      height: 1.18,
-                      fontWeight: FontWeight.w700,
-                      shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    [
-                      item.owner.name,
-                      if (item.stat.view != null)
-                        '${NumUtils.numFormat(item.stat.view)}次观看',
-                    ].nonNulls.join(' · '),
+        );
+        final info = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _selected.rcmdReason?.isNotEmpty == true
+                  ? _selected.rcmdReason!
+                  : '为你推荐',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _selected.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: titleStyle,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Icon(
+                  Icons.account_box_outlined,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selected.owner.name ?? '',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xBDFFFFFF),
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  // The entire cover is the same play action; this label is
-                  // visual chrome rather than a nested competing tap target.
-                  Container(
-                    constraints: const BoxConstraints(minHeight: 38),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 9,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${NumUtils.numFormat(_selected.stat.view)} 次观看   ·   ${NumUtils.numFormat(_selected.stat.danmu)} 条弹幕',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+            ),
+            if (_selected.desc?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              Text(
+                _selected.desc!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.6,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Flexible(
+                  child: FilledButton.icon(
+                    onPressed: _open,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    decoration: const ShapeDecoration(
-                      color: Colors.white,
-                      shape: StadiumBorder(),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          CupertinoIcons.play_fill,
-                          color: Colors.black,
-                          size: 13,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          '立即观看',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                    label: const Text('播放视频'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox.square(
+                  dimension: 48,
+                  child: VideoPopupMenu(
+                    iconSize: 22,
+                    videoItem: _selected,
+                    onRemove: widget.onRemove == null
+                        ? null
+                        : () => widget.onRemove!(_selected),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRect(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ExcludeSemantics(
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: colors.brightness == Brightness.dark
+                              ? .12
+                              : .08,
+                          child: ImageFiltered(
+                            imageFilter: ui.ImageFilter.blur(
+                              sigmaX: 40,
+                              sigmaY: 40,
+                            ),
+                            child: _cover(_selected),
                           ),
                         ),
-                      ],
+                      ),
                     ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [cover, const SizedBox(height: 24), info],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(flex: 6, child: cover),
+                              const SizedBox(width: 32),
+                              Expanded(flex: 5, child: info),
+                            ],
+                          ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-      ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 12, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '推荐视频',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: widget.onRefresh,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('换一换'),
+                  ),
+                  IconButton(
+                    onPressed: () => _move(-1),
+                    tooltip: '上一组推荐',
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  IconButton(
+                    onPressed: () => _move(1),
+                    tooltip: '下一组推荐',
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height:
+                  218 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 3,
+              child: Scrollbar(
+                controller: _scroll,
+                child: NotificationListener<ScrollUpdateNotification>(
+                  onNotification: (notification) {
+                    if (notification.metrics.extentAfter < 400) {
+                      widget.onLoadMore();
+                    }
+                    return false;
+                  },
+                  child: ListView.separated(
+                    controller: _scroll,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                    itemCount: widget.items.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final item = widget.items[index];
+                      final selected = identical(item, _selected);
+                      return SizedBox(
+                        width: 212,
+                        child: Semantics(
+                          selected: selected,
+                          button: true,
+                          label:
+                              '${item.title}${selected ? '，再次点击播放' : '，查看详情'}',
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: InkWell(
+                              key: ValueKey('tablet-recommendation-$index'),
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                if (selected) {
+                                  _open();
+                                  return;
+                                }
+                                setState(() => _selected = item);
+                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: NewbiliMotion.duration(
+                                      context,
+                                      NewbiliMotion.feedback,
+                                    ),
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        width: 2,
+                                        color: selected
+                                            ? colors.primary
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: AspectRatio(
+                                        aspectRatio: Style.aspectRatio16x9,
+                                        child: _cover(item),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                    ),
+                                    child: Text(
+                                      item.title,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        height: 1.45,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                    ),
+                                    child: Text(
+                                      index == widget.lastRefreshAt
+                                          ? '上次看到这里'
+                                          : item.owner.name ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

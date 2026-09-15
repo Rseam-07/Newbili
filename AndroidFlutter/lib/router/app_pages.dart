@@ -1,3 +1,5 @@
+import 'package:PiliPlus/router/newbili_page_route.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:PiliPlus/pages/article/view.dart';
 import 'package:PiliPlus/pages/article_list/view.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
@@ -71,6 +73,23 @@ import 'package:PiliPlus/pages/whisper_detail/view.dart';
 import 'package:get/get.dart';
 
 class Routes {
+  static Route<dynamic> generate(RouteSettings settings) {
+    final redirect = PageRedirect(settings: settings);
+    while (redirect.needRecheck()) {}
+    final page = redirect.route;
+    if (page == null) throw StateError('Unknown route: ${settings.name}');
+    return NewbiliPageRoute<dynamic>(
+      settings: redirect.settings,
+      page: page.page,
+      parameter: page.parameters,
+      binding: page.binding,
+      bindings: page.bindings,
+      middlewares: page.middlewares,
+      maintainState: page.maintainState,
+      routeName: page.name,
+    );
+  }
+
   static final List<GetPage<dynamic>> getPages = [
     GetPage(name: '/', page: () => const MainApp()),
     // 首页(推荐)

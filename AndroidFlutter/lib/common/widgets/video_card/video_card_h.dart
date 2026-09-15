@@ -32,6 +32,49 @@ class VideoCardH extends StatelessWidget {
   final VoidCallback? onRemove;
   final bool compact;
 
+  Future<void> openVideo(BuildContext context, {Object? coverHeroTag}) async {
+    if (videoItem.isPugv ?? false) {
+      PageUtils.viewPugv(seasonId: videoItem.seasonId);
+      return;
+    }
+
+    if (videoItem.isLive ?? false) {
+      if (videoItem.roomId case final roomId?) {
+        PageUtils.toLiveRoom(roomId);
+      }
+      return;
+    }
+
+    if (videoItem.redirectUrl?.isNotEmpty == true &&
+        PageUtils.viewPgcFromUri(videoItem.redirectUrl!)) {
+      return;
+    }
+
+    int? cid = videoItem.cid;
+    Dimension? dimension = videoItem.dimension;
+    if (cid == null) {
+      if (await SearchHttp.ab2cWithDimension(
+            aid: videoItem.aid,
+            bvid: videoItem.bvid,
+          )
+          case final res?) {
+        cid = res.cid;
+        dimension = res.dimension;
+      }
+    }
+    if (!context.mounted) return;
+    if (cid != null) {
+      PageUtils.toVideoPage(
+        bvid: videoItem.bvid,
+        cid: cid,
+        cover: videoItem.cover,
+        coverHeroTag: coverHeroTag,
+        title: videoItem.title,
+        dimension: dimension,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     void onLongPress() => imageSaveDialog(
@@ -51,48 +94,7 @@ class VideoCardH extends StatelessWidget {
           InkWell(
             onLongPress: onLongPress,
             onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-            onTap:
-                onTap ??
-                () async {
-                  if (videoItem.isPugv ?? false) {
-                    PageUtils.viewPugv(seasonId: videoItem.seasonId);
-                    return;
-                  }
-
-                  if (videoItem.isLive ?? false) {
-                    if (videoItem.roomId case final roomId?) {
-                      PageUtils.toLiveRoom(roomId);
-                    }
-                    return;
-                  }
-
-                  if (videoItem.redirectUrl?.isNotEmpty == true &&
-                      PageUtils.viewPgcFromUri(videoItem.redirectUrl!)) {
-                    return;
-                  }
-
-                  int? cid = videoItem.cid;
-                  Dimension? dimension = videoItem.dimension;
-                  if (cid == null) {
-                    if (await SearchHttp.ab2cWithDimension(
-                          aid: videoItem.aid,
-                          bvid: videoItem.bvid,
-                        )
-                        case final res?) {
-                      cid = res.cid;
-                      dimension = res.dimension;
-                    }
-                  }
-                  if (cid != null) {
-                    PageUtils.toVideoPage(
-                      bvid: videoItem.bvid,
-                      cid: cid,
-                      cover: videoItem.cover,
-                      title: videoItem.title,
-                      dimension: dimension,
-                    );
-                  }
-                },
+            onTap: onTap ?? () => openVideo(context),
             child: compact
                 ? _compactBody(context)
                 : Padding(

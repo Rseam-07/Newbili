@@ -2,10 +2,9 @@ import 'dart:convert';
 
 import 'package:PiliPlus/common/widgets/dialog/export_import.dart';
 import 'package:PiliPlus/common/widgets/disabled_icon.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:PiliPlus/common/widgets/newbili_surface.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver_wrap.dart';
@@ -98,7 +97,7 @@ class _SearchPageState extends State<SearchPage>
               SliverPadding(
                 padding: .only(
                   bottom: widget.embedded
-                      ? FloatingNavigationBar.bottomContentInsetOf(context)
+                      ? NewbiliNavigationBar.bottomContentInsetOf(context)
                       : padding.bottom,
                 ),
               ),
@@ -118,14 +117,14 @@ class _SearchPageState extends State<SearchPage>
         children: [
           if (!widget.embedded) const BackButton(),
           Expanded(
-            child: NewbiliGlassSurface(
-              role: NewbiliGlassRole.toolbar,
+            child: NewbiliSurface(
+              role: NewbiliSurfaceRole.toolbar,
               borderRadius: BorderRadius.circular(28),
               child: Row(
                 children: [
                   const Padding(
                     padding: EdgeInsets.only(left: 14, right: 8),
-                    child: Icon(CupertinoIcons.search, size: 22),
+                    child: Icon(Icons.search_rounded, size: 22),
                   ),
                   Expanded(
                     child: TextField(
@@ -152,7 +151,10 @@ class _SearchPageState extends State<SearchPage>
                     () => _searchController.showUidBtn.value
                         ? IconButton(
                             tooltip: 'UID搜索用户',
-                            icon: const Icon(CupertinoIcons.person, size: 20),
+                            icon: const Icon(
+                              Icons.person_outline_rounded,
+                              size: 20,
+                            ),
                             onPressed: () => Get.toNamed(
                               '/member?mid=${_searchController.controller.text}',
                             ),
@@ -169,7 +171,7 @@ class _SearchPageState extends State<SearchPage>
                               IconButton(
                                 tooltip: '清空',
                                 icon: const Icon(
-                                  CupertinoIcons.xmark_circle_fill,
+                                  Icons.cancel_rounded,
                                   size: 18,
                                 ),
                                 onPressed: _searchController.onClear,
@@ -177,7 +179,7 @@ class _SearchPageState extends State<SearchPage>
                               IconButton(
                                 tooltip: '搜索',
                                 icon: const Icon(
-                                  CupertinoIcons.arrow_right,
+                                  Icons.arrow_forward_rounded,
                                   size: 20,
                                 ),
                                 onPressed: _searchController.submit,
@@ -245,8 +247,8 @@ class _SearchPageState extends State<SearchPage>
               children: [
                 Icon(
                   isTrending
-                      ? CupertinoIcons.flame_fill
-                      : CupertinoIcons.sparkles,
+                      ? Icons.local_fire_department_rounded
+                      : Icons.auto_awesome_rounded,
                   size: 21,
                 ),
                 const SizedBox(width: 8),
@@ -261,7 +263,7 @@ class _SearchPageState extends State<SearchPage>
                 ),
                 PopupMenuButton<String>(
                   tooltip: isTrending ? '热搜选项' : '发现选项',
-                  icon: const Icon(CupertinoIcons.ellipsis, size: 22),
+                  icon: const Icon(Icons.more_horiz_rounded, size: 22),
                   onSelected: (action) {
                     if (action == 'list') {
                       Get.toNamed('/searchTrending');

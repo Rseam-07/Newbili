@@ -1,5 +1,4 @@
 import 'package:PiliPlus/common/style.dart';
-import 'package:PiliPlus/common/theme/newbili_theme.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/font_utils.dart';
@@ -34,22 +33,42 @@ abstract final class ThemeUtils {
     required bool isDynamic,
     bool isDark = false,
   }) {
+    if (!isDynamic && Pref.customColor == newbiliThemeColorIndex) {
+      colorScheme = colorScheme.copyWith(
+        primary: isDark ? const Color(0xFFFF8BB3) : const Color(0xFFB92F62),
+        onPrimary: isDark ? const Color(0xFF491027) : Colors.white,
+        primaryContainer: isDark
+            ? const Color(0xFF582238)
+            : const Color(0xFFFFE5EE),
+        onPrimaryContainer: isDark
+            ? const Color(0xFFFFE5EE)
+            : const Color(0xFF59172F),
+      );
+    }
+    // Neutral content planes keep artwork in charge. Dynamic color still drives
+    // accents, selection, controls and all semantic action colors.
     colorScheme = colorScheme.copyWith(
-      primary: isDynamic
-          ? colorScheme.primary
-          : colorThemeTypes[Pref.customColor].color,
-      surface: isDark ? const Color(0xFF000000) : const Color(0xFFFFFFFF),
-      surfaceContainerLow: isDark
-          ? const Color(0xFF1C1C1E)
-          : const Color(0xFFFFFFFF),
-      onSurface: isDark ? const Color(0xFFF5F5F7) : const Color(0xFF141416),
+      surface: isDark ? const Color(0xFF151719) : const Color(0xFFFAFBFC),
+      onSurface: isDark ? const Color(0xFFF2F3F5) : const Color(0xFF202329),
       onSurfaceVariant: isDark
-          ? const Color(0xFFABAAB0)
-          : const Color(0xFF737378),
-      outline: isDark ? const Color(0xFF929298) : const Color(0xFF86868B),
+          ? const Color(0xFFACB0B8)
+          : const Color(0xFF646A75),
+      surfaceContainerLowest: isDark ? const Color(0xFF101214) : Colors.white,
+      surfaceContainerLow: isDark
+          ? const Color(0xFF1B1E21)
+          : const Color(0xFFF5F6F8),
+      surfaceContainer: isDark
+          ? const Color(0xFF202328)
+          : const Color(0xFFF0F2F5),
+      surfaceContainerHigh: isDark
+          ? const Color(0xFF282C31)
+          : const Color(0xFFECEEF2),
+      surfaceContainerHighest: isDark
+          ? const Color(0xFF33373E)
+          : const Color(0xFFE5E8ED),
       outlineVariant: isDark
-          ? const Color(0xFF38383A)
-          : const Color(0xFFE5E5EA),
+          ? const Color(0xFF3C4149)
+          : const Color(0xFFDDE1E7),
     );
     final appFontWeight = Pref.appFontWeight.clamp(
       -1,
@@ -64,8 +83,7 @@ abstract final class ThemeUtils {
     ThemeData theme = ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.surface.withValues(alpha: .96),
-      extensions: [NewbiliVisualTheme.from(colorScheme)],
+      scaffoldBackgroundColor: colorScheme.surface,
       fontFamily: fontFamily,
       textTheme: noCustomText
           ? null
@@ -90,13 +108,13 @@ abstract final class ThemeUtils {
       appBarTheme: AppBarTheme(
         elevation: 0,
         titleSpacing: 16,
-        centerTitle: true,
+        centerTitle: false,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        backgroundColor: colorScheme.surface.withValues(alpha: .84),
+        backgroundColor: colorScheme.surface,
         titleTextStyle: TextStyle(
-          fontSize: 16,
-          fontWeight: fontWeight,
+          fontSize: 20,
+          fontWeight: fontWeight ?? FontWeight.w600,
           fontFamily: fontFamily,
           color: colorScheme.onSurface,
         ),
@@ -104,9 +122,9 @@ abstract final class ThemeUtils {
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colorScheme.surfaceContainer,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: colorScheme.primaryContainer.withValues(alpha: .76),
+        indicatorColor: colorScheme.secondaryContainer,
         indicatorShape: const StadiumBorder(),
       ),
       navigationRailTheme: const NavigationRailThemeData(
@@ -115,7 +133,7 @@ abstract final class ThemeUtils {
         indicatorShape: StadiumBorder(),
       ),
       snackBarTheme: SnackBarThemeData(
-        elevation: 20,
+        elevation: 2,
         actionTextColor: colorScheme.primary,
         closeIconColor: colorScheme.secondary,
         backgroundColor: colorScheme.secondaryContainer,
@@ -132,13 +150,13 @@ abstract final class ThemeUtils {
         elevation: 0,
         margin: EdgeInsets.zero,
         shadowColor: Colors.transparent,
-        color: colorScheme.surfaceContainerLow.withValues(alpha: .96),
+        color: colorScheme.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           side: BorderSide(
             color: colorScheme.outlineVariant.withValues(alpha: .42),
           ),
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
         ),
       ),
       progressIndicatorTheme: isDark
@@ -156,18 +174,14 @@ abstract final class ThemeUtils {
           fontFamily: fontFamily,
           color: colorScheme.onSurface,
         ),
-        backgroundColor: colorScheme.surfaceContainerHigh.withValues(
-          alpha: .96,
-        ),
+        backgroundColor: colorScheme.surfaceContainerHigh,
         constraints: const BoxConstraints(minWidth: 280, maxWidth: 420),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(24)),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: colorScheme.surfaceContainerHigh.withValues(
-          alpha: .96,
-        ),
+        backgroundColor: colorScheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: Style.bottomSheetRadius,
@@ -220,15 +234,15 @@ abstract final class ThemeUtils {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: colorScheme.surfaceContainerHigh.withValues(alpha: .72),
+        fillColor: colorScheme.surfaceContainerHighest,
         border: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide.none,
         ),
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
         },
       ),
     );

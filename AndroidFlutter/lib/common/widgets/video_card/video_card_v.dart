@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/newbili_cover_hero.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
@@ -23,14 +24,28 @@ import 'package:material_ui/material_ui.dart';
 class VideoCardV extends StatelessWidget {
   final BaseRcmdVideoItemModel videoItem;
   final VoidCallback? onRemove;
+  final WidgetBuilder? coverBuilder;
+  final ValueChanged<Object>? onOpen;
 
   const VideoCardV({
     super.key,
     required this.videoItem,
     this.onRemove,
+    this.coverBuilder,
+    this.onOpen,
   });
 
-  Future<void> onPushDetail() async {
+  static double metadataHeightOf(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return 12 +
+        scaler.scale(39.2) +
+        scaler.scale(15.4).clamp(48.0, double.infinity);
+  }
+
+  Future<void> onPushDetail({
+    Object? coverHeroTag,
+    BuildContext? context,
+  }) async {
     switch (videoItem.goto) {
       case 'bangumi':
         PageUtils.viewPgc(epId: videoItem.param!);
@@ -52,12 +67,14 @@ class VideoCardV extends StatelessWidget {
             dimension = res.dimension;
           }
         }
+        if (context != null && !context.mounted) return;
         if (cid != null) {
           PageUtils.toVideoPage(
             aid: videoItem.aid,
             bvid: bvid,
             cid: cid,
             cover: videoItem.cover,
+            coverHeroTag: coverHeroTag,
             title: videoItem.title,
             isVertical: isVertical,
             dimension: dimension,
@@ -86,44 +103,84 @@ class VideoCardV extends StatelessWidget {
       cover: videoItem.cover,
       bvid: videoItem.bvid,
     );
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPushDetail,
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-        borderRadius: Style.mdRadius,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: Style.aspectRatio,
-              child: LayoutBuilder(
-                builder: (context, constraints) => Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    NetworkImgLayer(
-                      src: videoItem.cover,
-                      width: constraints.maxWidth,
-                      height: constraints.maxHeight,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Style.imgRadius,
+    return NewbiliCoverSource(
+      builder: (context, coverTag) => Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: () => onOpen != null
+              ? onOpen!(coverTag)
+              : onPushDetail(coverHeroTag: coverTag, context: context),
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+          borderRadius: BorderRadius.circular(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: Style.aspectRatio,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NewbiliCoverHero(
+                        tag: coverTag,
+                        radius: 8,
+                        child:
+                            coverBuilder?.call(context) ??
+                            NetworkImgLayer(
+                              src: videoItem.cover,
+                              width: constraints.maxWidth,
+                              height: constraints.maxHeight,
+                              borderRadius: BorderRadius.zero,
+                            ),
                       ),
-                    ),
-                    if (videoItem.duration > 0)
-                      PBadge(
-                        bottom: 6,
-                        right: 7,
-                        size: .small,
-                        type: .gray,
-                        text: DurationUtils.formatDuration(videoItem.duration),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Color(0x99000000)],
+                                stops: [.55, 1],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                  ],
+                      Positioned(
+                        left: 8,
+                        right: 60,
+                        bottom: 7,
+                        child: Text(
+                          '${NumUtils.numFormat(videoItem.stat.view)} 播放',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            height: 1.2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      if (videoItem.duration > 0)
+                        PBadge(
+                          bottom: 6,
+                          right: 7,
+                          size: .small,
+                          type: .gray,
+                          text: DurationUtils.formatDuration(
+                            videoItem.duration,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            content(context),
-          ],
+              content(context),
+            ],
+          ),
         ),
       ),
     );
@@ -136,12 +193,11 @@ class VideoCardV extends StatelessWidget {
       if (videoItem.isFollowed) '已关注',
       if (videoItem.goto == 'picture') '动态',
       if (videoItem.goto == 'bangumi') videoItem.pgcBadge,
-      if (videoItem.rcmdReason?.isNotEmpty == true) videoItem.rcmdReason,
       videoItem.owner.name,
     ].nonNulls.join(' · ');
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 7, 0, 3),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -154,7 +210,7 @@ class VideoCardV extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
-                    height: 1.25,
+                    height: 1.4,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -162,24 +218,23 @@ class VideoCardV extends StatelessWidget {
             ),
             Row(
               children: [
+                Icon(
+                  Icons.account_box_outlined,
+                  size: 13,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
                 Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        owner,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        semanticsLabel: 'UP：$owner',
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.4,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      videoStat(theme),
-                    ],
+                  child: Text(
+                    owner,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    semanticsLabel: 'UP：$owner',
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.4,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 if (hasMenu)

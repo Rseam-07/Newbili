@@ -1,6 +1,5 @@
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:material_ui/material_ui.dart';
 
 /// Shared with history, watch later and favorite folders. The cover geometry
@@ -63,8 +62,8 @@ class NewbiliLibraryTile extends StatelessWidget {
                     ),
                     child: Icon(
                       selected
-                          ? CupertinoIcons.check_mark_circled_solid
-                          : CupertinoIcons.circle,
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
                       color: Colors.white,
                       size: 28,
                     ),

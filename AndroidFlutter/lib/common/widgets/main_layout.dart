@@ -68,12 +68,14 @@ class _RenderMainLayout extends RenderBox
         height: constraints.maxHeight,
       );
     } else {
+      double bottomHeight = 0;
       final bottomNav = this.bottomNav;
       if (bottomNav != null) {
         final bottomNavSize = ChildLayoutHelper.layoutChild(
           bottomNav,
           constraints.loosen(),
         );
+        bottomHeight = bottomNavSize.height;
         setOffset(
           bottomNav,
           Offset(
@@ -86,7 +88,10 @@ class _RenderMainLayout extends RenderBox
       bodyOffset = .zero;
       bodyConstraints = BoxConstraints.tightFor(
         width: constraints.maxWidth,
-        height: constraints.maxHeight,
+        height: (constraints.maxHeight - bottomHeight).clamp(
+          0.0,
+          double.infinity,
+        ),
       );
     }
 

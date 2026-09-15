@@ -1,16 +1,11 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:material_ui/material_ui.dart';
 
-/// Shared geometry from iOS MineContentView / SettingsNavigationRow.
+/// Shared Material spacing and tonal surfaces for account and settings pages.
 abstract final class NewbiliFormStyle {
   static Color background(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFF000000)
-      : const Color(0xFFF2F2F7);
+      Theme.of(context).colorScheme.surface;
   static Color card(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFF1C1C1E)
-      : Colors.white;
+      Theme.of(context).colorScheme.surfaceContainerLow;
 }
 
 class NewbiliPageTitle extends StatelessWidget {
@@ -20,7 +15,7 @@ class NewbiliPageTitle extends StatelessWidget {
 
   static double heightOf(BuildContext context) =>
       28 +
-      (MediaQuery.textScalerOf(context).scale(34) * 1.2).ceilToDouble().clamp(
+      (MediaQuery.textScalerOf(context).scale(28) * 1.2).ceilToDouble().clamp(
         48.0,
         double.infinity,
       );
@@ -34,9 +29,9 @@ class NewbiliPageTitle extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 34,
+              fontSize: 28,
               height: 1.2,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -76,7 +71,7 @@ class NewbiliFormSection extends StatelessWidget {
           ),
         Material(
           color: NewbiliFormStyle.card(context),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
@@ -140,7 +135,7 @@ class NewbiliSettingsRow extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: subtitle == null ? 17 : 15,
+                        fontSize: 16,
                         fontWeight: subtitle == null
                             ? FontWeight.w400
                             : FontWeight.w600,
@@ -176,7 +171,7 @@ class NewbiliSettingsRow extends StatelessWidget {
                 trailing!
               else if (onTap != null)
                 Icon(
-                  CupertinoIcons.chevron_right,
+                  Icons.chevron_right_rounded,
                   size: 15,
                   color: scheme.outline.withValues(alpha: .65),
                 ),

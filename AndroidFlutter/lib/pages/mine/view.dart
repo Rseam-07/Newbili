@@ -1,5 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
-import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
+import 'package:PiliPlus/common/widgets/newbili_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/newbili_form.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
@@ -13,7 +13,6 @@ import 'package:PiliPlus/pages/setting/widgets/newbili_settings_links.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -52,7 +51,7 @@ class _MinePageState extends CommonPageState<MinePage>
           ListView(
             padding: EdgeInsets.only(
               top: 4,
-              bottom: FloatingNavigationBar.bottomContentInsetOf(context),
+              bottom: NewbiliNavigationBar.bottomContentInsetOf(context),
             ),
             children: [
               NewbiliPageTitle(
@@ -80,38 +79,38 @@ class _MinePageState extends CommonPageState<MinePage>
                           if (_mainController.accountService.isLogin.value)
                             NewbiliSettingsRow(
                               title: '账号消息',
-                              icon: CupertinoIcons.bell,
+                              icon: Icons.notifications_outlined,
                               onTap: () => _accountPage('/whisper'),
                             ),
                           NewbiliSettingsRow(
                             title: '观看记录',
-                            icon: CupertinoIcons.clock,
+                            icon: Icons.history_rounded,
                             onTap: () => _accountPage('/history'),
                           ),
                           NewbiliSettingsRow(
                             title: '账号收藏',
-                            icon: CupertinoIcons.star,
+                            icon: Icons.star_border_rounded,
                             onTap: () => _accountPage('/fav'),
                           ),
                           NewbiliSettingsRow(
                             title: '稍后再看',
-                            icon: CupertinoIcons.bookmark,
+                            icon: Icons.bookmark_border_rounded,
                             onTap: () => _accountPage('/later'),
                           ),
                           NewbiliSettingsRow(
                             title: '我的订阅',
-                            icon: CupertinoIcons.tv,
+                            icon: Icons.subscriptions_outlined,
                             onTap: () => _accountPage('/subscription'),
                           ),
                           NewbiliSettingsRow(
                             title: '我的追更',
-                            icon: CupertinoIcons.bookmark,
+                            icon: Icons.bookmark_border_rounded,
                             onTap: () =>
                                 Get.to(() => const TrackedSeriesPage()),
                           ),
                           NewbiliSettingsRow(
                             title: '离线缓存',
-                            icon: CupertinoIcons.arrow_down_circle,
+                            icon: Icons.download_outlined,
                             onTap: () => Get.toNamed('/download'),
                           ),
                         ],
@@ -126,20 +125,20 @@ class _MinePageState extends CommonPageState<MinePage>
                       children: [
                         NewbiliSettingsRow(
                           title: '切换账号',
-                          icon: CupertinoIcons.person_2,
+                          icon: Icons.people_outline_rounded,
                           onTap: () =>
                               LoginPageController.switchAccountDialog(context),
                         ),
                         if (GStorage.reply != null)
                           NewbiliSettingsRow(
                             title: '评论记录',
-                            icon: CupertinoIcons.chat_bubble,
+                            icon: Icons.chat_bubble_outline_rounded,
                             onTap: () => Get.toNamed('/myReply'),
                           ),
                         Obx(
                           () => NewbiliSettingsRow(
                             title: '无痕模式',
-                            icon: CupertinoIcons.eye_slash,
+                            icon: Icons.visibility_off_outlined,
                             value: MineController.anonymity.value
                                 ? '已开启'
                                 : '已关闭',
@@ -149,7 +148,7 @@ class _MinePageState extends CommonPageState<MinePage>
                         Obx(
                           () => NewbiliSettingsRow(
                             title: '外观模式',
-                            icon: CupertinoIcons.circle_lefthalf_fill,
+                            icon: Icons.dark_mode_outlined,
                             value: controller.themeType.value.label,
                             onTap: controller.onChangeTheme,
                           ),
@@ -157,7 +156,7 @@ class _MinePageState extends CommonPageState<MinePage>
                         NewbiliSettingsRow(
                           title: '账号管理',
                           subtitle: '退出登录与完整设置',
-                          icon: CupertinoIcons.person_crop_circle,
+                          icon: Icons.account_circle_outlined,
                           onTap: () => Get.toNamed('/setting'),
                         ),
                       ],
@@ -167,12 +166,12 @@ class _MinePageState extends CommonPageState<MinePage>
                       children: [
                         NewbiliSettingsRow(
                           title: '关于 Newbili',
-                          icon: CupertinoIcons.info_circle,
+                          icon: Icons.info_outline_rounded,
                           onTap: () => Get.toNamed('/about'),
                         ),
                         NewbiliSettingsRow(
                           title: '项目地址',
-                          icon: CupertinoIcons.arrow_up_right_square,
+                          icon: Icons.open_in_new_rounded,
                           value: 'Rseam-07/Newbili',
                           onTap: () => PageUtils.launchURL(
                             'https://github.com/Rseam-07/Newbili',
@@ -314,7 +313,7 @@ class NewbiliLoginPanel extends StatelessWidget {
         spacing: 16,
         children: [
           Icon(
-            CupertinoIcons.person_crop_circle_badge_checkmark,
+            Icons.verified_user_outlined,
             size: 46,
             color: scheme.primary,
           ),
@@ -336,7 +335,7 @@ class NewbiliLoginPanel extends StatelessWidget {
                   'App 短信验证码登录',
                   '更适合 App 端推荐，可能触发风控',
                   '推荐',
-                  CupertinoIcons.chat_bubble,
+                  Icons.chat_bubble_outline_rounded,
                   scheme.primary,
                 ),
                 (
@@ -344,7 +343,7 @@ class NewbiliLoginPanel extends StatelessWidget {
                   'App 扫码登录',
                   '更稳定；可配合网页端推荐',
                   '稳定',
-                  CupertinoIcons.qrcode,
+                  Icons.qr_code_rounded,
                   const Color(0xFF008AFF),
                 ),
                 (
@@ -352,7 +351,7 @@ class NewbiliLoginPanel extends StatelessWidget {
                   '其他登录方式',
                   '密码与 Cookie 登录，保留原有方式',
                   '备用',
-                  CupertinoIcons.globe,
+                  Icons.language_rounded,
                   scheme.onSurfaceVariant,
                 ),
               ])
@@ -427,7 +426,7 @@ class NewbiliLoginPanel extends StatelessWidget {
                             ),
                           ),
                           Icon(
-                            CupertinoIcons.chevron_right,
+                            Icons.chevron_right_rounded,
                             size: 14,
                             color: scheme.outline,
                           ),

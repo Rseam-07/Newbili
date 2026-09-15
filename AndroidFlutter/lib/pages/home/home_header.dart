@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/common/theme/newbili_theme.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Same wording and time ranges as iOS HomeGreetingContent.
@@ -122,48 +123,260 @@ class HomeSectionTabs extends StatelessWidget {
       );
 
   // TabBar reserves its indicator weight even with a custom decoration.
-  static double heightOf(BuildContext context) => _tabHeight(context) + 2;
+  static double heightOf(BuildContext context) => _tabHeight(context) + 3;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: TabBar(
-          controller: controller,
-          isScrollable: true,
-          tabAlignment: TabAlignment.center,
-          dividerHeight: 0,
-          indicatorSize: TabBarIndicatorSize.tab,
-          indicator: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: .14),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: .20),
+    return SizedBox(
+      width: double.infinity,
+      child: TabBar(
+        controller: controller,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        dividerHeight: 0,
+        indicator: _SectionIndicator(theme.colorScheme.primary),
+        indicatorSize: TabBarIndicatorSize.label,
+        indicatorWeight: 3,
+        labelColor: theme.colorScheme.onSurface,
+        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+        labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+        tabs: [
+          for (final label in labels)
+            Tab(height: _tabHeight(context), text: label),
+        ],
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _SectionIndicator extends Decoration {
+  const _SectionIndicator(this.color);
+  final Color color;
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _SectionPainter(color);
+}
+
+class _SectionPainter extends BoxPainter {
+  _SectionPainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size!;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          offset.dx + (size.width - 16) / 2,
+          offset.dy + size.height - 5,
+          16,
+          3,
+        ),
+        const Radius.circular(2),
+      ),
+      Paint()..color = color,
+    );
+  }
+}
+
+/// App identity is shared with Newbili's existing vector mark.
+class NewbiliWordmark extends StatelessWidget {
+  const NewbiliWordmark({super.key, this.compact = false});
+  final bool compact;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Newbili',
+    image: true,
+    child: ExcludeSemantics(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            'assets/images/logo/newbili-mark.svg',
+            width: 30,
+            height: 30,
+          ),
+          if (!compact) ...[
+            const SizedBox(width: 5),
+            Text(
+              'Newbili',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -.7,
+                color: ColorScheme.of(context).onSurface,
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+class NewbiliSearchEntry extends StatelessWidget {
+  const NewbiliSearchEntry({
+    super.key,
+    required this.onTap,
+    this.hint = '搜索视频、UP主',
+  });
+  final VoidCallback onTap;
+  final String hint;
+  @override
+  Widget build(BuildContext context) {
+    final colors = ColorScheme.of(context);
+    return Semantics(
+      button: true,
+      label: '搜索',
+      child: Material(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          labelColor: theme.colorScheme.onSurface,
-          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-          labelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-          labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-          splashBorderRadius: BorderRadius.circular(24),
-          tabs: [
-            for (final label in labels)
-              Tab(
-                height: _tabHeight(context),
-                text: label,
-              ),
-          ],
-          onTap: onTap,
         ),
+      ),
+    );
+  }
+}
+
+class NewbiliHomeToolbar extends StatelessWidget {
+  const NewbiliHomeToolbar({
+    super.key,
+    required this.onSearch,
+    required this.trailing,
+  });
+  final VoidCallback onSearch;
+  final Widget trailing;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+    child: Row(
+      children: [
+        NewbiliWordmark(
+          compact:
+              MediaQuery.sizeOf(context).width < 360 ||
+              MediaQuery.textScalerOf(context).scale(14) > 20,
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: NewbiliSearchEntry(onTap: onSearch)),
+        const SizedBox(width: 4),
+        SizedBox(width: 48, height: 48, child: trailing),
+      ],
+    ),
+  );
+}
+
+/// The reference's light top menu, adapted to touch and resizable windows.
+class NewbiliTabletToolbar extends StatelessWidget {
+  const NewbiliTabletToolbar({
+    super.key,
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onSearch,
+    required this.trailing,
+  });
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onSearch;
+  final Widget trailing;
+  @override
+  Widget build(BuildContext context) {
+    final colors = ColorScheme.of(context);
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
+      child: Row(
+        children: [
+          NewbiliWordmark(compact: largeText),
+          const SizedBox(width: 28),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < labels.length; i++)
+                    Semantics(
+                      selected: selectedIndex == i,
+                      button: true,
+                      child: InkWell(
+                        onTap: () => onSelected(i),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 64,
+                            minHeight: 48,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: selectedIndex == i
+                              ? _SectionIndicator(colors.primary)
+                              : null,
+                          alignment: Alignment.center,
+                          child: Text(
+                            labels[i],
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: selectedIndex == i
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: selectedIndex == i
+                                  ? colors.onSurface
+                                  : colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          SizedBox(
+            width: largeText ? 160 : 220,
+            child: NewbiliSearchEntry(onTap: onSearch),
+          ),
+          const SizedBox(width: 12),
+          trailing,
+        ],
       ),
     );
   }

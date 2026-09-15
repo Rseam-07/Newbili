@@ -5,38 +5,37 @@ import 'package:PiliPlus/pages/mine/view.dart';
 import 'package:PiliPlus/pages/live/view.dart';
 import 'package:PiliPlus/pages/search/view.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 
 enum NavigationBarType implements EnumWithLabel {
   home(
     '首页',
-    Icon(CupertinoIcons.house_fill),
-    Icon(CupertinoIcons.house_fill),
+    Icon(Icons.home_outlined),
+    Icon(Icons.home_rounded),
     HomePage(),
   ),
   dynamics(
     '动态',
-    Icon(CupertinoIcons.sparkles),
-    Icon(CupertinoIcons.sparkles),
+    Icon(Icons.dynamic_feed_outlined),
+    Icon(Icons.dynamic_feed_rounded),
     DynamicsPage(),
   ),
   mine(
     '我的',
-    Icon(CupertinoIcons.person_crop_circle_fill),
-    Icon(CupertinoIcons.person_crop_circle_fill),
+    Icon(Icons.account_circle_outlined),
+    Icon(Icons.account_circle_rounded),
     MinePage(),
   ),
   // Append persisted enum values; never shift existing users' stored indices.
   live(
     '直播',
-    Icon(CupertinoIcons.play_rectangle_fill),
-    Icon(CupertinoIcons.play_rectangle_fill),
+    Icon(Icons.live_tv_outlined),
+    Icon(Icons.live_tv_rounded),
     LivePage(controllerTag: 'root-live'),
   ),
   search(
     '搜索',
-    Icon(CupertinoIcons.search),
-    Icon(CupertinoIcons.search),
+    Icon(Icons.search_rounded),
+    Icon(Icons.search_rounded),
     SearchPage(embedded: true),
   ),
   ;

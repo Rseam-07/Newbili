@@ -1,7 +1,6 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/pages/common/common_page.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
@@ -9,9 +8,7 @@ import 'package:PiliPlus/pages/home/home_header.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
-import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
@@ -47,7 +44,7 @@ class _HomePageState extends CommonPageState<HomePage>
     Widget tabBar;
     if (_homeController.tabs.length > 1) {
       tabBar = Padding(
-        padding: const EdgeInsets.fromLTRB(16, 7, 16, 9),
+        padding: const EdgeInsets.only(top: 8),
         child: HomeSectionTabs(
           controller: _homeController.tabController,
           labels: _homeController.tabs.map((e) => e.label).toList(),
@@ -71,9 +68,7 @@ class _HomePageState extends CommonPageState<HomePage>
     }
     return Column(
       children: [
-        if (!_mainController.useSideBar &&
-            MediaQuery.sizeOf(context).isPortrait)
-          customAppBar(),
+        if (MediaQuery.sizeOf(context).width < 840) customAppBar(),
         tabBar,
         Expanded(
           child: onBuild(
@@ -88,37 +83,18 @@ class _HomePageState extends CommonPageState<HomePage>
   }
 
   Widget customAppBar() {
-    const padding = EdgeInsets.fromLTRB(16, 5, 16, 0);
-    final child = Row(
-      children: [
-        Expanded(
-          child: Obx(
-            () => HomeGreeting(
-              displayName: _mainController.accountService.isLogin.value
-                  ? Pref.userInfoCache?.uname
-                  : null,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        NewbiliGlassSurface(
-          role: NewbiliGlassRole.toolbar,
-          borderRadius: BorderRadius.circular(24),
-          child: Obx(
-            () => _mainController.accountService.isLogin.value
-                ? msgBadge(_mainController)
-                : IconButton(
-                    tooltip: '账号消息',
-                    onPressed: _mainController.toMinePage,
-                    icon: Icon(
-                      Icons.notifications_rounded,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-          ),
-        ),
-      ],
+    const padding = EdgeInsets.zero;
+    final child = NewbiliHomeToolbar(
+      onSearch: () => Get.toNamed('/search'),
+      trailing: Obx(
+        () => _mainController.accountService.isLogin.value
+            ? msgBadge(_mainController)
+            : IconButton(
+                tooltip: '账号消息',
+                onPressed: _mainController.toMinePage,
+                icon: const Icon(Icons.notifications_none_rounded, size: 22),
+              ),
+      ),
     );
     if (_homeController.hideTopBar) {
       if (_mainController.barOffset case final barOffset?) {
@@ -154,7 +130,7 @@ class _HomePageState extends CommonPageState<HomePage>
       }
     }
     return Container(
-      constraints: const BoxConstraints(minHeight: 54),
+      constraints: const BoxConstraints(minHeight: 60),
       padding: padding,
       child: child,
     );
@@ -170,55 +146,59 @@ Widget userAvatar({
     child: Obx(
       () {
         if (mainController.accountService.isLogin.value) {
-          return Stack(
-            clipBehavior: .none,
-            children: [
-              NetworkImgLayer(
-                type: .avatar,
-                width: 34,
-                height: 34,
-                src: mainController.accountService.face.value,
-              ),
-              Positioned.fill(
-                child: Material(
-                  type: .transparency,
-                  child: InkWell(
-                    onTap: mainController.toMinePage,
-                    splashColor: colorScheme.primaryContainer.withValues(
-                      alpha: 0.3,
+          return SizedBox.square(
+            dimension: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: .none,
+              children: [
+                NetworkImgLayer(
+                  type: .avatar,
+                  width: 34,
+                  height: 34,
+                  src: mainController.accountService.face.value,
+                ),
+                Positioned.fill(
+                  child: Material(
+                    type: .transparency,
+                    child: InkWell(
+                      onTap: mainController.toMinePage,
+                      splashColor: colorScheme.primaryContainer.withValues(
+                        alpha: 0.3,
+                      ),
+                      customBorder: const CircleBorder(),
                     ),
-                    customBorder: const CircleBorder(),
                   ),
                 ),
-              ),
-              Positioned(
-                right: -4,
-                bottom: -4,
-                child: Obx(
-                  () => MineController.anonymity.value
-                      ? IgnorePointer(
-                          child: Container(
-                            padding: const .all(2),
-                            decoration: BoxDecoration(
-                              shape: .circle,
-                              color: colorScheme.secondaryContainer,
+                Positioned(
+                  right: 1,
+                  bottom: 1,
+                  child: Obx(
+                    () => MineController.anonymity.value
+                        ? IgnorePointer(
+                            child: Container(
+                              padding: const .all(2),
+                              decoration: BoxDecoration(
+                                shape: .circle,
+                                color: colorScheme.secondaryContainer,
+                              ),
+                              child: Icon(
+                                size: 14,
+                                MdiIcons.incognito,
+                                color: colorScheme.onSecondaryContainer,
+                              ),
                             ),
-                            child: Icon(
-                              size: 14,
-                              MdiIcons.incognito,
-                              color: colorScheme.onSecondaryContainer,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }
         return SizedBox(
-          width: 38,
-          height: 38,
+          width: 48,
+          height: 48,
           child: IconButton(
             tooltip: '点击登录',
             style: IconButton.styleFrom(

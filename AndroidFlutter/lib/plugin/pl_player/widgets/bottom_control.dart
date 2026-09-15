@@ -1,4 +1,4 @@
-import 'package:PiliPlus/common/widgets/newbili_glass.dart';
+import 'package:PiliPlus/common/widgets/newbili_surface.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
@@ -57,8 +57,8 @@ class BottomControl extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-      child: NewbiliGlassSurface(
-        role: NewbiliGlassRole.player,
+      child: NewbiliSurface(
+        role: NewbiliSurfaceRole.player,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

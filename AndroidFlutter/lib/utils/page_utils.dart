@@ -534,6 +534,7 @@ abstract final class PageUtils {
     int? epId,
     int? pgcType,
     String? cover,
+    Object? coverHeroTag,
     String? title,
     int? progress, // milliseconds
     Map? extraArguments,
@@ -549,6 +550,7 @@ abstract final class PageUtils {
       'epId': ?epId,
       'pgcType': ?pgcType,
       'cover': ?cover,
+      'coverHeroTag': ?coverHeroTag,
       'title': ?title,
       'progress': ?progress,
       'videoType': videoType,

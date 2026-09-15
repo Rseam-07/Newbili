@@ -7,7 +7,6 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/back_detector.dart';
 import 'package:PiliPlus/common/widgets/custom_toast.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
-import 'package:PiliPlus/utils/android/glass_capability.dart';
 import 'package:PiliPlus/utils/android/legacy_account_migration.dart';
 import 'package:PiliPlus/common/widgets/scale_app.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart';
@@ -105,7 +104,6 @@ void main() async {
     exit(0);
   }
   await LegacyAccountMigration.run();
-  await NewbiliGlassCapability.instance.initialize();
   ScaledWidgetsFlutterBinding.instance.scaleFactor = Pref.uiScale;
   await Future.wait([
     _initDownPath(),
@@ -288,8 +286,9 @@ class MyApp extends StatelessWidget {
       fallbackLocale: const Locale("zh", "CN"),
       supportedLocales: const [Locale("zh", "CN"), Locale("en", "US")],
       initialRoute: '/',
-      getPages: Routes.getPages,
-      defaultTransition: Pref.pageTransition,
+      onInit: () => Get.addPages(Routes.getPages),
+      onGenerateRoute: Routes.generate,
+      defaultTransition: Transition.sharedAxis,
       builder: FlutterSmartDialog.init(
         toastBuilder: CustomToast.new,
         loadingBuilder: LoadingWidget.new,
@@ -311,7 +310,9 @@ class MyApp extends StatelessWidget {
   static Widget _builder(BuildContext context, Widget? child) {
     final uiScale = Pref.uiScale;
     final mediaQuery = MediaQuery.of(context);
-    final textScaler = TextScaler.linear(Pref.defaultTextScale);
+    final textScaler = TextScaler.linear(
+      mediaQuery.textScaler.scale(Pref.defaultTextScale),
+    );
     if (uiScale != 1.0) {
       child = MediaQuery(
         data: mediaQuery.copyWith(
