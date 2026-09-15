@@ -15,6 +15,8 @@ import 'package:PiliPlus/plugin/pl_player/models/double_tap_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/pinch_fullscreen.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/compact_player_bar.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
+import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart'
+    show ViewPointSegment, ViewPointSegmentProgressBar;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
@@ -139,6 +141,52 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('compact chapter ticks never paint titles over the video', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 48));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: const ColoredBox(
+          color: Color(0xFF263A43),
+          child: Center(
+            child: ViewPointSegmentProgressBar(
+              height: 3,
+              showLabels: false,
+              segments: [
+                ViewPointSegment(end: .5, title: 'Long chapter title', from: 0),
+                ViewPointSegment(end: 1, title: 'Another chapter', from: 120),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(ViewPointSegmentProgressBar)).height, 3);
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final img = await boundary.toImage();
+      final data = (await img.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+      final pixels = data.buffer.asUint8List();
+      // The previous renderer reserved 3px but painted its 15px title anyway.
+      for (var y = 0; y < 48; y++) {
+        if (y >= 22 && y <= 25) continue;
+        for (var x = 0; x < 320; x++) {
+          final i = (y * 320 + x) * 4;
+          expect(pixels.sublist(i, i + 4), [0x26, 0x3A, 0x43, 0xFF]);
+        }
+      }
+      const tick = (24 * 320 + 160) * 4;
+      expect(pixels[tick], lessThan(0x26));
+      img.dispose();
+    });
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [320.0, 375.0, 840.0]) {
     for (final scale in [1.0, 3.0]) {
       testWidgets(

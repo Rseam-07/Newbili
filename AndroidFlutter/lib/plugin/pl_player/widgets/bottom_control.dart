@@ -123,6 +123,7 @@ class BottomControl extends StatelessWidget {
                     width: double.infinity,
                     child: ViewPointSegmentProgressBar(
                       segments: videoDetailController.viewPointList,
+                      showLabels: false,
                     ),
                   ),
                 ),

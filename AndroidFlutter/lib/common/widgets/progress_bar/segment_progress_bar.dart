@@ -149,9 +149,11 @@ class ViewPointSegmentProgressBar
     super.height,
     required super.segments,
     this.onSeek,
+    this.showLabels = true,
   });
 
   final ValueSetter<Duration>? onSeek;
+  final bool showLabels;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -159,6 +161,7 @@ class ViewPointSegmentProgressBar
       height: height,
       segments: segments,
       onSeek: onSeek,
+      showLabels: showLabels,
     );
   }
 
@@ -170,7 +173,8 @@ class ViewPointSegmentProgressBar
     renderObject
       ..height = height
       ..segments = segments
-      ..onSeek = onSeek;
+      ..onSeek = onSeek
+      ..showLabels = showLabels;
   }
 }
 
@@ -180,6 +184,7 @@ class RenderViewPointProgressBar
     required super.height,
     required super.segments,
     ValueSetter<Duration>? onSeek,
+    this._showLabels = true,
   }) : _onSeek = onSeek,
        _hitTestSelf = onSeek != null {
     if (onSeek != null) {
@@ -189,7 +194,17 @@ class RenderViewPointProgressBar
 
   @override
   void performLayout() {
-    size = constraints.constrainDimensions(constraints.maxWidth, _barHeight);
+    size = constraints.constrainDimensions(
+      constraints.maxWidth,
+      _showLabels ? _barHeight : height,
+    );
+  }
+
+  bool _showLabels;
+  set showLabels(bool value) {
+    if (_showLabels == value) return;
+    _showLabels = value;
+    markNeedsLayout();
   }
 
   static const double _barHeight = 15.0;
@@ -219,18 +234,19 @@ class RenderViewPointProgressBar
     final canvas = context.canvas;
     final paint = Paint()..style = PaintingStyle.fill;
 
-    if (offset != .zero) {
-      canvas
-        ..save()
-        ..translate(offset.dx, offset.dy);
-    }
+    canvas
+      ..save()
+      ..translate(offset.dx, offset.dy)
+      ..clipRect(Offset.zero & size);
 
     assert(segments.isSortedBy((i) => i.end));
 
-    canvas.drawRect(
-      Rect.fromLTRB(0, 0, size.width, _barHeight),
-      paint..color = Colors.grey[600]!.withValues(alpha: 0.45),
-    );
+    if (_showLabels) {
+      canvas.drawRect(
+        Offset.zero & size,
+        paint..color = Colors.grey[600]!.withValues(alpha: 0.45),
+      );
+    }
 
     paint.color = Colors.black.withValues(alpha: 0.5);
 
@@ -242,12 +258,12 @@ class RenderViewPointProgressBar
           segmentEnd,
           0,
           segmentEnd + _dividerWidth,
-          _barHeight + height,
+          size.height,
         ),
         paint,
       );
       final title = segment.title;
-      if (title != null && title.isNotEmpty) {
+      if (_showLabels && title != null && title.isNotEmpty) {
         final segmentWidth = segmentEnd - prevEnd;
         final paragraph = _getParagraph(title, 10);
         final textWidth = paragraph.maxIntrinsicWidth;
@@ -259,13 +275,13 @@ class RenderViewPointProgressBar
           final scale = segmentWidth / textWidth;
           canvas
             ..save()
-            ..translate(prevEnd, (_barHeight - textHeight * scale) / 2)
+            ..translate(prevEnd, (size.height - textHeight * scale) / 2)
             ..scale(scale);
           offset = Offset.zero;
         } else {
           offset = Offset(
             (segmentWidth - textWidth) / 2 + prevEnd,
-            (_barHeight - textHeight) / 2,
+            (size.height - textHeight) / 2,
           );
         }
         canvas.drawParagraph(paragraph, offset);
@@ -276,7 +292,7 @@ class RenderViewPointProgressBar
       }
       prevEnd = segmentEnd + _dividerWidth;
     }
-    if (offset != .zero) canvas.restore();
+    canvas.restore();
   }
 
   ValueSetter<Duration>? _onSeek;

@@ -1835,22 +1835,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                       if (plPlayerController.showViewPoints &&
                           videoDetailController.viewPointList.isNotEmpty &&
                           videoDetailController.showVP.value)
-                        Padding(
-                          padding: const .only(bottom: 4.25),
+                        IgnorePointer(
                           child: ViewPointSegmentProgressBar(
                             segments: videoDetailController.viewPointList,
-                            onSeek: PlatformUtils.isMobile
-                                ? (position) {
-                                    if (!plPlayerController
-                                        .controlsLock
-                                        .value) {
-                                      plPlayerController.seekTo(
-                                        position,
-                                        isSeek: false,
-                                      );
-                                    }
-                                  }
-                                : null,
+                            showLabels: false,
                           ),
                         ),
                       if (plPlayerController.showDmChart &&
