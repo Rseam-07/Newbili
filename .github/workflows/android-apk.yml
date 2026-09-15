@@ -93,6 +93,7 @@ jobs:
         run: flutter build apk --debug --no-pub
 
       - name: Build release candidates
+        id: release_apks
         if: ${{ env.RELEASE_CANDIDATE == 'true' }}
         working-directory: AndroidFlutter
         env:
@@ -110,13 +111,10 @@ jobs:
         working-directory: AndroidFlutter/android
         run: |
           set -euo pipefail
-          # Reuse the candidate variant instead of compiling three extra debug
-          # engines in parallel, which previously exhausted the Jetifier heap.
-          if [[ "$RELEASE_CANDIDATE" == "true" ]]; then
-            ./gradlew :app:testReleaseUnitTest -PnewbiliDebugReleaseSigning=true --max-workers=2
-          else
-            ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-arm64 --max-workers=2
-          fi
+          # Flutter enables the debug unit-test variant. One engine ABI and
+          # two workers keep Jetifier from loading three debug engines at once.
+          ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-arm64 --max-workers=2 \
+            '-Dorg.gradle.jvmargs=-Xmx6G -XX:MaxMetaspaceSize=2G -XX:+HeapDumpOnOutOfMemoryError'
 
       - name: Upload native test results
         if: ${{ always() }}
@@ -137,7 +135,7 @@ jobs:
       # The CI key is ephemeral. Re-sign locally with the existing public test
       # channel key and verify its digest before attaching APKs to a release.
       - name: Upload release candidates
-        if: ${{ env.RELEASE_CANDIDATE == 'true' }}
+        if: ${{ always() && steps.release_apks.outcome == 'success' }}
         uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-release-candidates
