@@ -74,13 +74,29 @@ class BaseSearchController extends GetxController {
 
   // 获取热搜关键词
   Future<void> queryTrendingList() async {
-    trendingState.value = await SearchHttp.searchTrending(limit: 10);
+    try {
+      final res = await SearchHttp.searchTrending(limit: 10);
+      if (!isClosed) trendingState.value = res;
+    } catch (_) {
+      if (!isClosed) trendingState.value = const Error('热搜加载失败，请重试');
+    }
   }
 }
 
 class SSearchController extends GetxController
     with DebounceStreamMixin<String> {
-  SSearchController(this.tag);
+  SSearchController(
+    this.tag, {
+    Future<LoadingState<SearchSuggestModel>> Function(String term)?
+    suggestLoader,
+  }) : _suggestLoader =
+           suggestLoader ?? ((term) => SearchHttp.searchSuggest(term: term));
+
+  final Future<LoadingState<SearchSuggestModel>> Function(String term)
+  _suggestLoader;
+  int _suggestGeneration = 0;
+  String? _suggestQuery;
+  bool _closed = false;
   final String tag;
 
   final searchFocusNode = FocusNode();
@@ -139,17 +155,18 @@ class SSearchController extends GetxController
   }
 
   void onChange(String value) {
+    _suggestGeneration++;
+    _suggestQuery = value;
     validateUid();
     if (searchSuggestion) {
-      if (value.isEmpty) {
-        searchSuggestList.clear();
-      } else {
-        ctr!.add(value);
-      }
+      searchSuggestList.clear();
+      if (value.trim().isNotEmpty) ctr?.add(value);
     }
   }
 
   void onClear() {
+    _suggestGeneration++;
+    _suggestQuery = null;
     if (controller.value.text != '') {
       controller.clear();
       if (searchSuggestion) searchSuggestList.clear();
@@ -162,6 +179,9 @@ class SSearchController extends GetxController
 
   // 搜索
   void submit() {
+    _suggestGeneration++;
+    _suggestQuery = null;
+    if (searchSuggestion) searchSuggestList.clear();
     if (controller.text.isEmpty) {
       if (hintText.isNullOrEmpty) return;
       controller.text = hintText!;
@@ -188,11 +208,18 @@ class SSearchController extends GetxController
         'initIndex': initIndex,
         'fromSearch': true,
       },
-    )?.whenComplete(searchFocusNode.requestFocus);
+    )?.whenComplete(() {
+      if (!_closed) searchFocusNode.requestFocus();
+    });
   }
 
   Future<void> queryRecommendList() async {
-    recommendData.value = await SearchHttp.searchRecommend();
+    try {
+      final res = await SearchHttp.searchRecommend();
+      if (!_closed) recommendData.value = res;
+    } catch (_) {
+      if (!_closed) recommendData.value = const Error('推荐加载失败，请重试');
+    }
   }
 
   void onClickKeyword(String keyword) {
@@ -205,10 +232,27 @@ class SSearchController extends GetxController
 
   @override
   Future<void> onValueChanged(String value) async {
-    final res = await SearchHttp.searchSuggest(term: value);
-    if (res case Success(:final response)) {
-      if (response.tag?.isNotEmpty == true) {
-        searchSuggestList.value = response.tag!;
+    if (_closed ||
+        value.trim().isEmpty ||
+        value != controller.text ||
+        value != _suggestQuery) {
+      return;
+    }
+    final generation = _suggestGeneration;
+    try {
+      final res = await _suggestLoader(value);
+      if (_closed ||
+          generation != _suggestGeneration ||
+          value != controller.text) {
+        return;
+      }
+      searchSuggestList.value = switch (res) {
+        Success(:final response) => response.tag ?? [],
+        _ => [],
+      };
+    } catch (_) {
+      if (!_closed && generation == _suggestGeneration) {
+        searchSuggestList.clear();
       }
     }
   }
@@ -231,6 +275,8 @@ class SSearchController extends GetxController
 
   @override
   void onClose() {
+    _closed = true;
+    _suggestGeneration++;
     subDispose();
     searchFocusNode.dispose();
     controller.dispose();

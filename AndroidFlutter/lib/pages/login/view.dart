@@ -1,12 +1,10 @@
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/dial_prefix.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/common/widgets/view_insets_safe_area.dart';
-import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
+import 'package:PiliPlus/pages/login/qr_panel.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/widget_ext.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
@@ -19,7 +17,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
@@ -31,7 +28,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  late final LoginPageController _loginPageCtr = Get.put(LoginPageController(initialTab: widget.initialTab));
+  late final LoginPageController _loginPageCtr = Get.put(
+    LoginPageController(initialTab: widget.initialTab),
+  );
   // 二维码生成时间
   bool showPassword = false;
   GlobalKey globalKey = GlobalKey();
@@ -42,132 +41,64 @@ class _LoginPageState extends State<LoginPage> {
     _loginPageCtr.didChangeDependencies(context);
   }
 
-  Widget loginByQRCode(ThemeData theme) {
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-        const Text('使用 bilibili 官方 App 扫码登录'),
-        const SizedBox(height: 20),
-        Obx(
-          () => Text(
-            '剩余有效时间: ${_loginPageCtr.qrCodeLeftTime} 秒',
-            style: TextStyle(
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: theme.colorScheme.primaryFixedDim,
-            ),
-          ),
-        ),
-        const SizedBox(height: 5),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton.icon(
-              onPressed: _loginPageCtr.refreshQRCode,
-              icon: const Icon(Icons.refresh),
-              label: const Text('刷新二维码'),
-            ),
-            TextButton.icon(
-              onPressed: () async {
-                SmartDialog.showLoading(msg: '正在生成截图');
-                final boundary =
-                    globalKey.currentContext!.findRenderObject()
-                        as RenderRepaintBoundary;
-                final image = await boundary.toImage(pixelRatio: 3);
-                final byteData = await image.toByteData(format: .png);
-                final pngBytes = byteData!.buffer.asUint8List();
-                image.dispose();
-                SmartDialog.dismiss();
-                final picName =
-                    "${Constants.appName}_loginQRCode_${_loginPageCtr.codeInfo.value.data.authCode.hashCode.toUnsigned(32).toRadixString(16)}";
-                ImageUtils.saveByteImg(bytes: pngBytes, fileName: picName);
-              },
-              icon: const Icon(Icons.save),
-              label: const Text('保存至相册'),
-            ),
-            if (kDebugMode || PlatformUtils.isMobile)
-              TextButton.icon(
-                onPressed: () => PageUtils.launchURL(
-                  'bilibili://browser?url=${Uri.encodeComponent(_loginPageCtr.codeInfo.value.data.url)}',
-                  mode: LaunchMode.externalNonBrowserApplication,
-                ),
-                icon: const Icon(Icons.open_in_browser_outlined),
-                label: const Text('其他应用打开'),
-              ),
-          ],
-        ),
-        RepaintBoundary(
-          key: globalKey,
-          child: Obx(
-            () => switch (_loginPageCtr.codeInfo.value) {
-              Loading() => const SizedBox(
-                height: 200,
-                width: 200,
-                child: m3eLoading,
-              ),
-              Success(:final response) => Container(
-                width: 200,
-                height: 200,
-                color: Colors.white,
-                padding: const EdgeInsets.all(8),
-                child: PrettyQrView.data(
-                  data: response.url,
-                  decoration: const PrettyQrDecoration(
-                    shape: PrettyQrSquaresSymbol(
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-              ),
-              Error(:final errMsg) => HttpError(
-                isSliver: false,
-                errMsg: errMsg,
-                onReload: _loginPageCtr.refreshQRCode,
-              ),
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Obx(
-          () => Text(
-            _loginPageCtr.statusQRCode.value,
-            style: TextStyle(color: theme.colorScheme.secondaryFixedDim),
-          ),
-        ),
-        Obx(
-          () {
-            final url = _loginPageCtr.codeInfo.value.dataOrNull?.url ?? '';
-            return GestureDetector(
-              onTap: () => Utils.copyText(
-                url,
-                toastText: '已复制到剪贴板，可粘贴至已登录的app私信处发送，然后点击已发送的链接打开',
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 20,
-                ),
-                child: Text(
-                  url,
-                  style: theme.textTheme.labelSmall!.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            '请务必在 ${Constants.appName} 开源仓库等可信渠道下载安装。',
-            style: theme.textTheme.labelSmall!.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
-      ],
-    );
+  bool _savingQr = false;
+
+  Future<void> _saveQrCode() async {
+    final data = _loginPageCtr.codeInfo.value.dataOrNull;
+    if (data == null || _loginPageCtr.qrCodeLeftTime.value <= 0 || _savingQr) {
+      return;
+    }
+    setState(() => _savingQr = true);
+    try {
+      final boundary = globalKey.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary) return;
+      final image = await boundary.toImage(pixelRatio: 3);
+      final ByteData? bytes;
+      try {
+        bytes = await image.toByteData(format: .png);
+      } finally {
+        image.dispose();
+      }
+      if (bytes == null || !mounted) return;
+      await ImageUtils.saveByteImg(
+        bytes: bytes.buffer.asUint8List(),
+        fileName:
+            '${Constants.appName}_loginQRCode_${data.authCode.hashCode.toUnsigned(32).toRadixString(16)}',
+      );
+    } catch (_) {
+      if (mounted) SmartDialog.showToast('二维码保存失败，请重试');
+    } finally {
+      SmartDialog.dismiss(status: SmartStatus.loading);
+      if (mounted) setState(() => _savingQr = false);
+    }
   }
+
+  Widget loginByQRCode(ThemeData theme) => Obx(() {
+    final state = _loginPageCtr.codeInfo.value;
+    final data = state.dataOrNull;
+    return QrLoginPanel(
+      state: state,
+      secondsLeft: _loginPageCtr.qrCodeLeftTime.value,
+      status: _loginPageCtr.statusQRCode.value,
+      qrKey: globalKey,
+      saving: _savingQr,
+      onRefresh: _loginPageCtr.refreshQRCode,
+      onSave: _saveQrCode,
+      onCopy: () {
+        if (data != null) Utils.copyText(data.url, toastText: '登录链接已复制');
+      },
+      onOpen: kDebugMode || PlatformUtils.isMobile
+          ? () {
+              if (data != null) {
+                PageUtils.launchURL(
+                  'bilibili://browser?url=${Uri.encodeComponent(data.url)}',
+                  mode: LaunchMode.externalNonBrowserApplication,
+                );
+              }
+            }
+          : null,
+    );
+  });
 
   Widget loginByCookie(ThemeData theme) {
     return Column(

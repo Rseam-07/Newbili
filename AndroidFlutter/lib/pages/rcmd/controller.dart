@@ -29,7 +29,8 @@ class RcmdController extends CommonListController {
 
   @override
   bool handleError(String? errMsg) {
-    return enableSaveLastData;
+    return enableSaveLastData &&
+        loadingState.value.dataOrNull?.isNotEmpty == true;
   }
 
   @override

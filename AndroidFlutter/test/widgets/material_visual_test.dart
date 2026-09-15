@@ -151,11 +151,22 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 100));
         expect(tester.takeException(), isNull);
+        controller.enableSaveLastData = true;
+        expect(controller.handleError('offline'), isFalse);
         controller.loadingState.value = Success(_items);
         await tester.pumpAndSettle();
+        expect(controller.handleError('offline'), isTrue);
+        controller.requestError.value = '加载失败，请检查网络后重试';
+        await tester.pumpAndSettle();
+        expect(find.text('重试，保留当前内容'), findsOneWidget);
+        if (output.isNotEmpty) await _capture(tester, key, 'retry-$width.png');
+        await tester.tap(find.text('重试，保留当前内容'));
+        await tester.pumpAndSettle();
+        expect(controller.requestError.value, isNull);
         expect(find.text(_items.first.title), findsAtLeastNWidgets(1));
         expect(tester.takeException(), isNull);
         controller.loadingState.value = const Success([]);
+        expect(controller.handleError('offline'), isFalse);
         await tester.pumpAndSettle();
         expect(find.text('没有数据'), findsOneWidget);
         controller.loadingState.value = const Error('连接失败');
@@ -681,5 +692,7 @@ class _RcmdFixtureController extends RcmdController {
   @override
   Future<void> onLoadMore() async {}
   @override
-  Future<void> onRefresh() async {}
+  Future<void> onRefresh() async {
+    requestError.value = null;
+  }
 }

@@ -42,7 +42,8 @@ class _RcmdPageState extends State<RcmdPage>
         child: NotificationListener<ScrollUpdateNotification>(
           onNotification: (notification) {
             if (notification.depth == 0) {
-              if (notification.metrics.extentAfter < 500) {
+              if (notification.metrics.extentAfter < 500 &&
+                  controller.requestError.value == null) {
                 controller.onLoadMore();
               }
             }
@@ -52,6 +53,40 @@ class _RcmdPageState extends State<RcmdPage>
             controller: controller.scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              Obx(() {
+                final error = controller.requestError.value;
+                if (error == null ||
+                    controller.loadingState.value.dataOrNull?.isNotEmpty !=
+                        true) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+                return SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Material(
+                      color: colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Semantics(liveRegion: true, child: Text(error)),
+                            TextButton.icon(
+                              onPressed: controller.retryFailedRequest,
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(48, 48),
+                              ),
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('重试，保留当前内容'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
               SliverPadding(
                 padding: .only(
                   top: 16,

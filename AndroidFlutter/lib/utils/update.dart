@@ -34,9 +34,12 @@ abstract final class Update {
         }
         return;
       }
-      final data = res.data[0];
-      final latestVersion = '${data['tag_name'] ?? ''}';
-      if (!isNewerReleaseVersion(latestVersion, BuildConfig.versionName)) {
+      final data = findNewerRelease(
+        res.data as List,
+        '${BuildConfig.versionName}+${BuildConfig.versionCode}',
+        android: Platform.isAndroid,
+      );
+      if (data == null) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
         }
@@ -50,7 +53,7 @@ abstract final class Update {
               child: Text(text),
             );
             return AlertDialog(
-              title: const Text('🎉 发现新版本 '),
+              title: const Text('发现新版本'),
               content: SizedBox(
                 height: 280,
                 child: SingleChildScrollView(
@@ -111,6 +114,7 @@ abstract final class Update {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('failed to check update: $e');
+      if (!isAuto) SmartDialog.showToast('检查更新失败，请稍后重试');
     }
   }
 
@@ -149,9 +153,12 @@ abstract final class Update {
 
 bool isNewerReleaseVersion(String candidate, String current) {
   List<int>? parse(String input) {
-    final match = RegExp(r'(\d+)\.(\d+)\.(\d+)').firstMatch(input);
+    final match = RegExp(r'^(?:v|android-v)?(\d+)\.(\d+)\.(\d+)(?:\+(\d+))?$')
+        .firstMatch(input.trim());
     if (match == null) return null;
-    return [for (var index = 1; index <= 3; index++) int.parse(match[index]!)];
+    return [
+      for (var index = 1; index <= 4; index++) int.parse(match[index] ?? '0'),
+    ];
   }
 
   final candidateParts = parse(candidate);
@@ -162,4 +169,37 @@ bool isNewerReleaseVersion(String candidate, String current) {
     if (comparison != 0) return comparison > 0;
   }
   return false;
+}
+
+/// Date-based preview tags are not app versions. Android releases advertise
+/// their actual version and build in the APK asset name produced by packaging.
+Map? findNewerRelease(List releases, String current, {bool android = false}) {
+  Map? newest;
+  var newestVersion = current;
+  for (final release in releases.whereType<Map>()) {
+    if (release['draft'] == true) continue;
+    var version = '${release['tag_name'] ?? ''}';
+    if (android) {
+      final assets = (release['assets'] as List?)?.whereType<Map>();
+      if (assets == null) continue;
+      var hasApk = false;
+      for (final asset in assets) {
+        final name = '${asset['name'] ?? ''}';
+        if (!name.endsWith('.apk')) continue;
+        hasApk = true;
+        final match = RegExp(r'^Newbili-Android-(\d+\.\d+\.\d+)-(\d+)-')
+            .firstMatch(name);
+        if (match != null) {
+          version = '${match[1]}+${match[2]}';
+          break;
+        }
+      }
+      if (!hasApk) continue;
+    }
+    if (isNewerReleaseVersion(version, newestVersion)) {
+      newest = release;
+      newestVersion = version;
+    }
+  }
+  return newest;
 }

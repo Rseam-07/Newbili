@@ -1,6 +1,4 @@
-import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/widgets/selection_text.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
 class HttpError extends StatelessWidget {
@@ -27,11 +25,23 @@ class HttpError extends StatelessWidget {
       mainAxisAlignment: .center,
       crossAxisAlignment: .center,
       children: [
-        const SizedBox(height: 40),
-        SvgPicture.asset(Assets.error, height: 200),
-        const SizedBox(height: 30),
+        const SizedBox(height: 24),
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Icon(
+            errMsg == null ? Icons.inbox_outlined : Icons.cloud_off_outlined,
+            size: 32,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 16),
         Padding(
-          padding: const .symmetric(horizontal: 16, vertical: 5),
+          padding: const .symmetric(horizontal: 16, vertical: 8),
           child: SelectionText(
             errMsg ?? '没有数据',
             textAlign: .center,
@@ -42,16 +52,15 @@ class HttpError extends StatelessWidget {
           FilledButton.tonal(
             onPressed: onReload,
             style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 48),
               tapTargetSize: .padded,
-              backgroundColor: theme.colorScheme.primary.withAlpha(20),
             ),
             child: Text(
               btnText ?? '点击重试',
-              style: TextStyle(color: theme.colorScheme.primary),
             ),
           ),
         if (safeArea)
-          SizedBox(height: 40 + MediaQuery.viewPaddingOf(context).bottom),
+          SizedBox(height: 24 + MediaQuery.viewPaddingOf(context).bottom),
       ],
     );
 

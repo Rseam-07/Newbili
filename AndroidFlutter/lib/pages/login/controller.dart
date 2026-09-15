@@ -20,9 +20,23 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
+typedef LoginQrCode = ({String authCode, String url});
+typedef LoginQrLoader = Future<LoadingState<LoginQrCode>> Function();
+typedef LoginQrPoller = Future<dynamic> Function(String authCode);
+
 class LoginPageController extends GetxController
     with GetSingleTickerProviderStateMixin {
-  LoginPageController({this.initialTab = 1});
+  LoginPageController({
+    this.initialTab = 1,
+    LoginQrLoader? qrLoader,
+    LoginQrPoller? qrPoller,
+    this.onQrAuthenticated,
+  }) : _qrLoader = qrLoader ?? LoginHttp.getHDcode,
+       _qrPoller = qrPoller ?? LoginHttp.codePoll;
+
+  final LoginQrLoader _qrLoader;
+  final LoginQrPoller _qrPoller;
+  final Future<void> Function(Map data)? onQrAuthenticated;
   final int initialTab;
   final TextEditingController telTextController = TextEditingController();
   final TextEditingController usernameTextController = TextEditingController();
@@ -30,8 +44,7 @@ class LoginPageController extends GetxController
   final TextEditingController smsCodeTextController = TextEditingController();
   final TextEditingController cookieTextController = TextEditingController();
 
-  late final codeInfo =
-      LoadingState<({String authCode, String url})>.loading().obs;
+  late final codeInfo = LoadingState<LoginQrCode>.loading().obs;
 
   late final TabController tabController;
 
@@ -48,18 +61,29 @@ class LoginPageController extends GetxController
   Timer? qrCodeTimer;
   Timer? smsSendCooldownTimer;
 
-  bool _isReq = false;
+  int _qrGeneration = 0;
+  int? _pollingGeneration;
+  bool _qrTabActive = false;
+  bool _closed = false;
+
+  bool _isCurrentQr(int generation) =>
+      !_closed && _qrTabActive && generation == _qrGeneration;
 
   @override
   void onInit() {
     super.onInit();
-    tabController = TabController(length: 4, initialIndex: initialTab, vsync: this)
-      ..addListener(_handleTabChange);
+    tabController = TabController(
+      length: 4,
+      initialIndex: initialTab,
+      vsync: this,
+    )..addListener(_handleTabChange);
     _handleTabChange();
   }
 
   @override
   void onClose() {
+    _closed = true;
+    _qrGeneration++;
     tabController
       ..removeListener(_handleTabChange)
       ..dispose();
@@ -74,48 +98,103 @@ class LoginPageController extends GetxController
   }
 
   Future<void> refreshQRCode() async {
-    final res = await LoginHttp.getHDcode();
-    if (res case Success(:final response)) {
-      qrCodeTimer?.cancel();
-      codeInfo.value = res;
-      qrCodeTimer = Timer.periodic(const Duration(milliseconds: 1000), (t) {
-        final left = 180 - t.tick;
-        if (left <= 0) {
-          t.cancel();
-          statusQRCode.value = '二维码已过期，请刷新';
-          qrCodeLeftTime.value = 0;
-          return;
+    if (_closed || !_qrTabActive) return;
+    final generation = ++_qrGeneration;
+    qrCodeTimer?.cancel();
+    codeInfo.value = LoadingState<LoginQrCode>.loading();
+    qrCodeLeftTime.value = 0;
+    statusQRCode.value = '正在生成二维码';
+    try {
+      final res = await _qrLoader();
+      if (!_isCurrentQr(generation)) return;
+      if (res case Success(:final response)) {
+        if (response.authCode.isEmpty || response.url.isEmpty) {
+          throw const FormatException('Empty QR code');
         }
-        qrCodeLeftTime.value = left;
-        if (_isReq || tabController.index != 2) return;
-
-        _isReq = true;
-        LoginHttp.codePoll(response.authCode).then((value) async {
-          _isReq = false;
-          if (value['status']) {
-            t.cancel();
-            statusQRCode.value = '扫码成功';
-            await setAccount(
-              value['data'],
-              value['data']['cookie_info']['cookies'],
-            );
-            Get.back();
-          } else if (value['code'] == 86038) {
-            t.cancel();
-            qrCodeLeftTime.value = 0;
-          } else {
-            statusQRCode.value = value['msg'];
+        codeInfo.value = res;
+        qrCodeLeftTime.value = 180;
+        statusQRCode.value = '等待扫码';
+        qrCodeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!_isCurrentQr(generation)) {
+            timer.cancel();
+            return;
+          }
+          qrCodeLeftTime.value = (180 - timer.tick).clamp(0, 180);
+          if (qrCodeLeftTime.value == 0) {
+            _expireQr();
+          } else if (_pollingGeneration != generation) {
+            unawaited(_pollQRCode(response.authCode, generation));
           }
         });
-      });
+      } else {
+        codeInfo.value = const Error('二维码加载失败，请检查网络后重试');
+        statusQRCode.value = '';
+      }
+    } catch (_) {
+      if (!_isCurrentQr(generation)) return;
+      codeInfo.value = const Error('二维码加载失败，请检查网络后重试');
+      statusQRCode.value = '';
+    }
+  }
+
+  void _expireQr([String message = '二维码已过期，请刷新']) {
+    qrCodeTimer?.cancel();
+    qrCodeLeftTime.value = 0;
+    statusQRCode.value = message;
+    // A poll already in flight must not sign in with this expired code.
+    _qrGeneration++;
+  }
+
+  Future<void> _pollQRCode(String authCode, int generation) async {
+    _pollingGeneration = generation;
+    var authenticating = false;
+    try {
+      final value = await _qrPoller(authCode);
+      if (!_isCurrentQr(generation)) return;
+      if (value['status'] == true) {
+        qrCodeTimer?.cancel();
+        authenticating = true;
+        qrCodeLeftTime.value = 0;
+        statusQRCode.value = '正在完成登录';
+        final Map data = value['data'];
+        if (onQrAuthenticated case final complete?) {
+          await complete(data);
+        } else {
+          await setAccount(data, data['cookie_info']['cookies']);
+        }
+        if (!_isCurrentQr(generation)) return;
+        statusQRCode.value = '扫码成功';
+        if (onQrAuthenticated == null) Get.back();
+      } else if (value['code'] == 86038) {
+        _expireQr();
+      } else {
+        statusQRCode.value = switch (value['code']) {
+          86101 => '等待扫码',
+          86090 => '扫码成功，请在 bilibili App 中确认',
+          _ => '等待确认，正在检查登录状态',
+        };
+      }
+    } catch (_) {
+      if (!_isCurrentQr(generation)) return;
+      if (authenticating) {
+        _expireQr('登录未完成，请刷新二维码重试');
+      } else {
+        statusQRCode.value = '网络暂时不可用，正在重试';
+      }
+    } finally {
+      if (_pollingGeneration == generation) _pollingGeneration = null;
     }
   }
 
   void _handleTabChange() {
-    if (tabController.index == 2) {
-      if (qrCodeTimer == null || !qrCodeTimer!.isActive) {
-        refreshQRCode();
-      }
+    final active = tabController.index == 2;
+    if (active == _qrTabActive) return;
+    _qrTabActive = active;
+    if (active) {
+      unawaited(refreshQRCode());
+    } else {
+      _qrGeneration++;
+      qrCodeTimer?.cancel();
     }
   }
 
