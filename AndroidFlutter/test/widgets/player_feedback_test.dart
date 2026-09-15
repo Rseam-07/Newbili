@@ -356,7 +356,9 @@ void main() {
       ),
     );
     nav.currentState!.push(
-      GetPageRoute(page: () => const Scaffold(body: Text('chat'))),
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('chat')),
+      ),
     );
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 60));
@@ -367,4 +369,51 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     Get.reset();
   });
+
+  testWidgets('playback page stays active while its controls sheet is open', (
+    tester,
+  ) async {
+    final nav = GlobalKey<NavigatorState>();
+    final probe = _PlaybackRouteProbe();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: nav,
+        navigatorObservers: [routeObserver],
+        home: const Scaffold(body: Text('playing')),
+      ),
+    );
+    final context = tester.element(find.text('playing'));
+    routeObserver.subscribe(probe, ModalRoute.of(context)! as PageRoute);
+    addTearDown(() => routeObserver.unsubscribe(probe));
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        builder: (_) => const Text('playback controls'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(probe.leftPage, 0);
+    nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(probe.returned, 0);
+    nav.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('another page')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(probe.leftPage, 1);
+    nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(probe.returned, 1);
+  });
+}
+
+class _PlaybackRouteProbe with RouteAware {
+  int leftPage = 0;
+  int returned = 0;
+  @override
+  void didPushNext() => leftPage++;
+  @override
+  void didPopNext() => returned++;
 }

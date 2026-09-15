@@ -4,7 +4,8 @@ import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:get/get_navigation/src/routes/default_route.dart'
     show GetPageRoute;
 
-final routeObserver = RouteObserver<ModalRoute<dynamic>>();
+// Player lifecycle follows pages. Menus and bottom sheets keep its surface live.
+final routeObserver = RouteObserver<PageRoute<dynamic>>();
 
 mixin RouteAwareMixin<T extends StatefulWidget> on State<T>, RouteAware {
   @override

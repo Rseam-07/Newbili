@@ -42,7 +42,7 @@ class _ForegroundRefreshState extends State<ForegroundRefresh>
     if (route != _route) {
       routeObserver.unsubscribe(this);
       _route = route;
-      if (route != null) routeObserver.subscribe(this, route);
+      if (route is PageRoute<dynamic>) routeObserver.subscribe(this, route);
     }
     _schedule();
   }
