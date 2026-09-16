@@ -62,7 +62,12 @@ class _RcmdPageState extends State<RcmdPage>
                 }
                 return SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: EdgeInsets.fromLTRB(
+                      MediaQuery.sizeOf(context).width >= 840 ? 24 : 0,
+                      12,
+                      MediaQuery.sizeOf(context).width >= 840 ? 24 : 0,
+                      0,
+                    ),
                     child: Material(
                       color: colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(16),
@@ -108,9 +113,10 @@ class _RcmdPageState extends State<RcmdPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final wide = MediaQuery.sizeOf(context).width >= 840;
     gridDelegate = SliverGridDelegateWithExtentAndRatio(
-      mainAxisSpacing: 20,
-      crossAxisSpacing: 12,
+      mainAxisSpacing: wide ? 24 : 20,
+      crossAxisSpacing: wide ? 16 : 12,
       maxCrossAxisExtent: MediaQuery.textScalerOf(context).scale(14) > 20
           ? 10000
           : Pref.recommendCardWidth,
@@ -121,13 +127,13 @@ class _RcmdPageState extends State<RcmdPage>
 
   Widget _buildBody(
     ColorScheme colorScheme,
-    LoadingState<List<dynamic>?> loadingState,
+    LoadingState<List<BaseRcmdVideoItemModel>?> loadingState,
   ) {
     return switch (loadingState) {
       Loading() => _buildSkeleton,
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? _buildRecommendations(response.cast<BaseRcmdVideoItemModel>())
+            ? _buildRecommendations(response)
             : HttpError(onReload: controller.onReload),
       Error(:final errMsg) => HttpError(
         errMsg: errMsg,
@@ -156,49 +162,52 @@ class _RcmdPageState extends State<RcmdPage>
               onLoadMore: controller.onLoadMore,
             ),
           ),
-        SliverGrid.builder(
-          gridDelegate: gridDelegate,
-          itemBuilder: (context, index) {
-            if (markerIndex != null) {
-              if (markerIndex == index) {
-                return GestureDetector(
-                  onTap: () => controller
-                    ..animateToTop()
-                    ..onRefresh(),
-                  child: Card(
-                    child: Container(
-                      alignment: Alignment.center,
-                      padding: const .symmetric(horizontal: 10),
-                      child: Text(
-                        '上次看到这里\n点击刷新',
-                        textAlign: .center,
-                        style: TextStyle(
-                          color: ColorScheme.of(context).onSurfaceVariant,
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: wide ? 24 : 0),
+          sliver: SliverGrid.builder(
+            gridDelegate: gridDelegate,
+            itemBuilder: (context, index) {
+              if (markerIndex != null) {
+                if (markerIndex == index) {
+                  return GestureDetector(
+                    onTap: () => controller
+                      ..animateToTop()
+                      ..onRefresh(),
+                    child: Card(
+                      child: Container(
+                        alignment: Alignment.center,
+                        padding: const .symmetric(horizontal: 10),
+                        child: Text(
+                          '上次看到这里\n点击刷新',
+                          textAlign: .center,
+                          style: TextStyle(
+                            color: ColorScheme.of(context).onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }
-            }
-            final actualIndex =
-                featuredCount +
-                index -
-                (markerIndex != null && index > markerIndex ? 1 : 0);
-            return VideoCardV(
-              videoItem: response[actualIndex],
-              onRemove: () {
-                if (controller.lastRefreshAt != null &&
-                    actualIndex < controller.lastRefreshAt!) {
-                  controller.lastRefreshAt = controller.lastRefreshAt! - 1;
+                  );
                 }
-                controller.loadingState
-                  ..value.data!.removeAt(actualIndex)
-                  ..refresh();
-              },
-            );
-          },
-          itemCount: itemCount,
+              }
+              final actualIndex =
+                  featuredCount +
+                  index -
+                  (markerIndex != null && index > markerIndex ? 1 : 0);
+              return VideoCardV(
+                videoItem: response[actualIndex],
+                onRemove: () {
+                  if (controller.lastRefreshAt != null &&
+                      actualIndex < controller.lastRefreshAt!) {
+                    controller.lastRefreshAt = controller.lastRefreshAt! - 1;
+                  }
+                  controller.loadingState
+                    ..value.data!.removeAt(actualIndex)
+                    ..refresh();
+                },
+              );
+            },
+            itemCount: itemCount,
+          ),
         ),
         SliverToBoxAdapter(
           child: Padding(
@@ -215,11 +224,16 @@ class _RcmdPageState extends State<RcmdPage>
     );
   }
 
-  Widget get _buildSkeleton => SliverGrid(
-    gridDelegate: gridDelegate,
-    delegate: const SliverSingleChildDelegate(
-      count: 10,
-      child: VideoCardVSkeleton(),
+  Widget get _buildSkeleton => SliverPadding(
+    padding: EdgeInsets.symmetric(
+      horizontal: MediaQuery.sizeOf(context).width >= 840 ? 24 : 0,
+    ),
+    sliver: SliverGrid(
+      gridDelegate: gridDelegate,
+      delegate: const SliverSingleChildDelegate(
+        count: 10,
+        child: VideoCardVSkeleton(),
+      ),
     ),
   );
 }

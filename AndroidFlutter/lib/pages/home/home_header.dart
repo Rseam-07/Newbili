@@ -111,10 +111,12 @@ class HomeSectionTabs extends StatelessWidget {
     required this.controller,
     required this.labels,
     required this.onTap,
+    this.compact = false,
   });
   final TabController controller;
   final List<String> labels;
   final ValueChanged<int> onTap;
+  final bool compact;
 
   static double _tabHeight(BuildContext context) =>
       (MediaQuery.textScalerOf(context).scale(20) + 16).clamp(
@@ -140,9 +142,12 @@ class HomeSectionTabs extends StatelessWidget {
         indicatorWeight: 3,
         labelColor: theme.colorScheme.onSurface,
         unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-        labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 16,
+        labelStyle: TextStyle(
+          fontSize: compact ? 16 : 18,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: compact ? 15 : 16,
           fontWeight: FontWeight.w500,
         ),
         labelPadding: const EdgeInsets.symmetric(horizontal: 14),
@@ -309,75 +314,94 @@ class NewbiliTabletToolbar extends StatelessWidget {
     required this.onSelected,
     required this.onSearch,
     required this.trailing,
+    required this.sections,
   });
   final List<String> labels;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback onSearch;
   final Widget trailing;
+  final Widget sections;
   @override
   Widget build(BuildContext context) {
     final colors = ColorScheme.of(context);
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
-      child: Row(
-        children: [
-          NewbiliWordmark(compact: largeText),
-          const SizedBox(width: 28),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var i = 0; i < labels.length; i++)
-                    Semantics(
-                      selected: selectedIndex == i,
-                      button: true,
-                      child: InkWell(
-                        onTap: () => onSelected(i),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 64,
-                            minHeight: 48,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          decoration: selectedIndex == i
-                              ? _SectionIndicator(colors.primary)
-                              : null,
-                          alignment: Alignment.center,
-                          child: Text(
-                            labels[i],
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: selectedIndex == i
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: selectedIndex == i
-                                  ? colors.onSurface
-                                  : colors.onSurfaceVariant,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 1100 || largeText;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
+          child: Row(
+            children: [
+              NewbiliWordmark(compact: compact),
+              const SizedBox(width: 16),
+              Expanded(child: sections),
+              const SizedBox(width: 16),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * .34,
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < labels.length; i++)
+                        Semantics(
+                          selected: selectedIndex == i,
+                          button: true,
+                          child: InkWell(
+                            onTap: () => onSelected(i),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              constraints: const BoxConstraints(
+                                minWidth: 64,
+                                minHeight: 48,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: selectedIndex == i
+                                  ? _SectionIndicator(colors.primary)
+                                  : null,
+                              alignment: Alignment.center,
+                              child: Text(
+                                labels[i],
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: selectedIndex == i
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: selectedIndex == i
+                                      ? colors.onSurface
+                                      : colors.onSurfaceVariant,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              if (compact)
+                IconButton(
+                  tooltip: '搜索视频、UP主',
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded),
+                )
+              else
+                SizedBox(
+                  width: 220,
+                  child: NewbiliSearchEntry(onTap: onSearch),
+                ),
+              const SizedBox(width: 12),
+              trailing,
+            ],
           ),
-          const SizedBox(width: 20),
-          SizedBox(
-            width: largeText ? 160 : 220,
-            child: NewbiliSearchEntry(onTap: onSearch),
-          ),
-          const SizedBox(width: 12),
-          trailing,
-        ],
-      ),
+        );
+      },
     );
   }
 }

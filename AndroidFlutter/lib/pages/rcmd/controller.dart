@@ -6,7 +6,12 @@ import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/pages/common/common_list_controller.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 
-class RcmdController extends CommonListController {
+class RcmdController
+    extends
+        CommonListController<
+          List<BaseRcmdVideoItemModel>,
+          BaseRcmdVideoItemModel
+        > {
   late bool enableSaveLastData = Pref.enableSaveLastData;
   final bool appRcmd = Pref.appRcmd;
 
@@ -25,7 +30,7 @@ class RcmdController extends CommonListController {
 
   int _feedIndex = 0;
   @override
-  Future<LoadingState> customGetData() async {
+  Future<LoadingState<List<BaseRcmdVideoItemModel>>> customGetData() async {
     final account = Accounts.history;
     final history = RecommendationHistory.sync(account);
     for (var attempt = 0; attempt < 3; attempt++) {
@@ -40,14 +45,16 @@ class RcmdController extends CommonListController {
         return const Error('账号已切换，请刷新推荐');
       }
       if (res case Success(:final response)) {
-        final fresh = RecommendationHistory.index.filter(
-          account.mid,
-          response,
-          existing: page == 0
-              ? const []
-              : (loadingState.value.dataOrNull ?? [])
-                    .whereType<BaseRcmdVideoItemModel>(),
-        );
+        // Both API variants must produce a mutable list of the shared model.
+        // Keeping the inferred API subtype throws when adding retained cards.
+        final fresh = RecommendationHistory.index
+            .filter<BaseRcmdVideoItemModel>(
+              account.mid,
+              response,
+              existing: page == 0
+                  ? const []
+                  : loadingState.value.dataOrNull ?? const [],
+            );
         if (fresh.isNotEmpty) return Success(fresh);
       } else {
         return res;
@@ -63,17 +70,15 @@ class RcmdController extends CommonListController {
   }
 
   @override
-  void handleListResponse(List dataList) {
+  void handleListResponse(List<BaseRcmdVideoItemModel> dataList) {
     if (enableSaveLastData && page == 0) {
       final previous = loadingState.value.dataOrNull;
       lastRefreshAt = null;
       if (previous != null && previous.isNotEmpty) {
         final retained = RecommendationHistory.index.filter(
           Accounts.history.mid,
-          previous
-              .take(previous.length > 200 ? 50 : 200)
-              .whereType<BaseRcmdVideoItemModel>(),
-          existing: dataList.cast<BaseRcmdVideoItemModel>(),
+          previous.take(previous.length > 200 ? 50 : 200),
+          existing: dataList,
         );
         if (retained.isNotEmpty && savedRcmdTip) {
           lastRefreshAt = dataList.length;

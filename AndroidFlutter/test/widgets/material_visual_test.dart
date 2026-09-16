@@ -24,6 +24,7 @@ import 'package:PiliPlus/pages/video/widgets/tablet_player_stage.dart';
 import 'package:PiliPlus/router/newbili_page_route.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -158,6 +159,17 @@ void main() {
         expect(controller.handleError('offline'), isFalse);
         controller.loadingState.value = Success(_items);
         await tester.pumpAndSettle();
+        if (width >= 840) {
+          final cards = find.byType(VideoCardV);
+          final first = tester.getRect(cards.first);
+          final firstRow = tester
+              .widgetList(cards)
+              .map((card) => tester.getRect(find.byWidget(card)))
+              .where((rect) => rect.top == first.top);
+          expect(first.left, 24);
+          expect(firstRow.last.right, width - 24);
+          expect(tester.getTopLeft(find.text('推荐视频')).dx, first.left);
+        }
         expect(controller.handleError('offline'), isTrue);
         controller.requestError.value = '加载失败，请检查网络后重试';
         await tester.pumpAndSettle();
@@ -333,8 +345,17 @@ class _Preview extends StatefulWidget {
   State<_Preview> createState() => _PreviewState();
 }
 
-class _PreviewState extends State<_Preview> {
+class _PreviewState extends State<_Preview>
+    with SingleTickerProviderStateMixin {
   int selected = 0;
+  late final _sections = TabController(length: 5, vsync: this);
+  static const sections = ['推荐', '热门', '分区', '番剧', '影视'];
+  @override
+  void dispose() {
+    _sections.dispose();
+    super.dispose();
+  }
+
   static const labels = ['首页', '动态', '直播', '我的', '搜索'];
   static const icons = [
     Icons.home_outlined,
@@ -376,13 +397,20 @@ class _PreviewState extends State<_Preview> {
             children: [
               if (wide)
                 NewbiliTabletToolbar(
-                  labels: labels,
+                  sections: HomeSectionTabs(
+                    controller: _sections,
+                    labels: sections,
+                    compact: true,
+                    onTap: (_) => setState(() => selected = 0),
+                  ),
+                  labels: labels.take(3).toList(),
                   selectedIndex: selected,
                   onSelected: (i) => setState(() => selected = i),
                   onSearch: () {},
-                  trailing: const CircleAvatar(
-                    radius: 16,
-                    child: Icon(Icons.person_outline_rounded, size: 20),
+                  trailing: IconButton.filledTonal(
+                    tooltip: '我的',
+                    onPressed: () => setState(() => selected = 3),
+                    icon: const Icon(Icons.person_rounded, size: 22),
                   ),
                 ),
               Expanded(
@@ -411,25 +439,60 @@ class _PreviewState extends State<_Preview> {
                                 ),
                               ),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Builder(
-                              builder: (context) => HomeSectionTabs(
-                                controller: DefaultTabController.of(context),
-                                labels: const ['推荐', '热门', '分区', '番剧', '影视'],
-                                onTap: (_) {},
+                          if (!wide)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Builder(
+                                builder: (context) => HomeSectionTabs(
+                                  controller: _sections,
+                                  labels: sections,
+                                  onTap: (_) {},
+                                ),
                               ),
                             ),
-                          ),
                           Expanded(
                             child: wide
                                 ? SingleChildScrollView(
-                                    child: TabletRecommendationStage(
-                                      items: _items,
-                                      onRefresh: () {},
-                                      onLoadMore: () {},
-                                      coverBuilder: _artwork,
-                                      onOpen: _open,
+                                    child: Column(
+                                      children: [
+                                        TabletRecommendationStage(
+                                          items: _items,
+                                          showRecommendations: false,
+                                          onRefresh: () {},
+                                          onLoadMore: () {},
+                                          coverBuilder: _artwork,
+                                          onOpen: _open,
+                                        ),
+                                        GridView.builder(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 24,
+                                          ),
+                                          gridDelegate:
+                                              SliverGridDelegateWithExtentAndRatio(
+                                                maxCrossAxisExtent:
+                                                    Pref.recommendCardWidth,
+                                                crossAxisSpacing: 16,
+                                                mainAxisSpacing: 24,
+                                                childAspectRatio: 16 / 9,
+                                                mainAxisExtent:
+                                                    VideoCardV.metadataHeightOf(
+                                                      context,
+                                                    ),
+                                              ),
+                                          itemCount: _items.length,
+                                          itemBuilder: (context, index) =>
+                                              VideoCardV(
+                                                videoItem: _items[index],
+                                                coverBuilder: (_) =>
+                                                    _artwork(_items[index]),
+                                                onOpen: (tag) =>
+                                                    _open(_items[index], tag),
+                                              ),
+                                        ),
+                                      ],
                                     ),
                                   )
                                 : GridView.builder(

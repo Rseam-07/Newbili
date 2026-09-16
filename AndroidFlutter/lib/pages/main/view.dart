@@ -18,6 +18,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
+import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/mobile_observer.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -354,6 +355,15 @@ class _MainAppState extends PopScopeState<MainApp>
     final homeIndex = _mainController.navigationBars.indexOf(
       NavigationBarType.home,
     );
+    // Search and account remain directly accessible through the field/avatar.
+    // Map the visible menu back to saved destination indices after filtering.
+    final tabletDestinations = _mainController.navigationBars.indexed
+        .where(
+          (entry) =>
+              entry.$2 != NavigationBarType.mine &&
+              entry.$2 != NavigationBarType.search,
+        )
+        .toList(growable: false);
     Widget child = ForegroundRefresh(
       onRefresh: _mainController.queryUnreadMsg,
       child: Obx(
@@ -394,11 +404,39 @@ class _MainAppState extends PopScopeState<MainApp>
             if (wide)
               Obx(
                 () => NewbiliTabletToolbar(
-                  labels: _mainController.navigationBars
-                      .map((item) => item.label)
+                  sections: homeIndex < 0
+                      ? const SizedBox.shrink()
+                      : HomeSectionTabs(
+                          controller:
+                              _mainController.homeController.tabController,
+                          labels: _mainController.homeController.tabs
+                              .map((tab) => tab.label)
+                              .toList(),
+                          compact: true,
+                          onTap: (_) {
+                            if (_mainController.selectedIndex.value !=
+                                homeIndex) {
+                              _mainController.setIndex(homeIndex);
+                            } else {
+                              feedBack();
+                              if (!_mainController
+                                  .homeController
+                                  .tabController
+                                  .indexIsChanging) {
+                                _mainController.homeController.animateToTop();
+                              }
+                            }
+                          },
+                        ),
+                  labels: tabletDestinations
+                      .map((entry) => entry.$2.label)
                       .toList(),
-                  selectedIndex: _mainController.selectedIndex.value,
-                  onSelected: _mainController.setIndex,
+                  selectedIndex: tabletDestinations.indexWhere(
+                    (entry) => entry.$1 == _mainController.selectedIndex.value,
+                  ),
+                  onSelected: (index) => _mainController.setIndex(
+                    tabletDestinations[index].$1,
+                  ),
                   onSearch: () => Get.toNamed('/search'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,

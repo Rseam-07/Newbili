@@ -68,8 +68,10 @@ class _HomePageState extends CommonPageState<HomePage>
     }
     return Column(
       children: [
-        if (MediaQuery.sizeOf(context).width < 840) customAppBar(),
-        tabBar,
+        if (MediaQuery.sizeOf(context).width < 840) ...[
+          customAppBar(),
+          tabBar,
+        ],
         Expanded(
           child: onBuild(
             tabBarView(

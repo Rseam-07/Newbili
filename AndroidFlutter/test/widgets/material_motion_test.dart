@@ -19,20 +19,32 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1280, 812));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     var selected = 0;
+    var searched = false;
+    final sections = TabController(length: 5, vsync: tester);
+    addTearDown(sections.dispose);
     await tester.pumpWidget(
       MaterialApp(
         home: Material(
           child: MainLayout(
             sideBar: null,
             bottomNav: null,
-            body: NewbiliTabletToolbar(
-              labels: const ['首页', '动态', '直播', '我的', '搜索'],
-              selectedIndex: selected,
-              onSelected: (index) => selected = index,
-              onSearch: () {},
-              trailing: const SizedBox.square(
-                dimension: 48,
-                child: Icon(Icons.person_outline_rounded),
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: NewbiliTabletToolbar(
+                sections: HomeSectionTabs(
+                  controller: sections,
+                  labels: const ['推荐', '热门', '分区', '番剧', '影视'],
+                  compact: true,
+                  onTap: (_) {},
+                ),
+                labels: const ['首页', '动态', '直播'],
+                selectedIndex: selected,
+                onSelected: (index) => selected = index,
+                onSearch: () => searched = true,
+                trailing: const SizedBox.square(
+                  dimension: 48,
+                  child: Icon(Icons.person_outline_rounded),
+                ),
               ),
             ),
           ),
@@ -43,12 +55,76 @@ void main() {
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('动态'), findsOneWidget);
     expect(find.text('直播'), findsOneWidget);
-    expect(find.text('我的'), findsOneWidget);
-    expect(find.text('搜索'), findsOneWidget);
+    expect(find.text('我的'), findsNothing);
+    expect(find.text('搜索'), findsNothing);
+    expect(find.byType(HomeSectionTabs), findsOneWidget);
+    expect(
+      (tester.getCenter(find.text('推荐')).dy -
+              tester.getCenter(find.text('首页')).dy)
+          .abs(),
+      lessThan(4),
+    );
     await tester.tap(find.text('动态'));
     expect(selected, 1);
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(sections.index, 1);
+    await tester.tap(find.byType(NewbiliSearchEntry));
+    expect(searched, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in [840.0, 1024.0, 1280.0]) {
+    testWidgets(
+      'tablet header at $width with large text keeps menus reachable',
+      (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 812));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final sections = TabController(length: 5, vsync: tester);
+        addTearDown(sections.dispose);
+        var selected = 0;
+        var searched = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(3)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topCenter,
+                child: NewbiliTabletToolbar(
+                  sections: HomeSectionTabs(
+                    controller: sections,
+                    labels: const ['推荐', '热门', '分区', '番剧', '影视'],
+                    compact: true,
+                    onTap: (_) {},
+                  ),
+                  labels: const ['首页', '动态', '直播'],
+                  selectedIndex: selected,
+                  onSelected: (index) => selected = index,
+                  onSearch: () => searched = true,
+                  trailing: const SizedBox(width: 100, height: 48),
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text('影视'));
+        await tester.tap(find.text('影视'));
+        await tester.pumpAndSettle();
+        expect(sections.index, 4);
+        await tester.ensureVisible(find.text('直播'));
+        await tester.tap(find.text('直播'));
+        expect(selected, 2);
+        await tester.tap(find.byTooltip('搜索视频、UP主'));
+        expect(searched, isTrue);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'destination changes retain scroll and interrupt from the current frame',
