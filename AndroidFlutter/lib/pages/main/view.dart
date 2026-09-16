@@ -431,9 +431,10 @@ class _MainAppState extends PopScopeState<MainApp>
                   labels: tabletDestinations
                       .map((entry) => entry.$2.label)
                       .toList(),
-                  selectedIndex: tabletDestinations.indexWhere(
-                    (entry) => entry.$1 == _mainController.selectedIndex.value,
-                  ),
+                  selectedIndex: tabletDestinations
+                      .map((entry) => entry.$1)
+                      .toList(growable: false)
+                      .indexOf(_mainController.selectedIndex.value),
                   onSelected: (index) => _mainController.setIndex(
                     tabletDestinations[index].$1,
                   ),
