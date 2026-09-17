@@ -1341,6 +1341,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       body: Padding(
         padding: padding.copyWith(top: 0),
         child: TabletPlayerStage(
+          sheetKey: videoDetailController.childKey,
           selectedPane: _tabletPane,
           initialOpen: _tabletPaneOpen,
           onOpenChanged: (open) => _tabletPaneOpen = open,

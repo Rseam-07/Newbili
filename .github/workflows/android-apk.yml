@@ -7,6 +7,10 @@ on:
         description: Build release candidates for local signature verification (not auto-published)
         type: boolean
         default: false
+      tablet_player_only:
+        description: Run focused tablet player checks for a Dart-only playback hotfix
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -65,9 +69,24 @@ jobs:
         working-directory: AndroidFlutter
         run: |
           flutter analyze --no-pub --no-fatal-infos
-          flutter test --no-pub
+          if [[ '${{ inputs.tablet_player_only }}' != 'true' ]]; then
+            flutter test --no-pub
+          fi
+
+      - name: Verify tablet player hotfix
+        if: ${{ inputs.tablet_player_only }}
+        working-directory: AndroidFlutter
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          flutter test test/widgets/tablet_player_stage_test.dart \
+            test/widgets/material_visual_test.dart --plain-name 'tablet' --no-pub \
+            --dart-define=NEWBILI_VISUAL_FONT=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+            --dart-define=NEWBILI_VISUAL_COVERS=design/ui-review-2026-09-15/fixtures \
+            --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
 
       - name: Render interaction layout checks
+        if: ${{ !inputs.tablet_player_only }}
         working-directory: AndroidFlutter
         run: |
           sudo apt-get update -qq
@@ -110,6 +129,7 @@ jobs:
             --dart-define "pili.time=$(date +%s)"
 
       - name: Run Android native unit tests
+        if: ${{ !inputs.tablet_player_only }}
         working-directory: AndroidFlutter/android
         run: |
           set -euo pipefail
@@ -119,7 +139,7 @@ jobs:
             '-Dorg.gradle.jvmargs=-Xmx6G -XX:MaxMetaspaceSize=2G -XX:+HeapDumpOnOutOfMemoryError'
 
       - name: Upload native test results
-        if: ${{ always() }}
+        if: ${{ always() && !inputs.tablet_player_only }}
         uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-native-tests
