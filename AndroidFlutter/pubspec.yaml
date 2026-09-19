@@ -17,7 +17,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 # update when release
-version: 1.0.12+15
+version: 1.0.13+16
 
 environment:
   sdk: ">=3.13.0"
@@ -240,19 +240,21 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   image_path: assets/images/logo/logo_2.png
-  image_path_android: assets/images/logo/logo_2.png
-  adaptive_icon_background: "#ffffff"
-  adaptive_icon_foreground: assets/images/logo/logo_2.png
-  adaptive_icon_monochrome: assets/images/logo/logo_2.png
+  image_path_android: assets/images/logo/newbili-mark.png
+  adaptive_icon_background: "#25113F"
+  adaptive_icon_foreground: assets/images/logo/newbili-mark.png
+  adaptive_icon_monochrome: assets/images/logo/newbili-mark.png
 
 flutter_native_splash:
   android_12:
     color: "#ffffff"
     color_dark: "#212121"
+    image: assets/images/logo/newbili-mark.png
+    image_dark: assets/images/logo/newbili-mark.png
   color: "#ffffff"
   color_dark: "#212121"
-  image: assets/images/logo/logo_2.png
-  image_dark: assets/images/logo/logo_2.png
+  image: assets/images/logo/newbili-mark.png
+  image_dark: assets/images/logo/newbili-mark.png
 
 flutter:
   uses-material-design: true

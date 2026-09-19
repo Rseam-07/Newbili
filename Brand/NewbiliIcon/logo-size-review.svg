@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="800" height="900" fill="#FAF8FC"/>
+  <rect x="800" width="800" height="900" fill="#151218"/>
+  <g font-family="Arial, sans-serif">
+    <text x="72" y="86" font-size="32" font-weight="700" fill="#25113F">Newbili icon — light</text>
+    <text x="872" y="86" font-size="32" font-weight="700" fill="#FFF8FD">Newbili icon — dark</text>
+    <text x="72" y="132" font-size="20" fill="#655D69">launcher master and transparent brand mark</text>
+    <text x="872" y="132" font-size="20" fill="#CAC1CE">launcher master and transparent brand mark</text>
+  </g>
+  <g>
+    <image href="newbili-icon-master.svg" x="72" y="190" width="256" height="256"/>
+    <image href="newbili-icon-master.svg" x="378" y="254" width="128" height="128"/>
+    <image href="newbili-icon-master.svg" x="550" y="286" width="64" height="64"/>
+    <image href="newbili-icon-master.svg" x="654" y="302" width="32" height="32"/>
+    <image href="newbili-icon-master.svg" x="716" y="310" width="16" height="16"/>
+    <image href="newbili-mark.svg" x="72" y="535" width="192" height="192"/>
+    <image href="newbili-mark.svg" x="322" y="583" width="96" height="96"/>
+    <image href="newbili-mark.svg" x="462" y="607" width="48" height="48"/>
+    <image href="newbili-mark.svg" x="550" y="615" width="32" height="32"/>
+    <image href="newbili-mark.svg" x="622" y="623" width="16" height="16"/>
+  </g>
+  <g>
+    <image href="newbili-icon-master.svg" x="872" y="190" width="256" height="256"/>
+    <image href="newbili-icon-master.svg" x="1178" y="254" width="128" height="128"/>
+    <image href="newbili-icon-master.svg" x="1350" y="286" width="64" height="64"/>
+    <image href="newbili-icon-master.svg" x="1454" y="302" width="32" height="32"/>
+    <image href="newbili-icon-master.svg" x="1516" y="310" width="16" height="16"/>
+    <image href="newbili-mark.svg" x="872" y="535" width="192" height="192"/>
+    <image href="newbili-mark.svg" x="1122" y="583" width="96" height="96"/>
+    <image href="newbili-mark.svg" x="1262" y="607" width="48" height="48"/>
+    <image href="newbili-mark.svg" x="1350" y="615" width="32" height="32"/>
+    <image href="newbili-mark.svg" x="1422" y="623" width="16" height="16"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="18">
+    <text x="72" y="476" fill="#655D69">256</text><text x="378" y="414" fill="#655D69">128</text><text x="550" y="382" fill="#655D69">64</text><text x="654" y="366" fill="#655D69">32</text><text x="716" y="358" fill="#655D69">16</text>
+    <text x="872" y="476" fill="#CAC1CE">256</text><text x="1178" y="414" fill="#CAC1CE">128</text><text x="1350" y="382" fill="#CAC1CE">64</text><text x="1454" y="366" fill="#CAC1CE">32</text><text x="1516" y="358" fill="#CAC1CE">16</text>
+    <text x="72" y="758" fill="#655D69">transparent mark</text>
+    <text x="872" y="758" fill="#CAC1CE">transparent mark</text>
+  </g>
+</svg>

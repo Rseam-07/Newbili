@@ -11,6 +11,10 @@ on:
         description: Run focused tablet player checks for a Dart-only playback hotfix
         type: boolean
         default: false
+      first_use_only:
+        description: Run focused launcher identity and first-use introduction checks
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -69,7 +73,7 @@ jobs:
         working-directory: AndroidFlutter
         run: |
           flutter analyze --no-pub --no-fatal-infos
-          if [[ '${{ inputs.tablet_player_only }}' != 'true' ]]; then
+          if [[ '${{ inputs.tablet_player_only }}' != 'true' && '${{ inputs.first_use_only }}' != 'true' ]]; then
             flutter test --no-pub
           fi
 
@@ -85,8 +89,18 @@ jobs:
             --dart-define=NEWBILI_VISUAL_COVERS=design/ui-review-2026-09-15/fixtures \
             --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
 
+      - name: Verify launcher identity and first-use introduction
+        if: ${{ inputs.first_use_only }}
+        working-directory: AndroidFlutter
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          flutter test test/widgets/onboarding_test.dart --no-pub \
+            --dart-define=NEWBILI_VISUAL_FONT=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
+            --dart-define=NEWBILI_VISUAL_OUTPUT=build/visual-verification
+
       - name: Render interaction layout checks
-        if: ${{ !inputs.tablet_player_only }}
+        if: ${{ !inputs.tablet_player_only && !inputs.first_use_only }}
         working-directory: AndroidFlutter
         run: |
           sudo apt-get update -qq
@@ -129,7 +143,7 @@ jobs:
             --dart-define "pili.time=$(date +%s)"
 
       - name: Run Android native unit tests
-        if: ${{ !inputs.tablet_player_only }}
+        if: ${{ !inputs.tablet_player_only && !inputs.first_use_only }}
         working-directory: AndroidFlutter/android
         run: |
           set -euo pipefail
@@ -139,7 +153,7 @@ jobs:
             '-Dorg.gradle.jvmargs=-Xmx6G -XX:MaxMetaspaceSize=2G -XX:+HeapDumpOnOutOfMemoryError'
 
       - name: Upload native test results
-        if: ${{ always() && !inputs.tablet_player_only }}
+        if: ${{ always() && !inputs.tablet_player_only && !inputs.first_use_only }}
         uses: actions/upload-artifact@v7
         with:
           name: Newbili-Android-native-tests

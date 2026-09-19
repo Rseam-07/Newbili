@@ -241,6 +241,9 @@ abstract final class SettingBoxKey {
       saveReply = 'saveReply',
       appFont = 'appFont',
       newbiliLiquidGlass = 'newbiliLiquidGlass';
+
+  static const String newbiliOnboardingVersion =
+      'newbiliOnboardingVersion';
 }
 
 abstract final class LocalCacheKey {
