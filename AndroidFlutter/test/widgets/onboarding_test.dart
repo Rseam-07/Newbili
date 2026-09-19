@@ -164,12 +164,14 @@ Future<void> _capture(
   String name,
 ) async {
   final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-  final image = await boundary.toImage(pixelRatio: 1);
-  final data = await image.toByteData(format: ui.ImageByteFormat.png);
-  final directory = Directory(output);
-  await directory.create(recursive: true);
-  await File('${directory.path}/$name').writeAsBytes(
-    data!.buffer.asUint8List(),
-  );
-  image.dispose();
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    final directory = Directory(output);
+    await directory.create(recursive: true);
+    await File('${directory.path}/$name').writeAsBytes(
+      data!.buffer.asUint8List(),
+    );
+    image.dispose();
+  });
 }
