@@ -91,6 +91,7 @@ jobs:
 
       - name: Verify launcher identity and first-use introduction
         if: ${{ inputs.first_use_only }}
+        timeout-minutes: 4
         working-directory: AndroidFlutter
         run: |
           sudo apt-get update -qq

@@ -99,6 +99,8 @@ void main() {
     await tester.pump();
     expect(completed, isTrue);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   for (final config in <(String, Size, Brightness, double)>[
@@ -121,9 +123,14 @@ void main() {
           textScale: config.$4,
         ),
       );
-      await tester.pumpAndSettle();
+      // The production screen intentionally owns an interruptible PageView.
+      // A bounded pump renders its initial resting frame without waiting on
+      // unrelated engine callbacks that can keep pumpAndSettle alive in CI.
+      await tester.pump(const Duration(milliseconds: 500));
       expect(tester.takeException(), isNull);
       if (output.isNotEmpty) await _capture(tester, key, '${config.$1}.png');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
     });
   }
 }

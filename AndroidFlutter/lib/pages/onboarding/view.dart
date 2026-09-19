@@ -507,18 +507,21 @@ class _OnboardingStory extends StatelessWidget {
     return ExcludeSemantics(
       child: RepaintBoundary(
         child: Center(
-        child: AspectRatio(
-          aspectRatio: 1.18,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final unit = math.min(constraints.maxWidth, constraints.maxHeight);
-              final lift = -unit * 0.025 * progress;
-              return Transform.translate(
-                offset: Offset(0, lift),
-                child: Stack(
-                  alignment: Alignment.center,
-                  clipBehavior: Clip.none,
-                  children: [
+          child: AspectRatio(
+            aspectRatio: 1.18,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final unit = math.min(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                );
+                final lift = -unit * 0.025 * progress;
+                return Transform.translate(
+                  offset: Offset(0, lift),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
                     Transform.rotate(
                       angle: -0.06 + progress * 0.04,
                       child: Container(
@@ -579,12 +582,12 @@ class _OnboardingStory extends StatelessWidget {
                         child: _FloatingActionBadge(progress: progress),
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -691,7 +694,7 @@ class _PlayerScene extends StatelessWidget {
       children: [
         Expanded(
           flex: 7,
-          child: Container(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
