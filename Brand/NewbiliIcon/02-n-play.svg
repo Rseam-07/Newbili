@@ -6,6 +6,5 @@
       <path d="M438 449 C438 425 466 411 486 424 L600 500 C618 512 618 540 600 552 L486 628 C466 641 438 627 438 603 Z" fill="#000"/>
     </mask>
   </defs>
-  <path d="M282 712 V328 C282 288 329 269 356 299 L742 725 V312" fill="none" stroke="#D44C7D" stroke-width="132" stroke-linecap="round" stroke-linejoin="round" mask="url(#play-cut)"/>
-  <circle cx="755" cy="268" r="36" fill="#42BFD0"/>
+  <path d="M282 712 V328 C282 288 329 269 356 299 L742 725 V312" fill="none" stroke="#F2AEC2" stroke-width="132" stroke-linecap="round" stroke-linejoin="round" mask="url(#play-cut)"/>
 </svg>

@@ -1,35 +1,27 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+    "automatic-gradient" : "extended-srgb:0.12941,0.10196,0.17255,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "04-signal.svg",
-          "name" : "Signal"
+          "image-name" : "03-accent.svg",
+          "name" : "Accent"
         },
         {
-          "image-name" : "03-screen.svg",
-          "name" : "Screen"
+          "image-name" : "02-n-play.svg",
+          "name" : "N Play"
         },
         {
-          "image-name" : "02-tv-shell.svg",
-          "name" : "TV Shell"
-        },
-        {
-          "image-name" : "01-atmosphere.svg",
-          "name" : "Atmosphere"
+          "image-name" : "01-surface.svg",
+          "name" : "Surface"
         }
       ],
       "name" : "Newbili",
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.3
+        "opacity" : 0.24
       }
     }
   ],

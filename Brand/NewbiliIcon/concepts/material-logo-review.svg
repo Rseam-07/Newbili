@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">
+  <rect width="1800" height="1200" fill="#F8F5FA"/>
+  <rect x="900" width="900" height="1200" fill="#17131B"/>
+  <g font-family="Arial, sans-serif">
+    <text x="64" y="76" font-size="34" font-weight="700" fill="#211A2C">Newbili · Material logo directions</text>
+    <text x="964" y="76" font-size="34" font-weight="700" fill="#FFF7FA">Dark surface check</text>
+    <text x="64" y="116" font-size="19" fill="#6E6472">single silhouette · flat tonal color · 32 px recognition</text>
+    <text x="964" y="116" font-size="19" fill="#CFC5D1">single silhouette · flat tonal color · 32 px recognition</text>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="24" font-weight="700">
+    <text x="64" y="198" fill="#211A2C">A · N Play</text><text x="964" y="198" fill="#FFF7FA">A · N Play</text>
+    <text x="64" y="540" fill="#211A2C">B · Play Tile</text><text x="964" y="540" fill="#FFF7FA">B · Play Tile</text>
+    <text x="64" y="882" fill="#211A2C">C · Media Bubble</text><text x="964" y="882" fill="#FFF7FA">C · Media Bubble</text>
+  </g>
+  <g>
+    <image href="concept-a-n-play.svg" x="64" y="222" width="256" height="256"/><image href="concept-a-n-play.svg" x="370" y="318" width="96" height="96"/><image href="concept-a-n-play.svg" x="516" y="334" width="64" height="64"/><image href="concept-a-n-play.svg" x="630" y="350" width="32" height="32"/>
+    <image href="concept-b-play-tile.svg" x="64" y="564" width="256" height="256"/><image href="concept-b-play-tile.svg" x="370" y="660" width="96" height="96"/><image href="concept-b-play-tile.svg" x="516" y="676" width="64" height="64"/><image href="concept-b-play-tile.svg" x="630" y="692" width="32" height="32"/>
+    <image href="concept-c-media-bubble.svg" x="64" y="906" width="256" height="256"/><image href="concept-c-media-bubble.svg" x="370" y="1002" width="96" height="96"/><image href="concept-c-media-bubble.svg" x="516" y="1018" width="64" height="64"/><image href="concept-c-media-bubble.svg" x="630" y="1034" width="32" height="32"/>
+    <image href="concept-a-n-play.svg" x="964" y="222" width="256" height="256"/><image href="concept-a-n-play.svg" x="1270" y="318" width="96" height="96"/><image href="concept-a-n-play.svg" x="1416" y="334" width="64" height="64"/><image href="concept-a-n-play.svg" x="1530" y="350" width="32" height="32"/>
+    <image href="concept-b-play-tile.svg" x="964" y="564" width="256" height="256"/><image href="concept-b-play-tile.svg" x="1270" y="660" width="96" height="96"/><image href="concept-b-play-tile.svg" x="1416" y="676" width="64" height="64"/><image href="concept-b-play-tile.svg" x="1530" y="692" width="32" height="32"/>
+    <image href="concept-c-media-bubble.svg" x="964" y="906" width="256" height="256"/><image href="concept-c-media-bubble.svg" x="1270" y="1002" width="96" height="96"/><image href="concept-c-media-bubble.svg" x="1416" y="1018" width="64" height="64"/><image href="concept-c-media-bubble.svg" x="1530" y="1034" width="32" height="32"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="17" fill="#786E7C">
+    <text x="64" y="500">256</text><text x="370" y="438">96</text><text x="516" y="422">64</text><text x="630" y="406">32</text>
+    <text x="64" y="842">256</text><text x="370" y="780">96</text><text x="516" y="764">64</text><text x="630" y="748">32</text>
+    <text x="64" y="1184">256</text><text x="370" y="1122">96</text><text x="516" y="1106">64</text><text x="630" y="1090">32</text>
+  </g>
+</svg>

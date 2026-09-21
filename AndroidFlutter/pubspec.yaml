@@ -240,10 +240,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   image_path: assets/images/logo/logo_2.png
-  image_path_android: assets/images/logo/newbili-mark.png
-  adaptive_icon_background: "#25113F"
+  image_path_android: assets/images/logo/logo_2.png
+  adaptive_icon_background: "#211A2C"
   adaptive_icon_foreground: assets/images/logo/newbili-mark.png
-  adaptive_icon_monochrome: assets/images/logo/newbili-mark.png
+  adaptive_icon_monochrome: assets/images/logo/newbili-icon-monochrome.png
 
 flutter_native_splash:
   android_12:
