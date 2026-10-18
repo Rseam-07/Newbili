@@ -21,10 +21,13 @@ struct SearchView: View {
             } else {
                 SearchLoadingList()
                     .task {
-                        holder.configure(api: dependencies.api)
+                        holder.configure(api: dependencies.api, libraryStore: libraryStore)
                     }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: libraryStore.showsSearchSuggestions) { _, _ in
+            holder.viewModel?.queryChanged()
+        }
     }
 }

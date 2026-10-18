@@ -572,6 +572,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     private static let surfaceHandoffReadinessResetDelayNanoseconds: UInt64 = 240_000_000
     private static let surfaceMigrationHoldNanoseconds: UInt64 = 700_000_000
     private static let currentSurfaceRevealSettleDelayNanoseconds: UInt64 = 380_000_000
+    private let applicationState: @MainActor () -> UIApplication.State
 
     init(
         videoURL: URL?,
@@ -595,8 +596,10 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         artworkURL: URL? = nil,
         playbackContentMode: PlayerPlaybackContentMode = .video,
         backgroundPlaybackMode: BackgroundPlaybackMode = .defaultValue,
-        engine: PlayerRenderingEngine? = nil
+        engine: PlayerRenderingEngine? = nil,
+        applicationState: @escaping @MainActor () -> UIApplication.State = { UIApplication.shared.applicationState }
     ) {
+        self.applicationState = applicationState
         let resolvedMetricsID = metricsID?.isEmpty == false ? metricsID! : UUID().uuidString
         self.title = title
         self.authorName = authorName
@@ -746,11 +749,9 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             let options = AVAudioSession.InterruptionOptions(rawValue: rawOptions)
             let systemAllowsResume = options.contains(.shouldResume)
             let shouldResume = audioInterruptionState.end(systemAllowsResume: systemAllowsResume)
-            let didReactivate = shouldResume
-                ? activateBackgroundPlaybackAudioSession()
-                : true
+            if shouldResume { engine.ensureAudioSessionActive(force: true) }
             recordAudioSessionEvent(
-                "interruption=ended systemAllowsResume=\(systemAllowsResume) resume=\(shouldResume) sessionActive=\(didReactivate)"
+                "interruption=ended systemAllowsResume=\(systemAllowsResume) resume=\(shouldResume) sessionRequest=queued"
             )
             if shouldResume {
                 play()
@@ -780,31 +781,18 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             || playbackSnapshot().isPlaying
             || audioInterruptionState.shouldResume
         audioInterruptionState.reset()
-        let didReactivate = activateBackgroundPlaybackAudioSession()
+        if shouldResume { engine.ensureAudioSessionActive(force: true) }
         wantsAutoplay = shouldResume
         recordAudioSessionEvent(
-            "mediaServices=reset resume=\(shouldResume) sessionActive=\(didReactivate)"
+            "mediaServices=reset resume=\(shouldResume) sessionRequest=queued"
         )
         rebuildMediaAfterPlaybackInterruption(allowsDetachedSurface: true)
-    }
-
-    @discardableResult
-    private func activateBackgroundPlaybackAudioSession() -> Bool {
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .moviePlayback, options: [])
-            try session.setActive(true)
-            return true
-        } catch {
-            recordAudioSessionEvent("sessionActivation=failed error=\(error.localizedDescription)")
-            return false
-        }
     }
 
     private func ensureBackgroundPlaybackAudioSessionIfPlaying() {
         let snapshot = playbackSnapshot()
         guard wantsAutoplay || isPlaying || snapshot.isPlaying else { return }
-        _ = activateBackgroundPlaybackAudioSession()
+        engine.ensureAudioSessionActive(force: false)
     }
 
     private func recordAudioSessionEvent(_ message: String) {
@@ -1546,7 +1534,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     private var allowsPlaybackInCurrentApplicationState: Bool {
         (playbackContentMode == .audioOnly && backgroundPlaybackMode != .off)
             || backgroundPlaybackMode == .always
-            || UIApplication.shared.applicationState == .active
+            || applicationState() == .active
             || isPictureInPictureActive
     }
 
@@ -3742,7 +3730,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
     }
 
     private var isAppInBackground: Bool {
-        UIApplication.shared.applicationState == .background
+        applicationState() == .background
     }
 
     private func handlePictureInPictureWillStop() {
@@ -5191,7 +5179,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
         shouldResumeAfterTransientSystemOverlay
             && isPictureInPictureActive
             && wantsAutoplay
-            && UIApplication.shared.applicationState != .active
+            && applicationState() != .active
     }
 
     private func markUserSeekIntent() {
@@ -5915,7 +5903,7 @@ final class PlayerStateViewModel: NSObject, ObservableObject {
             || engine.isPictureInPictureActive
     }
 
-#if DEBUG
+#if DEBUG || NATIVE_UNIT_TESTING
     var hasConfiguredPictureInPictureControllerForTesting: Bool {
         pictureInPictureController != nil
     }

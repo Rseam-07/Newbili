@@ -12,6 +12,7 @@ struct VideoDetailInteractionRenderSnapshot: Equatable {
 }
 
 struct VideoDetailFavoriteFolderRenderSnapshot: Equatable {
+    var account: FavoriteFolderAccount?
     var favoriteFolders: [FavoriteFolder] = []
     var favoriteFolderState: LoadingState = .idle
     var isMutatingInteraction = false
@@ -19,6 +20,7 @@ struct VideoDetailFavoriteFolderRenderSnapshot: Equatable {
     init() {}
 
     init(viewModel: VideoDetailViewModel) {
+        account = viewModel.favoriteFolderAccount
         favoriteFolders = viewModel.favoriteFolders
         favoriteFolderState = viewModel.favoriteFolderState
         isMutatingInteraction = viewModel.isMutatingFavorite

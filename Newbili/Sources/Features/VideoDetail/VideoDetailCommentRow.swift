@@ -56,8 +56,14 @@ struct CommentRow: View, Equatable {
                     isEnabled: style.showsReplyPreviewContainer,
                     showReplies: showReplies
                 )
+
+                VideoCommentComposerButton(root: comment)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
         .commentCopyContextMenu(text: comment.content?.message, title: "复制评论")
     }

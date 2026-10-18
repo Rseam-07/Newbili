@@ -41,9 +41,8 @@ extension HomeViewModel {
                 state = videos.isEmpty ? .failed("暂无内容") : .loaded
                 return
             }
-            if previousVideos.isEmpty {
-                await mediaPreloadCoordinator.prewarmInitialImagesBeforePublishing(refreshedVideos)
-            }
+            // Publish content immediately; replaceVideos schedules bounded
+            // background artwork prefetch without blocking route or scroll input.
             replaceVideos(
                 refreshedVideos,
                 previousVideos: previousVideos,

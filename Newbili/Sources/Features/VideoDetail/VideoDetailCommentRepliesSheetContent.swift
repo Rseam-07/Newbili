@@ -3,8 +3,8 @@ import SwiftUI
 struct CommentRepliesContent: View {
     let rootComment: Comment
     @ObservedObject var store: VideoDetailCommentThreadRenderStore
-    let reloadReplies: (Comment) async -> Void
-    let loadMoreReplies: (Comment) async -> Void
+    let reloadReplies: CommentReplyLoadAction
+    let loadMoreReplies: CommentReplyLoadAction
     let showDialog: (Comment) -> Void
     let toggleLike: (Comment) -> Void
 

@@ -3,7 +3,7 @@ import SwiftUI
 struct CommentRepliesLoadedList: View {
     let snapshot: VideoDetailCommentThreadRepliesSnapshot
     let rootComment: Comment
-    let loadMoreReplies: (Comment) async -> Void
+    let loadMoreReplies: CommentReplyLoadAction
     let showDialog: (Comment) -> Void
     let toggleLike: (Comment) -> Void
 

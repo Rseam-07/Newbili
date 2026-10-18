@@ -138,7 +138,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "播放标题",
             authorName: "  投稿作者  ",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         defer { player.stop() }
 
@@ -268,7 +269,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "Test",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         defer { player.stop() }
 
@@ -290,7 +292,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "Test",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         defer { player.stop() }
 
@@ -308,13 +311,15 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "Player A",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         let playerB = PlayerStateViewModel(
             videoURL: nil,
             audioURL: nil,
             title: "Player B",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         defer {
             playerA.stop()
@@ -469,7 +474,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "Playback session test",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         let session = PlaybackSession()
 
@@ -543,7 +549,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "系统后台暂停测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -594,7 +601,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "画中画返回测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         var restoreRequestCount = 0
         player.restoreUserInterfaceForPictureInPictureStop = {
@@ -660,7 +668,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "听视频后台播放测试",
             referer: "https://www.bilibili.com",
             playbackContentMode: .audioOnly,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         coordinator.activate(player)
         player.setPlaybackIntent(true)
@@ -686,7 +695,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "普通视频后台播放测试",
             referer: "https://www.bilibili.com",
             backgroundPlaybackMode: .always,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         coordinator.activate(player)
         player.setPlaybackIntent(true)
@@ -714,7 +724,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             referer: "https://www.bilibili.com",
             playbackContentMode: .audioOnly,
             backgroundPlaybackMode: .off,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         coordinator.activate(player)
         player.setPlaybackIntent(true)
@@ -743,7 +754,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             referer: "https://www.bilibili.com",
             playbackContentMode: .audioOnly,
             backgroundPlaybackMode: .listenOnly,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         coordinator.activate(player)
         player.setPlaybackIntent(true)
@@ -774,7 +786,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             resumeTime: 12,
             startupResumePolicy: .immediate,
             playbackContentMode: .audioOnly,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -804,7 +817,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: URL(string: "https://example.com/video-audio.m4s"),
             title: "原视频播放器",
             referer: "https://www.bilibili.com",
-            engine: oldEngine
+            engine: oldEngine,
+            applicationState: { .active }
         )
         let newEngine = PlayerLifecycleEngineSpy(isPlaying: false)
         let newPlayer = PlayerStateViewModel(
@@ -813,7 +827,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "听视频播放器",
             referer: "https://www.bilibili.com",
             playbackContentMode: .audioOnly,
-            engine: newEngine
+            engine: newEngine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         newPlayer.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -851,7 +866,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "后台预热兜底测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -883,7 +899,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "后台继续播放快速兜底测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -917,7 +934,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "系统后台手动暂停测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -947,7 +965,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "连续锁屏暂停测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -981,7 +1000,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "后台画面恢复测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -1027,7 +1047,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "后台分阶段恢复测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -1065,7 +1086,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "后台软恢复成功测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -1107,7 +1129,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "后台 PlayerItem 恢复成功测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -1149,7 +1172,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             title: "后台 PlayerItem 兜底测试",
             referer: "https://www.bilibili.com",
             isLiveStream: true,
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -1201,7 +1225,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "画中画开关测试",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         defer {
@@ -1231,7 +1256,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             audioURL: nil,
             title: "画中画重复关闭测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         defer { player.stop() }
 
@@ -1269,7 +1295,8 @@ final class PlayerFormalPlaybackConfigurationTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "原生手势测试",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         defer {
             surface.detachPlayerSurface()

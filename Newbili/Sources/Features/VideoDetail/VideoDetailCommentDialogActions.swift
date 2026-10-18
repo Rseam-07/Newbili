@@ -10,19 +10,34 @@ extension VideoDetailViewModel {
         dialogThreadStates[dialogKey(root: root, reply: reply)] ?? .idle
     }
 
-    func loadDialog(for root: Comment, reply: Comment) async {
-        let key = dialogKey(root: root, reply: reply)
-        guard dialogThreads[key] == nil else { return }
-        await loadDialogPage(for: root, reply: reply)
+    func dialogReply(root: Comment, replyID: Int) -> Comment? {
+        if let reply = (replyThreads[root.id] ?? []).first(where: { $0.id == replyID })
+            ?? root.replies?.first(where: { $0.id == replyID }) { return reply }
+        for replies in dialogThreads.values {
+            if let reply = replies.first(where: { $0.id == replyID }) { return reply }
+        }
+        return nil
     }
 
-    func reloadDialog(for root: Comment, reply: Comment) async {
+    func loadDialog(for rootID: Int, replyID: Int) async {
+        guard let root = replyRoot(for: rootID),
+              let reply = dialogReply(root: root, replyID: replyID) else { return }
         let key = dialogKey(root: root, reply: reply)
-        dialogThreads[key] = nil
-        await loadDialogPage(for: root, reply: reply)
+        guard dialogThreads[key] == nil, dialogThreadStates[key]?.isLoading != true else { return }
+        await loadDialogPage(for: rootID, replyID: replyID)
     }
 
-    func loadDialogPage(for root: Comment, reply: Comment) async {
+    func reloadDialog(for rootID: Int, replyID: Int) async {
+        guard let root = replyRoot(for: rootID),
+              let reply = dialogReply(root: root, replyID: replyID) else { return }
+        let key = dialogKey(root: root, reply: reply)
+        guard dialogThreadStates[key]?.isLoading != true else { return }
+        await loadDialogPage(for: rootID, replyID: replyID)
+    }
+
+    func loadDialogPage(for rootID: Int, replyID: Int) async {
+        guard !Task.isCancelled, let root = replyRoot(for: rootID),
+              let reply = dialogReply(root: root, replyID: replyID) else { return }
         guard let target = commentTarget else {
             dialogThreadStates[dialogKey(root: root, reply: reply)] = .failed("没有找到评论对象，无法加载对话")
             return
@@ -46,24 +61,32 @@ extension VideoDetailViewModel {
 
         dialogThreadStates[key] = .loading
         do {
-            let page = try await api.fetchCommentDialog(
+            let page = try await commentThreadService.fetchCommentDialog(
                 oid: target.oid,
                 type: target.type,
                 root: root.rpid,
-                dialog: dialogID
+                dialog: dialogID,
+                size: 20
             )
+            try Task.checkCancellation()
             guard isCurrentDialogThreadLoad(key: key, rootID: root.id, token: token, target: target) else {
                 return
             }
             let replies = uniqueComments(filteredComments(page.replies ?? []) + fallbackReplies)
-            dialogThreads[key] = replies.isEmpty ? fallbackReplies : replies
-            dialogThreadStates[key] = .loaded
+            commentThreadState.dialogThreads[key] = replies.isEmpty ? fallbackReplies : replies
+            commentThreadState.dialogThreadStates[key] = .loaded
+            syncCommentThreadRenderStore()
         } catch {
             guard isCurrentDialogThreadLoad(key: key, rootID: root.id, token: token, target: target) else {
                 return
             }
-            dialogThreads[key] = fallbackReplies
-            dialogThreadStates[key] = .failed(error.localizedDescription)
+            if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+                commentThreadState.dialogThreadStates[key] = dialogThreads[key] == nil ? .idle : .loaded
+            } else {
+                if dialogThreads[key] == nil { commentThreadState.dialogThreads[key] = fallbackReplies }
+                commentThreadState.dialogThreadStates[key] = .failed(error.localizedDescription)
+            }
+            syncCommentThreadRenderStore()
         }
     }
 }

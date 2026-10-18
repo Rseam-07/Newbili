@@ -3,9 +3,11 @@ import Foundation
 @MainActor
 struct CommentRepliesContentStateActions {
     let rootComment: Comment
-    let reloadReplies: (Comment) async -> Void
+    let reloadReplies: CommentReplyLoadAction
 
     func reloadRepliesAction() {
-        Task { await reloadReplies(rootComment) }
+        let rootID = rootComment.id
+        let reload = reloadReplies
+        Task { @MainActor in await reload(rootID) }
     }
 }

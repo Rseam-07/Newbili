@@ -4,6 +4,10 @@ import SwiftUI
 final class HomeFeedRefreshActions {
     private var didTriggerConfiguredPullRefresh = false
 
+    // Avoid the synthesized isolated-deinit runtime path on the iOS 26.2
+    // preview simulator (swiftlang/swift#88036). No actor state needs cleanup.
+    nonisolated deinit {}
+
     func retry(refresh: @escaping @MainActor () async -> Void) {
         Task { @MainActor in
             await refresh()

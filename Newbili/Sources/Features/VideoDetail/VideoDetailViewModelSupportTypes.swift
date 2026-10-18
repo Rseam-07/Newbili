@@ -8,6 +8,16 @@ nonisolated enum VideoDetailInteractionMutationKind: Equatable, Sendable {
     case follow
 }
 
+nonisolated struct VideoDetailFollowConfirmation: Equatable, Sendable {
+    let ownerMID: Int
+    let account: FavoriteFolderAccount
+    let isFollowing: Bool
+
+    func matches(ownerMID: Int?, account: FavoriteFolderAccount?) -> Bool {
+        self.ownerMID == ownerMID && self.account == account
+    }
+}
+
 nonisolated enum VideoDetailPlaybackHistorySelectionPolicy {
     static func preservesManualPage(manuallySelectedCID: Int?, currentCID: Int) -> Bool {
         manuallySelectedCID == currentCID

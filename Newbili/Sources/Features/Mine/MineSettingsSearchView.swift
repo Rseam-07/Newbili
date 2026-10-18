@@ -39,9 +39,9 @@ struct MineSettingsSearchView: View {
         MineSettingsSearchItem(
             route: .homeAndSearchSettings,
             title: "推荐与搜索设置",
-            subtitle: "推荐来源、首页风格、首页布局、刷新距离与热搜",
+            subtitle: "推荐来源、首页风格、布局、搜索建议与历史",
             systemImage: "sparkles",
-            keywords: ["首页使用app端推荐", "web端推荐", "首页布局", "热门搜索", "为你推荐"]
+            keywords: ["首页使用app端推荐", "web端推荐", "首页布局", "热门搜索", "搜索建议", "搜索历史", "清空历史", "为你推荐"]
         ),
         MineSettingsSearchItem(
             route: .playbackSettings,

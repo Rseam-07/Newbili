@@ -1319,33 +1319,26 @@ nonisolated final class BiliAPIClient {
         return response.payload?.list ?? []
     }
 
-    func fetchPgcBrowse(kind: HomePgcKind, page: Int) async throws -> PgcBrowsePage {
-        var query = [
-            "st": "1",
-            "order": "3",
-            "season_version": "-1",
-            "spoken_language_type": "-1",
-            "area": "-1",
-            "is_finish": "-1",
-            "copyright": "-1",
-            "season_status": "-1",
-            "season_month": "-1",
-            "year": "-1",
-            "style_id": "-1",
-            "sort": "0",
-            "season_type": "1",
-            "pagesize": "20",
-            "type": "1",
-            "page": String(max(1, page))
-        ]
-        if let indexType = kind.indexType {
-            query["index_type"] = String(indexType)
-        }
+    func fetchPgcBrowse(kind: HomePgcKind, page: Int, filters: [String: String]? = nil) async throws -> PgcBrowsePage {
+        let query = PgcBrowseParameters.make(kind: kind, page: page, filters: filters)
         let response: BiliResponse<PgcBrowsePage> = try await get(
             base: baseURL,
             path: "/pgc/season/index/result",
             query: query,
             responseCachePolicy: .brief
+        )
+        guard response.code == 0, let payload = response.payload else {
+            throw BiliAPIError.api(code: response.code, message: response.displayMessage)
+        }
+        return payload
+    }
+
+    func fetchPgcIndexConditions(kind: HomePgcKind) async throws -> PgcIndexConditions {
+        var query = ["type": "0"]
+        if let indexType = kind.indexType { query["index_type"] = String(indexType) }
+        else { query["season_type"] = "1" }
+        let response: BiliResponse<PgcIndexConditions> = try await get(
+            base: baseURL, path: "/pgc/season/index/condition", query: query, responseCachePolicy: .brief
         )
         guard response.code == 0, let payload = response.payload else {
             throw BiliAPIError.api(code: response.code, message: response.displayMessage)
@@ -2390,15 +2383,25 @@ nonisolated final class BiliAPIClient {
         }
     }
 
-    func fetchFavoriteFolders(for aid: Int? = nil) async throws -> [FavoriteFolder] {
+    func fetchFavoriteFolders(for aid: Int? = nil, account: FavoriteFolderAccount? = nil) async throws -> [FavoriteFolder] {
         let snapshot = await requestSnapshot(purpose: .interaction)
         guard snapshot.isLoggedIn else { throw BiliAPIError.missingSESSDATA }
+        if let account {
+            guard snapshot.currentUserMID == account.mid, snapshot.playbackCredentialVersion == account.version
+            else { throw FavoriteFolderEditError.staleAccount }
+        }
         return try await favoriteFolderSummaries(rid: aid, snapshot: snapshot)
             .filter { $0.id > 0 }
     }
 
-    func setVideoFavorite(aid: Int, addFolderIDs: Set<Int>, removeFolderIDs: Set<Int>) async throws {
+    func setVideoFavorite(aid: Int, addFolderIDs: Set<Int>, removeFolderIDs: Set<Int>,
+                          account: FavoriteFolderAccount? = nil) async throws {
         let context = try await requireCSRFContext(for: .interaction)
+        if let account {
+            guard context.snapshot.currentUserMID == account.mid,
+                  context.snapshot.playbackCredentialVersion == account.version
+            else { throw FavoriteFolderEditError.staleAccount }
+        }
         let addIDs = addFolderIDs
             .filter { $0 > 0 && !removeFolderIDs.contains($0) }
             .sorted()
@@ -6658,12 +6661,13 @@ nonisolated final class BiliAPIClient {
         return nil
     }
 
-    func searchVideos(keyword: String, page: Int = 1, order: String? = nil) async throws -> [VideoItem] {
+    func searchVideos(keyword: String, page: Int = 1, order: String? = nil, filters: [String: String] = [:]) async throws -> [VideoItem] {
         let results: [SearchVideoItem] = try await searchTypedResults(
             keyword: keyword,
             searchType: "video",
             page: page,
-            order: order
+            order: order,
+            videoFilters: filters
         )
         return results
             .filter { !$0.bvid.isEmpty }
@@ -6692,7 +6696,8 @@ nonisolated final class BiliAPIClient {
         keyword: String,
         searchType: String,
         page: Int = 1,
-        order: String? = nil
+        order: String? = nil,
+        videoFilters: [String: String] = [:]
     ) async throws -> [Result] {
         let keys = try await fetchWBIKeys(priority: .userInitiated)
         var params = [
@@ -6703,6 +6708,11 @@ nonisolated final class BiliAPIClient {
         ]
         if let order, !order.isEmpty {
             params["order"] = order
+        }
+        if searchType == "video" {
+            for key in ["duration", "tids", "pubtime_begin_s", "pubtime_end_s"] {
+                if let value = videoFilters[key] { params[key] = value }
+            }
         }
         let signed = WBISigner.sign(params, keys: keys)
         let response: BiliResponse<SearchTypeData<Result>> = try await get(
@@ -6717,11 +6727,12 @@ nonisolated final class BiliAPIClient {
 
     func fetchSearchSuggest(term: String) async throws -> [SearchSuggestItem] {
         let response: BiliResponse<SearchSuggestResponse> = try await get(
-            base: baseURL,
-            path: "/x/web-interface/search/suggest",
+            base: URL(string: "https://s.search.bilibili.com")!,
+            path: "/main/suggest",
             query: ["term": term, "main_ver": "v1", "highlight": ""],
             responseCachePolicy: .brief
         )
+        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
         return response.payload?.tag ?? []
     }
 
@@ -7280,10 +7291,11 @@ nonisolated final class BiliAPIClient {
             base: baseURL,
             path: "/x/v2/reply/reply",
             query: query,
-            priority: .background
+            priority: .userInitiated
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
-        return response.payload ?? CommentPage(replies: [], topReplies: [], cursor: nil)
+        guard let page = response.payload else { throw BiliAPIError.emptyData }
+        return page
     }
 
     func fetchCommentDialog(aid: Int, root: Int, dialog: Int, size: Int = 20) async throws -> CommentPage {
@@ -7301,10 +7313,11 @@ nonisolated final class BiliAPIClient {
                 "dialog": String(dialog),
                 "size": String(size)
             ],
-            priority: .background
+            priority: .userInitiated
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
-        return response.payload ?? CommentPage(replies: [], topReplies: [], cursor: nil)
+        guard let page = response.payload else { throw BiliAPIError.emptyData }
+        return page
     }
 
     func submitComment(
@@ -8612,7 +8625,8 @@ nonisolated final class BiliAPIClient {
             base: baseURL,
             path: "/x/v3/fav/folder/created/list-all",
             query: query,
-            cookieHeader: snapshot.cookieHeader
+            cookieHeader: snapshot.cookieHeader,
+            cachePolicy: .reloadIgnoringLocalCacheData
         )
         guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
         return response.payload?.list ?? []
@@ -9341,5 +9355,75 @@ private actor BiliAPIClientState {
             .prefix(overflow)
             .map(\.key)
         oldestKeys.forEach { danmakuCache[$0] = nil }
+    }
+}
+
+
+extension BiliAPIClient: VideoSubtitleServing {
+    func fetchPlaybackSubtitleTracks(request: VideoTranscriptRequest) async throws -> [VideoSubtitleTrack] {
+        let snapshot = await requestSnapshot(purpose: .playback)
+        let query = try await signedWBIQuery(["bvid": request.bvid, "cid": String(request.cid)])
+        let response: BiliResponse<VideoPlayerSubtitlePayload> = try await get(
+            base: baseURL,
+            path: "/x/player/wbi/v2",
+            query: query,
+            referer: "https://www.bilibili.com/video/\(request.bvid)",
+            cookieHeader: snapshot.cookieHeader,
+            responseCachePolicy: .short,
+            priority: .userInitiated
+        )
+        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+        guard let payload = response.payload else { throw BiliAPIError.missingPayload }
+        return payload.subtitle?.subtitles ?? []
+    }
+
+    func fetchPlaybackSubtitleCues(request: VideoTranscriptRequest, track: VideoSubtitleTrack) async throws -> [VideoSubtitleCue] {
+        guard let url = VideoTranscriptService.trustedSubtitleURL(from: track.urlString) else {
+            throw VideoTranscriptServiceError.invalidResponse
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.timeoutInterval = 15
+        urlRequest.httpShouldHandleCookies = false
+        urlRequest.setValue("https://www.bilibili.com/video/\(request.bvid)", forHTTPHeaderField: "Referer")
+        urlRequest.setValue(Self.webUserAgent, forHTTPHeaderField: "User-Agent")
+        let (data, _) = try await data(for: urlRequest, priority: .userInitiated)
+        guard data.count <= 4 * 1_024 * 1_024 else { throw VideoTranscriptServiceError.responseTooLarge }
+        let document: VideoSubtitleDocument = try await Self.decode(data, priority: .userInitiated)
+        guard let body = document.body else { throw BiliAPIError.missingPayload }
+        return body
+    }
+}
+
+
+extension BiliAPIClient: FavoriteFolderEditing {
+    func saveFavoriteFolder(id: Int?, draft: FavoriteFolderDraft, account: FavoriteFolderAccount) async throws -> FavoriteFolder {
+        if let message = draft.validationMessage { throw FavoriteFolderEditError.validation(message) }
+        if let id, id <= 0 { throw BiliAPIError.missingPayload }
+        let context = try await requireCSRFContext(for: .interaction)
+        guard context.snapshot.currentUserMID == account.mid,
+              context.snapshot.playbackCredentialVersion == account.version else { throw FavoriteFolderEditError.staleAccount }
+        var body = ["title": draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    "intro": draft.intro, "privacy": draft.isPublic ? "0" : "1", "cover": draft.cover,
+                    "csrf": context.csrf]
+        if let id { body["media_id"] = String(id) }
+        // Creating a folder is not safe to retry automatically after a lost response.
+        let response: BiliResponse<FavoriteFolder> = try await postForm(
+            base: baseURL, path: id == nil ? "/x/v3/fav/folder/add" : "/x/v3/fav/folder/edit",
+            body: body, cookieHeader: context.snapshot.cookieHeader, retryPolicy: .nonIdempotentMutation)
+        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
+        guard let folder = response.payload, folder.id > 0 else { throw BiliAPIError.missingPayload }
+        return folder
+    }
+
+    func deleteFavoriteFolder(id: Int, account: FavoriteFolderAccount) async throws {
+        guard id > 0 else { throw BiliAPIError.missingPayload }
+        let context = try await requireCSRFContext(for: .interaction)
+        guard context.snapshot.currentUserMID == account.mid,
+              context.snapshot.playbackCredentialVersion == account.version else { throw FavoriteFolderEditError.staleAccount }
+        let response: BiliResponse<EmptyBiliPayload> = try await postForm(
+            base: baseURL, path: "/x/v3/fav/folder/del",
+            body: ["media_ids": String(id), "platform": "web", "csrf": context.csrf],
+            cookieHeader: context.snapshot.cookieHeader, retryPolicy: .nonIdempotentMutation)
+        guard response.code == 0 else { throw BiliAPIError.api(code: response.code, message: response.displayMessage) }
     }
 }

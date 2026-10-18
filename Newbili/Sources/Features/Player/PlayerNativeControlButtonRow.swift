@@ -17,100 +17,77 @@ struct PlayerNativeControlButtonRow: View {
     let actions: PlayerNativePlaybackControlsActions
 
     var body: some View {
-        ZStack {
+        GeometryReader { proxy in
+            let compact = proxy.size.width < 520
             HStack(spacing: metrics.controlSpacing) {
                 if layout.showsPlaybackToggle {
-                    PlayerNativeGlassIconButton(
-                        systemName: isPlaying ? "pause.fill" : "play.fill",
-                        accessibilityLabel: isPlaying ? "暂停" : "播放",
-                        metrics: metrics,
-                        action: actions.onTogglePlayback
-                    )
+                    icon(isPlaying ? "pause.fill" : "play.fill", title: isPlaying ? "暂停" : "播放", action: actions.onTogglePlayback)
                 }
-
-                if layout.showsTimeLabel {
+                if layout.showsTimeLabel, controlsCenterAccessory == nil {
                     PlayerNativeTimeLabel(clock: clock, metrics: metrics)
-                        .frame(
-                            width: metrics.timeLabelWidth,
-                            height: metrics.controlHeight
-                        )
-                        .biliPlayerClearGlass(
-                            interactive: false,
-                            in: Capsule(),
-                            isEnabled: true
-                        )
+                        .frame(width: min(metrics.timeLabelWidth, compact ? 86 : 104), height: metrics.controlHeight)
                 }
-
-                if layout.isLive, let controlsAccessory {
-                    controlsAccessory
-                        .frame(height: metrics.controlHeight)
-                }
-
+                if layout.isLive, let controlsAccessory { controlsAccessory }
                 Spacer(minLength: 0)
-
-                if !layout.isLive, let controlsAccessory {
-                    controlsAccessory
-                        .frame(height: metrics.controlHeight)
-                }
-
+                // Center accessories participate in layout instead of overlapping
+                // the time label and trailing buttons in a ZStack.
+                if let controlsCenterAccessory { controlsCenterAccessory; Spacer(minLength: 0) }
+                if !layout.isLive, let controlsAccessory { controlsAccessory }
                 if showsDanmakuButton {
-                    PlayerNativeGlassIconButton(
-                        systemName: danmakuControlSymbol,
-                        accessibilityLabel: "弹幕设置",
-                        metrics: metrics,
-                        action: actions.onToggleDanmaku
-                    )
+                    icon(danmakuControlSymbol,
+                         title: layout.isLive ? "弹幕设置" : (isDanmakuEnabled ? "关闭弹幕" : "开启弹幕"),
+                         action: actions.onToggleDanmaku)
                 }
-
-                if showsSendDanmakuButton {
-                    PlayerNativeGlassIconButton(
-                        systemName: "paperplane.fill",
-                        accessibilityLabel: "发送弹幕",
-                        metrics: metrics,
-                        action: actions.onSendDanmaku
-                    )
+                if compact {
+                    if showsSendDanmakuButton || pictureInPicturePresentation.isVisible { secondaryControls }
+                } else {
+                    if showsSendDanmakuButton { icon("paperplane.fill", title: "发送弹幕", action: actions.onSendDanmaku) }
+                    if pictureInPicturePresentation.isVisible { pictureInPictureButton }
                 }
-
-                if pictureInPicturePresentation.isVisible {
-                    PlayerNativeGlassIconButton(
-                        systemName: pictureInPicturePresentation.systemName,
-                        accessibilityLabel: pictureInPicturePresentation.accessibilityLabel,
-                        metrics: metrics,
-                        action: actions.onTogglePictureInPicture
-                    )
-                    .accessibilityValue(pictureInPicturePresentation.accessibilityValue)
-                }
-
                 if canToggleFullscreen {
-                    PlayerNativeGlassIconButton(
-                        systemName: isFullscreenActive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                        accessibilityLabel: isFullscreenActive ? "退出全屏" : "全屏",
-                        metrics: metrics,
-                        action: actions.onToggleFullscreen
-                    )
+                    icon(isFullscreenActive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                         title: isFullscreenActive ? "退出全屏" : "全屏", action: actions.onToggleFullscreen)
                 }
             }
-
-            if let controlsCenterAccessory {
-                controlsCenterAccessory
-                    .frame(height: metrics.controlHeight)
-            }
+            .frame(width: proxy.size.width, height: max(44, metrics.controlHeight))
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: metrics.controlHeight)
+        .frame(height: max(44, metrics.controlHeight))
+    }
+
+    private func icon(_ name: String, title: String, action: @escaping () -> Void) -> some View {
+        PlayerNativeGlassIconButton(systemName: name, accessibilityLabel: title, metrics: metrics, action: action)
+    }
+
+    private var secondaryControls: some View {
+        Menu {
+            if showsSendDanmakuButton {
+                Button("发送弹幕", systemImage: "paperplane", action: actions.onSendDanmaku)
+            }
+            if pictureInPicturePresentation.isVisible {
+                Button(pictureInPicturePresentation.accessibilityLabel,
+                       systemImage: pictureInPicturePresentation.systemName, action: actions.onTogglePictureInPicture)
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: metrics.iconSize, weight: .semibold))
+                .frame(width: metrics.controlHeight, height: metrics.controlHeight)
+        }
+        .biliPlayerCompactGlassCircle(metrics: metrics)
+        .accessibilityLabel("更多播放操作")
+    }
+
+    private var pictureInPictureButton: some View {
+        icon(pictureInPicturePresentation.systemName, title: pictureInPicturePresentation.accessibilityLabel,
+             action: actions.onTogglePictureInPicture)
+            .accessibilityValue(pictureInPicturePresentation.accessibilityValue)
     }
 
     private var danmakuControlSymbol: String {
-        layout.isLive
-            ? "slider.horizontal.3"
-            : (isDanmakuEnabled ? "text.bubble.fill" : "text.bubble")
+        layout.isLive ? "slider.horizontal.3" : (isDanmakuEnabled ? "text.bubble.fill" : "text.bubble")
     }
 
     private var pictureInPicturePresentation: PlayerNativePictureInPictureControlPresentation {
-        PlayerNativePictureInPictureControlPresentation(
-            isSupported: isPictureInPictureSupported,
-            isActive: isPictureInPictureActive
-        )
+        PlayerNativePictureInPictureControlPresentation(isSupported: isPictureInPictureSupported, isActive: isPictureInPictureActive)
     }
 }
 

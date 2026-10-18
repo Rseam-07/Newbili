@@ -9,6 +9,11 @@ import UIKit
 
 @MainActor
 final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
+    private let audioSessionOwner = UUID()
+    private var audioSessionRequestRevision: UInt64 = 0
+    private var isAudioSessionReady = false
+    private var isAudioSessionRequestPending = false
+
     private static let interactiveSeekTolerance = CMTime(seconds: 0.35, preferredTimescale: 600)
     private static let seekProtectionReleaseDelayNanoseconds: UInt64 = 900_000_000
     private static let hdrFirstFrameTimeoutNanoseconds: UInt64 = 11_000_000_000
@@ -221,6 +226,7 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
     }
 
     deinit {
+        PlaybackAudioSessionCoordinator.shared.release(audioSessionOwner)
         pendingSurfaceDetachTask?.cancel()
         itemObservers.removeAll()
         layerReadyForDisplayObserver = nil
@@ -298,7 +304,7 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
 
     func recoverSurface() {
         guard !isStopped else { return }
-        configureAudioSession()
+        if wantsPlayback { ensureAudioSessionActive(force: false) }
         if let playerViewController {
             // AVPlayerViewController owns the active video layer for normal video
             // playback. Reassigning its player forces a fresh drawable after a
@@ -611,9 +617,9 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
     func play() {
         guard !isStopped, let item = player.currentItem else { return }
         shouldPrerollPausedRecoveryAfterSeek = false
-        configureAudioSession()
         applyTargetAudioState()
         wantsPlayback = true
+        ensureAudioSessionActive(force: false)
         guard item.status == .readyToPlay else {
             if item.status == .unknown {
                 beginPlayback()
@@ -1013,7 +1019,11 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
     func invalidatePictureInPicturePlaybackState() {}
 
     private func beginPlayback() {
-        guard !isStopped, player.currentItem != nil else { return }
+        guard !isStopped, wantsPlayback, player.currentItem != nil else { return }
+        guard isAudioSessionReady else {
+            ensureAudioSessionActive(force: false)
+            return
+        }
         startPlaybackImmediately()
     }
 
@@ -1490,25 +1500,28 @@ final class AVPlayerHLSBridgeEngine: PlayerRenderingEngine {
         )
     }
 
-    private func configureAudioSession() {
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .moviePlayback, options: [])
-            try session.setActive(true)
-        } catch {
-            // Playback can still proceed if the simulator or system declines the session update.
+    func ensureAudioSessionActive(force: Bool) {
+        guard !isStopped else { return }
+        guard force || (!isAudioSessionReady && !isAudioSessionRequestPending) else { return }
+        audioSessionRequestRevision &+= 1
+        let revision = audioSessionRequestRevision
+        isAudioSessionRequestPending = true
+        isAudioSessionReady = false
+        PlaybackAudioSessionCoordinator.shared.acquire(audioSessionOwner, force: force) { [weak self] _ in
+            guard let self, !self.isStopped, self.audioSessionRequestRevision == revision else { return }
+            self.isAudioSessionRequestPending = false
+            // AVPlayer may still play if the system declines explicit activation.
+            // Preserve that fallback without ever blocking the UI waiting for it.
+            self.isAudioSessionReady = true
+            if self.wantsPlayback { self.beginPlayback() }
         }
     }
 
     private func deactivateAudioSessionIfPossible() {
-        guard let viewModel,
-              ActivePlaybackCoordinator.shared.isActive(viewModel)
-        else { return }
-        do {
-            try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-        } catch {
-            // The session may already be inactive or owned by a system transition.
-        }
+        audioSessionRequestRevision &+= 1
+        isAudioSessionRequestPending = false
+        isAudioSessionReady = false
+        PlaybackAudioSessionCoordinator.shared.release(audioSessionOwner)
     }
 
     private func configureStartupBuffering(for item: AVPlayerItem, source: PlayerStreamSource) {

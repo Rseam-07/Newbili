@@ -20,6 +20,8 @@ struct HomePgcBrowseView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
+                    filtersSection
+
                     if let featured = viewModel.items.first {
                         PgcFeaturedHeroCard(item: featured, kind: kind, open: open)
                             .padding(.horizontal, 16)
@@ -35,6 +37,17 @@ struct HomePgcBrowseView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
+                    } else if viewModel.canLoadMore {
+                        VStack(spacing: 8) {
+                            if let error = viewModel.loadMoreError {
+                                Text(error).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Button(viewModel.loadMoreError == nil ? "加载更多" : "重试加载更多") {
+                                Task { await viewModel.loadMore(api: dependencies.api) }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.top, 10)
@@ -55,6 +68,69 @@ struct HomePgcBrowseView: View {
         .onChange(of: viewModel.timeline) { _, _ in
             selectDefaultTimelineDay()
         }
+    }
+
+    private var filtersSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("筛选与排序", systemImage: "line.3.horizontal.decrease")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                if viewModel.hasActiveFilters {
+                    Button("重置") { Task { await viewModel.resetFilters(api: dependencies.api) } }
+                        .font(.subheadline)
+                }
+            }
+            if let conditions = viewModel.conditions {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        if !conditions.order.isEmpty {
+                            Menu {
+                                ForEach(conditions.order) { order in
+                                    Button {
+                                        Task { await viewModel.selectFilter(field: "order", value: order.field, api: dependencies.api) }
+                                    } label: {
+                                        Label(order.name, systemImage: order.field == viewModel.selectedValue(for: "order") ? "checkmark" : "arrow.up.arrow.down")
+                                    }
+                                }
+                            } label: {
+                                Text(conditions.order.first(where: { $0.field == viewModel.selectedValue(for: "order") })?.name ?? "排序")
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityLabel("作品排序")
+                        }
+                        ForEach(conditions.filters) { filter in
+                            Menu {
+                                ForEach(filter.values) { value in
+                                    Button {
+                                        Task { await viewModel.selectFilter(field: filter.field, value: value.keyword, api: dependencies.api) }
+                                    } label: {
+                                        Label(value.name, systemImage: value.keyword == viewModel.selectedValue(for: filter.field) ? "checkmark" : "line.3.horizontal.decrease")
+                                    }
+                                }
+                            } label: {
+                                Text("\(filter.name)：\(filter.values.first(where: { $0.keyword == viewModel.selectedValue(for: filter.field) })?.name ?? "全部")")
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityLabel("\(filter.name)筛选")
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            } else if viewModel.conditionState.isLoading {
+                ProgressView("正在加载筛选条件").font(.caption)
+            } else if case .failed = viewModel.conditionState {
+                Button("重新加载筛选条件") { viewModel.loadConditions(api: dependencies.api) }
+                    .font(.subheadline)
+                    .buttonStyle(.bordered)
+            }
+            if kind == .bangumi, case .failed = viewModel.timelineState {
+                Button("重新加载更新日历") { viewModel.loadTimeline(api: dependencies.api) }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .padding(.horizontal, 16)
     }
 
     private var pgcGridSection: some View {
@@ -91,7 +167,7 @@ struct HomePgcBrowseView: View {
     private var timelineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("追番日历", systemImage: "calendar.badge.clock")
+                Label("更新日历", systemImage: "calendar.badge.clock")
                     .font(.title3.bold())
                 Spacer()
                 Text("近期更新")
@@ -174,107 +250,6 @@ struct HomePgcBrowseView: View {
     private func open(_ route: PgcSeasonRoute?) {
         guard let route else { return }
         openPgcSeasonRoute?(route)
-    }
-}
-
-@MainActor
-private final class HomePgcBrowseViewModel: ObservableObject {
-    let kind: HomePgcKind
-    @Published private(set) var items: [PgcBrowseItem] = []
-    @Published private(set) var timeline: [PgcTimelineDay] = []
-    @Published private(set) var state: LoadingState = .idle
-    @Published private(set) var isLoadingMore = false
-    @Published private(set) var total: Int?
-
-    private var page = 1
-    private var hasNext = true
-    private var isLoading = false
-
-    init(kind: HomePgcKind) {
-        self.kind = kind
-    }
-
-    func loadInitial(api: BiliAPIClient) async {
-        guard items.isEmpty, !isLoading else { return }
-        await refresh(api: api)
-    }
-
-    func refresh(api: BiliAPIClient) async {
-        guard !isLoading else { return }
-        isLoading = true
-        state = .loading
-        defer { isLoading = false }
-
-        do {
-            async let pageRequest = api.fetchPgcBrowse(kind: kind, page: 1)
-            if kind == .bangumi {
-                async let bangumiTimeline = api.fetchPgcTimeline(types: 1)
-                async let domesticTimeline = api.fetchPgcTimeline(types: 4)
-                let (pageResult, firstTimeline, secondTimeline) = try await (
-                    pageRequest,
-                    bangumiTimeline,
-                    domesticTimeline
-                )
-                apply(pageResult)
-                timeline = Self.mergeTimeline(firstTimeline, secondTimeline)
-            } else {
-                apply(try await pageRequest)
-                timeline = []
-            }
-            state = .loaded
-        } catch is CancellationError {
-            return
-        } catch {
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    func loadMore(api: BiliAPIClient) async {
-        guard hasNext, !isLoading, !isLoadingMore else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
-        do {
-            let nextPage = page + 1
-            let result = try await api.fetchPgcBrowse(kind: kind, page: nextPage)
-            var seen = Set(items.map(\.id))
-            items.append(contentsOf: result.list.filter { seen.insert($0.id).inserted })
-            page = nextPage
-            hasNext = result.hasNext
-            total = result.total ?? total
-        } catch is CancellationError {
-            return
-        } catch {
-            // Keep the current page usable. Pull to refresh remains the explicit retry path.
-        }
-    }
-
-    private func apply(_ result: PgcBrowsePage) {
-        items = result.list.filter { $0.seasonID > 0 }
-        page = 1
-        hasNext = result.hasNext
-        total = result.total
-    }
-
-    private static func mergeTimeline(
-        _ first: [PgcTimelineDay],
-        _ second: [PgcTimelineDay]
-    ) -> [PgcTimelineDay] {
-        var merged = first
-        for day in second {
-            if let index = merged.firstIndex(where: { $0.timestamp == day.timestamp && $0.date == day.date }) {
-                let combinedEpisodes = merged[index].episodes + day.episodes
-                merged[index] = PgcTimelineDay(
-                    date: merged[index].date,
-                    timestamp: merged[index].timestamp,
-                    dayOfWeek: merged[index].dayOfWeek,
-                    isToday: merged[index].isToday || day.isToday,
-                    episodes: combinedEpisodes
-                )
-            } else {
-                merged.append(day)
-            }
-        }
-        return merged.sorted { ($0.timestamp ?? 0) < ($1.timestamp ?? 0) }
     }
 }
 
@@ -498,7 +473,7 @@ private struct HomePgcBackdrop: View {
         ZStack {
             LinearGradient(
                 colors: colorScheme == .dark
-                    ? [Color(red: 0.07, green: 0.08, blue: 0.14), Color(red: 0.15, green: 0.09, blue: 0.12), .black]
+                    ? AppSurfaceColors.darkHomeGradient
                     : [Color(red: 0.97, green: 0.98, blue: 1), Color(red: 1, green: 0.96, blue: 0.97), .white],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -506,21 +481,21 @@ private struct HomePgcBackdrop: View {
 
             if realtimeAmbientBlurEnabled {
                 Circle()
-                    .fill((kind == .bangumi ? Color.pink : Color.orange).opacity(colorScheme == .dark ? 0.28 : 0.20))
+                    .fill((kind == .bangumi ? Color.pink : Color.orange).opacity(colorScheme == .dark ? 0.14 : 0.20))
                     .frame(width: 330, height: 330)
                     .blur(radius: 72)
                     .offset(x: -150, y: -230)
 
                 Circle()
-                    .fill(Color.cyan.opacity(colorScheme == .dark ? 0.20 : 0.15))
+                    .fill(Color.cyan.opacity(colorScheme == .dark ? 0.09 : 0.15))
                     .frame(width: 360, height: 360)
                     .blur(radius: 78)
                     .offset(x: 150, y: 260)
             } else {
                 HomeAmbientGradientGlow(
                     color: kind == .bangumi ? .pink : .orange,
-                    innerOpacity: colorScheme == .dark ? 0.28 : 0.20,
-                    middleOpacity: colorScheme == .dark ? 0.13 : 0.09,
+                    innerOpacity: colorScheme == .dark ? 0.14 : 0.20,
+                    middleOpacity: colorScheme == .dark ? 0.05 : 0.09,
                     endRadius: 235
                 )
                 .frame(width: 470, height: 470)
@@ -528,8 +503,8 @@ private struct HomePgcBackdrop: View {
 
                 HomeAmbientGradientGlow(
                     color: .cyan,
-                    innerOpacity: colorScheme == .dark ? 0.20 : 0.15,
-                    middleOpacity: colorScheme == .dark ? 0.09 : 0.07,
+                    innerOpacity: colorScheme == .dark ? 0.09 : 0.15,
+                    middleOpacity: colorScheme == .dark ? 0.035 : 0.07,
                     endRadius: 255
                 )
                 .frame(width: 510, height: 510)

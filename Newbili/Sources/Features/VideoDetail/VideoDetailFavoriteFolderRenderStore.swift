@@ -6,6 +6,7 @@ final class VideoDetailFavoriteFolderRenderStore: ObservableObject {
     @Published private var snapshot = VideoDetailFavoriteFolderRenderSnapshot()
 
     var favoriteFolders: [FavoriteFolder] { snapshot.favoriteFolders }
+    var account: FavoriteFolderAccount? { snapshot.account }
     var favoriteFolderState: LoadingState { snapshot.favoriteFolderState }
     var isMutatingInteraction: Bool { snapshot.isMutatingInteraction }
 

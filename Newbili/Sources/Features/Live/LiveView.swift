@@ -17,7 +17,7 @@ struct LiveView: View {
                     LiveFeedSkeletonList(horizontalPadding: 12, topPadding: 18)
                 }
                 .nativeTopScrollEdgeEffect()
-                .background(Color(.systemBackground))
+                .background(AppSurfaceColors.page)
                 .task {
                     holder.configure(api: dependencies.api)
                 }

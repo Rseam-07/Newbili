@@ -231,6 +231,11 @@ private struct NativeSearchBar: UIViewRepresentable {
         searchBar.returnKeyType = .search
         searchBar.delegate = context.coordinator
         searchBar.searchTextField.clearButtonMode = .whileEditing
+        searchBar.searchTextField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.searchFieldEditingChanged(_:)),
+            for: .editingChanged
+        )
         return container
     }
 
@@ -279,7 +284,18 @@ private struct NativeSearchBar: UIViewRepresentable {
             syncCommittedText(from: searchBar)
         }
 
+        @objc func searchFieldEditingChanged(_ field: UITextField) {
+            // Input methods can clear marked text after UISearchBar's delegate
+            // callback. Read again after UIKit has committed the composition.
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self, let field, field.markedTextRange == nil else { return }
+                let committed = field.text ?? ""
+                if self.parent.text != committed { self.parent.text = committed }
+            }
+        }
+
         func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+            searchBar.searchTextField.unmarkText()
             syncCommittedText(from: searchBar)
             parent.isFocused = false
             searchBar.resignFirstResponder()
@@ -456,35 +472,9 @@ private struct SearchInlineBottomControls: View {
                 Divider()
                     .frame(height: 20)
 
-                Menu {
-                    ForEach(SearchSortOrder.allCases) { order in
-                        Button {
-                            Task { await viewModel.selectOrder(order) }
-                        } label: {
-                            Label(
-                                order.title,
-                                systemImage: order == viewModel.selectedOrder
-                                    ? "checkmark"
-                                    : "arrow.up.arrow.down"
-                            )
-                        }
-                    }
-                } label: {
-                    ZStack {
-                        Color.clear
-
-                        Label(viewModel.selectedOrder.shortTitle, systemImage: "arrow.up.arrow.down")
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                    }
+                SearchSortHeaderButton(viewModel: viewModel, showsContainer: false)
                     .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .accessibilityLabel("搜索结果排序")
-                .accessibilityValue(viewModel.selectedOrder.title)
+
             }
         }
         .frame(maxWidth: .infinity)

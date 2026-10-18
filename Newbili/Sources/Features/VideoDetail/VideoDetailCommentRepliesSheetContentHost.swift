@@ -3,20 +3,20 @@ import SwiftUI
 struct CommentRepliesSheetContentHost: View {
     let rootComment: Comment
     let store: VideoDetailCommentThreadRenderStore
-    let reloadReplies: (Comment) async -> Void
-    let loadMoreReplies: (Comment) async -> Void
+    let reloadReplies: CommentReplyLoadAction
+    let loadMoreReplies: CommentReplyLoadAction
     let showDialog: (Comment) -> Void
     let toggleLike: (Comment) -> Void
-    let actions: CommentRepliesSheetContentHostActions
+    let loadReplies: CommentReplyLoadAction
 
     init(
         rootComment: Comment,
         store: VideoDetailCommentThreadRenderStore,
-        reloadReplies: @escaping (Comment) async -> Void,
-        loadMoreReplies: @escaping (Comment) async -> Void,
+        reloadReplies: @escaping CommentReplyLoadAction,
+        loadMoreReplies: @escaping CommentReplyLoadAction,
         showDialog: @escaping (Comment) -> Void,
         toggleLike: @escaping (Comment) -> Void,
-        loadReplies: @escaping (Comment) async -> Void
+        loadReplies: @escaping CommentReplyLoadAction
     ) {
         self.rootComment = rootComment
         self.store = store
@@ -24,11 +24,7 @@ struct CommentRepliesSheetContentHost: View {
         self.loadMoreReplies = loadMoreReplies
         self.showDialog = showDialog
         self.toggleLike = toggleLike
-        actions = CommentRepliesSheetContentHostActionsBuilder(
-            rootComment: rootComment,
-            loadReplies: loadReplies
-        )
-        .actions
+        self.loadReplies = loadReplies
     }
 
     var body: some View {
@@ -43,16 +39,20 @@ struct CommentRepliesSheetContentHost: View {
                 CommentRepliesContent(
                     rootComment: rootComment,
                     store: store,
-                    reloadReplies: reloadReplies,
-                    loadMoreReplies: loadMoreReplies,
+                    reloadReplies: { @MainActor [reloadReplies] rootID in await reloadReplies(rootID) },
+                    loadMoreReplies: { @MainActor [loadMoreReplies] rootID in await loadMoreReplies(rootID) },
                     showDialog: showDialog,
                     toggleLike: toggleLike
                 )
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .background(AppSurfaceColors.page)
         .defersRemoteImageLoadsDuringFastScroll()
         .hiddenInlineNavigationTitle()
         .nativeTopScrollEdgeEffect()
-        .commentSheetLoadLifecycle(load: actions.load)
+        .commentSheetLoadLifecycle { @MainActor [loadReplies, rootID = rootComment.id] in
+            await loadReplies(rootID)
+        }
     }
 }

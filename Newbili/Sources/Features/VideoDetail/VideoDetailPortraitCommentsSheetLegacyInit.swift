@@ -10,11 +10,11 @@ extension PortraitCommentsSheet {
         retryComments: @escaping () async -> Void,
         loadMoreComments: @escaping () async -> Void,
         toggleLike: @escaping (Comment) -> Void = { _ in },
-        loadReplies: @escaping (Comment) async -> Void,
-        reloadReplies: @escaping (Comment) async -> Void,
-        loadMoreReplies: @escaping (Comment) async -> Void,
-        loadDialog: @escaping (Comment, Comment) async -> Void,
-        reloadDialog: @escaping (Comment, Comment) async -> Void
+        loadReplies: @escaping CommentReplyLoadAction,
+        reloadReplies: @escaping CommentReplyLoadAction,
+        loadMoreReplies: @escaping CommentReplyLoadAction,
+        loadDialog: @escaping CommentDialogLoadAction,
+        reloadDialog: @escaping CommentDialogLoadAction
     ) {
         self.init(
             store: store,

@@ -19,5 +19,4 @@ extension VideoDetailViewModel {
     static let fullscreenTransitionMaskFadeDurationNanoseconds: UInt64 = 300_000_000
     static let fullscreenExitTransitionMaskHoldNanoseconds: UInt64 = 160_000_000
     static let fullscreenExitTransitionMaskFadeDurationNanoseconds: UInt64 = 360_000_000
-    static let renderStoreSyncCoalescingDelayNanoseconds: UInt64 = 16_000_000
 }

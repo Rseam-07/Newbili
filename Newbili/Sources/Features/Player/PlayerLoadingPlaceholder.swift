@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PlayerLoadingPlaceholder: View {
+    @Environment(\.playerStartupArtworkURL) private var artworkURL
     let progress: Double
     let message: String
     let isFinishing: Bool
@@ -19,7 +20,8 @@ struct PlayerLoadingPlaceholder: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            if let artworkURL { PlayerStartupArtwork(url: artworkURL) }
+            else { Color.black }
 
             ProgressView()
                 .progressViewStyle(.circular)

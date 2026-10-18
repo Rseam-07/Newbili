@@ -38,6 +38,7 @@ struct VideoDetailShellContentView: View {
     let onShowCoinPicker: () -> Void
     let onReply: (Comment) -> Void
     let openVideoOwnerRoute: ((VideoOwner) -> Void)?
+    var videoNavigationContext: VideoNavigationContext? = nil
     let onSelectedTabChange: (VideoDetailContentTab) -> Void
     let onScrollOffsetChange: (VideoDetailContentTab, CGFloat) -> Void
 
@@ -53,6 +54,7 @@ struct VideoDetailShellContentView: View {
             onShowCoinPicker: onShowCoinPicker,
             onReply: onReply,
             openVideoOwnerRoute: openVideoOwnerRoute,
+            videoNavigationContext: videoNavigationContext,
             onSelectedTabChange: onSelectedTabChange,
             onScrollOffsetChange: onScrollOffsetChange
         )
@@ -70,6 +72,7 @@ private struct VideoDetailShellContentBody: View {
     let onShowCoinPicker: () -> Void
     let onReply: (Comment) -> Void
     let openVideoOwnerRoute: ((VideoOwner) -> Void)?
+    var videoNavigationContext: VideoNavigationContext? = nil
     let onSelectedTabChange: (VideoDetailContentTab) -> Void
     let onScrollOffsetChange: (VideoDetailContentTab, CGFloat) -> Void
 
@@ -99,8 +102,10 @@ private struct VideoDetailShellContentBody: View {
             }
         )
         .allowsHitTesting(!contentActionsSuppressed)
+        .environment(\.videoNavigationContext, videoNavigationContext)
         .environment(\.openVideoOwnerRouteAction, openVideoOwnerRoute)
         .environment(\.commentContentOwnerMID, viewModel.detail.owner?.mid)
+        .environment(\.videoCommentComposerContext, VideoCommentComposerContext(viewModel: viewModel))
         .onChange(of: selectedContentTab) { _, tab in
             onSelectedTabChange(tab)
         }

@@ -18,9 +18,10 @@ struct CommentReplyRootView: View {
             )
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
                     CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
 
                     if !display.timeText.isEmpty {
                         Text(display.timeText)
@@ -43,7 +44,12 @@ struct CommentReplyRootView: View {
                     images: display.pictures,
                     transitionScope: comment.id.description
                 )
+                VideoCommentComposerButton(root: comment)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

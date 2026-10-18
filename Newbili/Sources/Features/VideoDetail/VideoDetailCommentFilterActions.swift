@@ -2,8 +2,8 @@ import Foundation
 
 extension VideoDetailViewModel {
     func appendUniqueComments(_ more: [Comment]) {
-        let existing = Set(comments.map(\.id))
-        comments.append(contentsOf: more.filter { !existing.contains($0.id) })
+        var seen = Set(comments.map(\.id))
+        comments.append(contentsOf: more.filter { $0.id > 0 && seen.insert($0.id).inserted })
     }
 
     func filteredComments(_ values: [Comment]) -> [Comment] {
@@ -36,7 +36,7 @@ extension VideoDetailViewModel {
     }
 
     func localDialogReplies(root: Comment, reply: Comment) -> [Comment] {
-        VideoDetailCommentThreadResolver.localDialogReplies(reply, siblings: replies(for: root))
+        VideoDetailCommentThreadResolver.localDialogReplies(reply, siblings: replies(for: root), rootID: root.id)
     }
 
     func uniqueComments(_ comments: [Comment]) -> [Comment] {

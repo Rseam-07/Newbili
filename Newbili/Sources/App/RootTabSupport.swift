@@ -37,6 +37,10 @@ extension View {
                 hidesRootTabBar: hidesRootTabBar
             )
         }
+        .navigationDestination(for: VideoSourceRoute.self) { route in
+            VideoDetailView(seedVideo: route.video, hidesRootTabBar: hidesRootTabBar)
+                .modifier(VideoCardDestinationTransition(sourceID: route.sourceID))
+        }
         .navigationDestination(for: VideoCommentRoute.self) { route in
             VideoDetailView(
                 seedVideo: route.video,
@@ -165,52 +169,15 @@ struct RootTabBarAppearanceInstaller: UIViewControllerRepresentable {
                 return
             }
 
-            let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            appearance.backgroundColor = UIColor { traitCollection in
-                traitCollection.userInterfaceStyle == .dark
-                    ? UIColor.black.withAlphaComponent(0.18)
-                    : UIColor.systemBackground.withAlphaComponent(0.16)
-            }
-            appearance.shadowColor = UIColor.label.withAlphaComponent(0.04)
-
-            let normalColor = UIColor.secondaryLabel.withAlphaComponent(0.82)
-            configure(appearance.stackedLayoutAppearance, normalColor: normalColor, selectedColor: selectedColor)
-            configure(appearance.inlineLayoutAppearance, normalColor: normalColor, selectedColor: selectedColor)
-            configure(appearance.compactInlineLayoutAppearance, normalColor: normalColor, selectedColor: selectedColor)
-
-            tabBar.standardAppearance = appearance
-            tabBar.scrollEdgeAppearance = appearance
+            // Let iOS render its native floating Liquid Glass material. A custom
+            // blur, opaque tint, and second shadow flatten the system's depth.
             tabBar.tintColor = selectedColor
-            tabBar.unselectedItemTintColor = normalColor
+            tabBar.unselectedItemTintColor = nil
             tabBar.isTranslucent = true
-            tabBar.backgroundColor = .clear
-            tabBar.layer.shadowColor = UIColor.black.cgColor
-            tabBar.layer.shadowOpacity = interfaceStyle == .dark ? 0.14 : 0.05
-            tabBar.layer.shadowRadius = 14
-            tabBar.layer.shadowOffset = CGSize(width: 0, height: -2)
 
             appliedTabBar = tabBar
             appliedTintColorHex = tintColorHex
             appliedInterfaceStyle = interfaceStyle
-        }
-
-        private func configure(
-            _ itemAppearance: UITabBarItemAppearance,
-            normalColor: UIColor,
-            selectedColor: UIColor
-        ) {
-            itemAppearance.normal.iconColor = normalColor
-            itemAppearance.normal.titleTextAttributes = [
-                .foregroundColor: normalColor,
-                .font: UIFont.systemFont(ofSize: 11.5, weight: .semibold)
-            ]
-            itemAppearance.selected.iconColor = selectedColor
-            itemAppearance.selected.titleTextAttributes = [
-                .foregroundColor: selectedColor,
-                .font: UIFont.systemFont(ofSize: 11.5, weight: .bold)
-            ]
         }
 
         private func enclosingTabBarController() -> UITabBarController? {

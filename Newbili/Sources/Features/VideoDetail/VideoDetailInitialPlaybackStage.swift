@@ -33,6 +33,7 @@ struct VideoDetailInitialPlaybackStage: View {
                 showsPinnedProgressBar: runtimeSettings.showsPinnedProgressBar,
                 onNavigateBack: onNavigateBack
             )
+            .environment(\.playerStartupArtworkURL, seedVideo.playbackArtworkURL)
         }
         .overlay(alignment: .top) {
             VideoDetailStatusBarBackdrop(isHidden: false)

@@ -276,7 +276,7 @@ private struct BiliBottomTabGlassEffectModifier<GlassShape: InsettableShape>: Vi
 
     private var tabTint: Color {
         colorScheme == .dark
-            ? .black.opacity(0.18)
+            ? AppSurfaceColors.darkGlassTint
             : Color(.systemBackground).opacity(0.16)
     }
 
@@ -291,14 +291,14 @@ private struct BiliBottomTabGlassEffectModifier<GlassShape: InsettableShape>: Vi
                     in: shape
                 )
                 .overlay {
-                    shape.strokeBorder(Color.primary.opacity(0.04), lineWidth: 0.5)
+                    shape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.09 : 0.04), lineWidth: 0.5)
                 }
         } else {
             content
                 .background(.ultraThinMaterial, in: shape)
                 .background(tabTint, in: shape)
                 .overlay {
-                    shape.strokeBorder(Color.primary.opacity(0.04), lineWidth: 0.5)
+                    shape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.09 : 0.04), lineWidth: 0.5)
                 }
         }
     }

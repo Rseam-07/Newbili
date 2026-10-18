@@ -24,7 +24,7 @@ struct LiveFeedView: View {
         .coordinateSpace(name: LivePullRefreshCoordinateSpace.name)
         .nativeTopScrollEdgeEffect()
         .scrollBounceBehavior(.always, axes: .vertical)
-        .background(Color(.systemBackground))
+        .background(AppSurfaceColors.page)
         .onPreferenceChange(HomePullRefreshDistancePreferenceKey.self) { pullDistance in
             handlePullRefreshDistanceChange(pullDistance)
         }

@@ -6,9 +6,11 @@ struct FavoriteFolderSelectionStateActions {
     let presentationState: Binding<FavoriteFolderSelectionPresentationState>
 
     func initializeSelectionIfNeeded(force: Bool = false) {
+        guard store.favoriteFolderState == .loaded else { return }
         var state = presentationState.wrappedValue
         guard force || !state.didInitializeSelection else { return }
         state.selectedFolderIDs = Set(store.favoriteFolders.filter(\.isFavorited).map(\.id))
+            .union(state.newlyCreatedFolderIDs)
         state.didInitializeSelection = true
         presentationState.wrappedValue = state
     }

@@ -2998,9 +2998,10 @@ nonisolated struct CommentPage: Decodable {
     let topReplies: [Comment]?
     let root: Comment?
     let cursor: CommentCursor?
+    let page: CommentReplyPageInfo?
 
     enum CodingKeys: String, CodingKey {
-        case replies, root, cursor
+        case replies, root, cursor, page
         case topReplies = "top_replies"
     }
 
@@ -3008,12 +3009,39 @@ nonisolated struct CommentPage: Decodable {
         replies: [Comment]?,
         topReplies: [Comment]?,
         root: Comment? = nil,
-        cursor: CommentCursor?
+        cursor: CommentCursor?,
+        page: CommentReplyPageInfo? = nil
     ) {
         self.replies = replies
         self.topReplies = topReplies
         self.root = root
         self.cursor = cursor
+        self.page = page
+    }
+
+    func hasMoreThreadReplies(requestedPage: Int, rawReplyCount: Int, fallbackTotal: Int?) -> Bool {
+        guard rawReplyCount > 0, cursor?.isEnd != true else { return false }
+        let pageSize = min(200, max(1, page?.size ?? 20))
+        let currentPage = max(requestedPage, page?.num ?? requestedPage)
+        if let total = page?.count ?? fallbackTotal, total >= 0 {
+            return currentPage < total / pageSize + (total % pageSize == 0 ? 0 : 1)
+        }
+        return rawReplyCount >= pageSize
+    }
+}
+
+nonisolated struct CommentReplyPageInfo: Decodable {
+    let count: Int?
+    let num: Int?
+    let size: Int?
+
+    private enum CodingKeys: String, CodingKey { case count, num, size }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        count = container.decodeLossyIntIfPresent(forKey: .count)
+        num = container.decodeLossyIntIfPresent(forKey: .num)
+        size = container.decodeLossyIntIfPresent(forKey: .size)
     }
 }
 
@@ -3637,6 +3665,19 @@ nonisolated struct SearchSuggestItem: Identifiable, Decodable, Hashable {
 
     let value: String
     let ref: Int?
+
+    init(value: String, ref: Int? = nil) {
+        self.value = value
+        self.ref = ref
+    }
+
+    private enum CodingKeys: String, CodingKey { case value, ref }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        value = try container.decode(String.self, forKey: .value)
+        ref = container.decodeLossyIntIfPresent(forKey: .ref)
+    }
 }
 
 nonisolated struct HotSearchData: Decodable {
@@ -3759,10 +3800,10 @@ nonisolated struct FavoriteFolderListData: Decodable, Hashable {
     let list: [FavoriteFolder]?
 }
 
-nonisolated struct FavoriteFolder: Identifiable, Decodable, Hashable {
+nonisolated struct FavoriteFolder: Identifiable, Decodable, Hashable, Sendable {
     let id: Int
     let title: String?
-    let favState: Int?
+    var favState: Int?
     let mediaCount: Int?
     let cover: String?
     let intro: String?

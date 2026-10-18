@@ -45,9 +45,10 @@ extension View {
     }
 
     func biliPlayerExpandedHitTarget(metrics: PlayerNativeControlMetrics) -> some View {
-        let horizontal = max((44 - metrics.controlHeight) / 2, 4)
-        let vertical = max((44 - metrics.controlHeight) / 2, 8)
-        return biliPlayerExpandedHitTarget(horizontal: horizontal, vertical: vertical)
+        // Occupy the hit area in layout; negative padding made adjacent 28 pt
+        // buttons claim overlapping 44 pt tap regions.
+        frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 

@@ -616,6 +616,7 @@ private struct BiliEmoteRenderInput {
             leadingNameFont?.fontName ?? "",
             "\(leadingNameFont?.pointSize ?? 0)",
             "\(textColor.rgbaCacheKey)",
+            "\(accentColor.rgbaCacheKey)",
             "\(leadingNameColor.rgbaCacheKey)",
             "\(emoteSize)",
             "\(lineLimit ?? -1)"

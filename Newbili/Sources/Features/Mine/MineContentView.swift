@@ -48,6 +48,8 @@ struct MineContentView: View {
         }
         .tint(libraryStore.appTintColor)
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(AppSurfaceColors.groupedPage)
         .nativeTopScrollEdgeEffect()
     }
 }

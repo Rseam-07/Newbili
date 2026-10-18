@@ -2,7 +2,35 @@ import Combine
 import Foundation
 
 extension VideoDetailViewModel {
+    func syncSubtitleContext() {
+        subtitleModel.setContext(
+            request: VideoTranscriptRequest(bvid: detail.bvid, cid: selectedCID),
+            credentialVersion: "\(sessionStore.playbackCredentialVersion)|\(sessionStore.playbackAccountCredentialVersion)|\(sessionStore.accountConfigurationVersion)|\(libraryStore.multiAccountExperimentEnabled)"
+        )
+    }
+
     func configureLifecycleBindings() {
+        lifecycleSubscriptionState.favoriteFolderCancellable = Publishers.CombineLatest4(
+            sessionStore.$playbackCredentialVersion,
+            sessionStore.$interactionAccountCredentialVersion,
+            sessionStore.$accountConfigurationVersion,
+            libraryStore.$multiAccountExperimentEnabled
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            Task { @MainActor [weak self] in self?.invalidateFavoriteFoldersIfAccountChanged() }
+        }
+        lifecycleSubscriptionState.subtitleCancellable = Publishers.CombineLatest4(
+            sessionStore.$playbackCredentialVersion,
+            sessionStore.$playbackAccountCredentialVersion,
+            sessionStore.$accountConfigurationVersion,
+            libraryStore.$multiAccountExperimentEnabled
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            // @Published emits before storage changes; read after this actor turn.
+            Task { @MainActor [weak self] in self?.syncSubtitleContext() }
+        }
         lastDanmakuAdaptationProfile = playbackAdaptationProfile
         filterCancellable = libraryStore.$blocksGoodsComments
             .removeDuplicates()

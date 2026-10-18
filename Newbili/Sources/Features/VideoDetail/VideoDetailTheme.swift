@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum VideoDetailTheme {
-    static let background = Color(.systemGroupedBackground)
+    static let background = AppSurfaceColors.groupedPage
 
-    static let surface = Color(.secondarySystemGroupedBackground)
+    static let surface = AppSurfaceColors.groupedCard
 
     static let secondarySurface = Color(.tertiarySystemGroupedBackground)
 }

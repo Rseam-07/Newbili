@@ -19,10 +19,10 @@ struct PlayerNativeControlMetrics: Equatable {
     }
 
     static let portrait = PlayerNativeControlMetrics(
-        controlHeight: 28,
-        progressControlHeight: 22,
+        controlHeight: 34,
+        progressControlHeight: 26,
         sliderVisualScale: 0.82,
-        iconSize: 12,
+        iconSize: 15,
         timeFont: .caption2.monospacedDigit(),
         stackSpacing: 5,
         groupSpacing: 5,

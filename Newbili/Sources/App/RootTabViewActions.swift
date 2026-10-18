@@ -148,13 +148,13 @@ extension RootTabView {
     private func pushRootRoute<Route: Hashable>(_ route: Route) {
         AppOrientationLock.restorePortrait()
         if bottomMode == .video {
-            withAnimation(.smooth(duration: 0.28)) {
+            withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
                 videoNavigationPath.append(route)
             }
             return
         }
 
-        withAnimation(.smooth(duration: 0.30)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             rootNavigationPath.append(route)
         }
     }
@@ -168,7 +168,7 @@ extension RootTabView {
         AppOrientationLock.restorePortrait()
         if bottomMode == .video {
             ActivePlaybackCoordinator.shared.stopActivePlayback()
-            withAnimation(.smooth(duration: 0.28)) {
+            withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
                 videoNavigationPath.append(room)
             }
             return
@@ -177,7 +177,7 @@ extension RootTabView {
         if !rootNavigationPath.isEmpty {
             ActivePlaybackCoordinator.shared.stopActivePlayback()
         }
-        withAnimation(.smooth(duration: 0.30)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             rootNavigationPath.append(room)
         }
     }
@@ -201,7 +201,7 @@ extension RootTabView {
     }
 
     func openMineOverlayRoute(_ route: MineOverlayRoute) {
-        withAnimation(.smooth(duration: 0.30)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             rootNavigationPath.append(route)
         }
     }
@@ -211,18 +211,22 @@ extension RootTabView {
     /// 触发 onPathEmptied → scheduleCloseVideo，正好回到来源页。
     func popOneVideoLevel() {
         guard bottomMode == .video, !videoNavigationPath.isEmpty else { return }
-        withAnimation(.smooth(duration: 0.28)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             videoNavigationPath.removeLast()
         }
     }
 
     func openVideo(_ video: VideoItem) {
+        openVideo(video, sourceID: nil)
+    }
+
+    func openVideo(_ video: VideoItem, sourceID: UUID?) {
         let reusesPreparedDetailSession = audioMiniPlayerCoordinator
             .stopUnlessPreparedForDetailOpen(video)
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: video.bvid, title: video.title)
         if bottomMode == .video {
-            pushVideo(video, reusesPreparedDetailSession: reusesPreparedDetailSession)
+            pushVideo(video, reusesPreparedDetailSession: reusesPreparedDetailSession, sourceID: sourceID)
             return
         }
 
@@ -236,14 +240,18 @@ extension RootTabView {
         let opensFromStartup = shouldStartDetail && !didConsumeStartupVideo
         didConsumeStartupVideo = true
         let push = {
-            rootNavigationPath.append(video)
+            if let sourceID {
+                rootNavigationPath.append(VideoSourceRoute(video: video, sourceID: sourceID))
+            } else {
+                rootNavigationPath.append(video)
+            }
         }
         if opensFromStartup {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction, push)
         } else {
-            withAnimation(.smooth(duration: 0.30), push)
+            withAnimation(AppMotion.navigation(reduceMotion: reduceMotion), push)
         }
     }
 
@@ -271,7 +279,7 @@ extension RootTabView {
             transaction.disablesAnimations = true
             withTransaction(transaction, push)
         } else {
-            withAnimation(.smooth(duration: 0.30), push)
+            withAnimation(AppMotion.navigation(reduceMotion: reduceMotion), push)
         }
     }
 
@@ -282,7 +290,8 @@ extension RootTabView {
 
     func pushVideo(
         _ video: VideoItem,
-        reusesPreparedDetailSession: Bool = false
+        reusesPreparedDetailSession: Bool = false,
+        sourceID: UUID? = nil
     ) {
         AppOrientationLock.restorePortrait()
         PlayerMetricsLog.record(.routeOpen, metricsID: video.bvid, title: video.title)
@@ -290,10 +299,14 @@ extension RootTabView {
             ActivePlaybackCoordinator.shared.pauseActivePlaybackForNavigation()
             beginPlaybackPreload(for: video)
         }
-        withAnimation(.smooth(duration: 0.28)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             didConsumeStartupVideo = true
             isClosingVideo = false
-            videoNavigationPath.append(video)
+            if let sourceID {
+                videoNavigationPath.append(VideoSourceRoute(video: video, sourceID: sourceID))
+            } else {
+                videoNavigationPath.append(video)
+            }
         }
     }
 
@@ -302,7 +315,7 @@ extension RootTabView {
         PlayerMetricsLog.record(.routeOpen, metricsID: route.video.bvid, title: route.video.title)
         ActivePlaybackCoordinator.shared.pauseActivePlaybackForNavigation()
         beginPlaybackPreload(for: route.video)
-        withAnimation(.smooth(duration: 0.28)) {
+        withAnimation(AppMotion.navigation(reduceMotion: reduceMotion)) {
             didConsumeStartupVideo = true
             isClosingVideo = false
             videoNavigationPath.append(route)

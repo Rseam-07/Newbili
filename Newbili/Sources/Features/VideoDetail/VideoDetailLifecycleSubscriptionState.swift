@@ -1,6 +1,8 @@
 import Combine
 
 struct VideoDetailLifecycleSubscriptionState {
+    var favoriteFolderCancellable: AnyCancellable?
+    var subtitleCancellable: AnyCancellable?
     var filterCancellable: AnyCancellable?
     var sponsorBlockCancellable: AnyCancellable?
     var playbackAutoOptimizationCancellable: AnyCancellable?

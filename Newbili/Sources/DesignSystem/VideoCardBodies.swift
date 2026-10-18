@@ -257,7 +257,7 @@ private struct CompactVideoResultSurfaceModifier: ViewModifier {
 
         content
             .background {
-                shape.fill(Color(.secondarySystemGroupedBackground))
+                shape.fill(AppSurfaceColors.groupedCard)
             }
             .overlay {
                 shape.strokeBorder(Color(.separator).opacity(0.16), lineWidth: 0.5)

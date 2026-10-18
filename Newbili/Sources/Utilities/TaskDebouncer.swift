@@ -4,6 +4,8 @@ import Foundation
 final class TaskDebouncer {
     private var task: Task<Void, Never>?
 
+    deinit { task?.cancel() }
+
     func schedule(delay: Duration = .milliseconds(350), action: @escaping @MainActor () async -> Void) {
         task?.cancel()
         task = Task {

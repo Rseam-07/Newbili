@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct FavoriteFolderContentPage: View {
-    let folder: FavoriteFolder
+    @State var folder: FavoriteFolder
     @ObservedObject var viewModel: MineViewModel
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionStore: SessionStore
 
     var body: some View {
@@ -16,8 +17,24 @@ struct FavoriteFolderContentPage: View {
             }
         }
         .nativeTopScrollEdgeEffect()
-        .hiddenInlineNavigationTitle()
+        .navigationTitle(folder.displayTitle)
+        .navigationBarTitleDisplayMode(.large)
+        .scrollContentBackground(.hidden)
+        .background(AppSurfaceColors.groupedPage)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    FavoriteFolderEditButton(folder: folder) { saved in
+                        folder = saved
+                        Task { await viewModel.loadAccountLibrary(.favorites, policy: .reload) }
+                    }
+                    FavoriteFolderDeleteButton(folder: folder) {
+                        Task { await viewModel.loadAccountLibrary(.favorites, policy: .reload) }
+                        dismiss()
+                    }
+                } label: { Image(systemName: "ellipsis") }
+                .disabled(!sessionStore.isLoggedIn)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await reload() }
@@ -33,6 +50,7 @@ struct FavoriteFolderContentPage: View {
         .refreshable {
             await reload()
         }
+        .favoriteFolderManagement()
     }
 
     @ViewBuilder

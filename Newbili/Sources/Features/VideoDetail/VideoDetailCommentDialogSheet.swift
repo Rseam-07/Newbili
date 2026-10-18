@@ -4,16 +4,17 @@ struct CommentDialogSheet: View {
     let rootComment: Comment
     let focusReply: Comment
     @ObservedObject var store: VideoDetailCommentThreadRenderStore
-    let reloadDialog: (Comment, Comment) async -> Void
+    let reloadDialog: CommentDialogLoadAction
     let toggleLike: (Comment) -> Void
-    let actions: CommentDialogSheetActions
+    let loadDialog: CommentDialogLoadAction
+    @State private var selectedDetent: PresentationDetent = .large
 
     init(
         rootComment: Comment,
         focusReply: Comment,
         store: VideoDetailCommentThreadRenderStore,
-        loadDialog: @escaping (Comment, Comment) async -> Void,
-        reloadDialog: @escaping (Comment, Comment) async -> Void,
+        loadDialog: @escaping CommentDialogLoadAction,
+        reloadDialog: @escaping CommentDialogLoadAction,
         toggleLike: @escaping (Comment) -> Void
     ) {
         self.rootComment = rootComment
@@ -21,12 +22,7 @@ struct CommentDialogSheet: View {
         self.store = store
         self.reloadDialog = reloadDialog
         self.toggleLike = toggleLike
-        actions = CommentDialogSheetActionsBuilder(
-            rootComment: rootComment,
-            focusReply: focusReply,
-            loadDialog: loadDialog
-        )
-        .actions
+        self.loadDialog = loadDialog
     }
 
     var body: some View {
@@ -44,15 +40,21 @@ struct CommentDialogSheet: View {
                             rootComment: rootComment,
                             focusReply: focusReply,
                             store: store,
-                            reloadDialog: reloadDialog,
+                            reloadDialog: { @MainActor [reloadDialog] rootID, replyID in
+                                await reloadDialog(rootID, replyID)
+                            },
                             toggleLike: toggleLike
                         )
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .background(AppSurfaceColors.page)
                 .defersRemoteImageLoadsDuringFastScroll()
                 .hiddenInlineNavigationTitle()
                 .nativeTopScrollEdgeEffect()
-                .commentSheetLoadLifecycle(load: actions.load)
+                .commentSheetLoadLifecycle { @MainActor [loadDialog, rootID = rootComment.id, replyID = focusReply.id] in
+                    await loadDialog(rootID, replyID)
+                }
                 .onAppear {
                     scrollToFocusedReply(using: proxy)
                 }
@@ -61,7 +63,8 @@ struct CommentDialogSheet: View {
                 }
             }
         }
-        .presentationDetents([.fraction(0.7)])
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
+        .presentationBackground(AppSurfaceColors.page)
         .presentationDragIndicator(.visible)
     }
 

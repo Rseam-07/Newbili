@@ -7,7 +7,7 @@ struct FavoriteFolderSelectionSheetActions {
     let initializeSelectionIfNeeded: (Bool) -> Void
 
     func load() async {
-        await loadFavoriteFolders(false)
+        await loadFavoriteFolders(true)
         guard !Task.isCancelled else { return }
         initializeSelectionIfNeeded(false)
     }

@@ -31,7 +31,8 @@ extension VideoDetailCommentThreadRenderStore {
         snapshot.dialogThreads[key]
             ?? VideoDetailCommentThreadResolver.localDialogReplies(
                 reply,
-                siblings: replies(for: root)
+                siblings: replies(for: root),
+                rootID: root.id
             )
     }
 

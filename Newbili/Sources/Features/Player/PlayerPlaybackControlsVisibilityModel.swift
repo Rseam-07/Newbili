@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import UIKit
 
 @MainActor
 final class PlayerPlaybackControlsVisibilityModel: ObservableObject {
@@ -10,7 +11,9 @@ final class PlayerPlaybackControlsVisibilityModel: ObservableObject {
     private var isAutoHideSuspended = false
     private var autoHideTask: Task<Void, Never>?
     private var hideCompletionTask: Task<Void, Never>?
-    private let hideAnimationDuration: UInt64 = 350_000_000
+    private var hideAnimationDuration: UInt64 {
+        UInt64((UIAccessibility.isReduceMotionEnabled ? 0.1 : AppMotion.chromeHideDuration) * 1_000_000_000)
+    }
 
     func syncSecondaryControlsPresentation(
         _ isPresented: Bool,
@@ -78,8 +81,8 @@ final class PlayerPlaybackControlsVisibilityModel: ObservableObject {
         let update = { self.opacity = 0 }
         if animated {
             isVisible = true
-            acceptsHitTesting = true
-            withAnimation(.default, update)
+            acceptsHitTesting = false
+            withAnimation(AppMotion.chrome(showing: false, reduceMotion: UIAccessibility.isReduceMotionEnabled), update)
             hideCompletionTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: self?.hideAnimationDuration ?? 350_000_000)
                 guard let self, !Task.isCancelled else { return }
@@ -106,7 +109,7 @@ final class PlayerPlaybackControlsVisibilityModel: ObservableObject {
         acceptsHitTesting = true
         let update = { self.opacity = 1 }
         if animated {
-            withAnimation(.default, update)
+            withAnimation(AppMotion.chrome(showing: true, reduceMotion: UIAccessibility.isReduceMotionEnabled), update)
         } else {
             update()
         }

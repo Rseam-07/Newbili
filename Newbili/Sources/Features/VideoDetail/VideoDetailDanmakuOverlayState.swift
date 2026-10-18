@@ -17,6 +17,9 @@ final class VideoDetailDanmakuOverlayState: ObservableObject {
     let normalWindowLookAhead: TimeInterval = 32
     let windowRecenterInterval: TimeInterval = 8
 
+    // Work around synthesized isolated teardown on the iOS 26.2 simulator.
+    nonisolated deinit {}
+
     func bind(store: VideoDetailDanmakuRenderStore, playerViewModel: PlayerStateViewModel) {
         guard !playerViewModel.isTerminated else {
             unbind()

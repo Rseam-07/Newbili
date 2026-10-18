@@ -88,7 +88,7 @@ actor RemoteImageLoadSuppressionGate {
         }
     }
 
-#if DEBUG
+#if DEBUG || NATIVE_UNIT_TESTING
     func waiterCountForTesting() -> Int {
         waiters.count
     }

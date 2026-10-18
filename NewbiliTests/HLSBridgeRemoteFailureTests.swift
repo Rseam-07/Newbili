@@ -362,7 +362,8 @@ final class SIDXParserTests: XCTestCase {
         references: [(size: UInt32, duration: UInt32)]
     ) -> Data {
         var data = Data()
-        let boxSize = UInt32(8 + 4 + 4 + 4 + 4 + 4 + 2 + 2 + references.count * 12)
+        let headerSize = 32
+        let boxSize = UInt32(headerSize + references.count * 12)
         appendUInt32(boxSize, to: &data)
         data.append(contentsOf: [UInt8]("sidx".utf8))
         data.append(contentsOf: [0, 0, 0, 0])

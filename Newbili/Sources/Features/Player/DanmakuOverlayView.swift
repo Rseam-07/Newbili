@@ -144,9 +144,35 @@ nonisolated enum DanmakuMotionTiming {
         gap: CGFloat
     ) -> TimeInterval {
         let travelDistance = max(surfaceWidth + labelWidth, 1)
-        let protectedWidth = min(labelWidth + gap, surfaceWidth * 0.72)
+        let protectedWidth = min(labelWidth + gap, travelDistance)
         return duration * TimeInterval(protectedWidth / travelDistance)
     }
+
+    /// Constant-duration messages have different speeds. Entrance clearance
+    /// alone cannot stop a longer, faster message catching its predecessor.
+    static func canFollow(
+        surfaceWidth: CGFloat,
+        previousWidth: CGFloat,
+        previousStart: TimeInterval,
+        previousDuration: TimeInterval,
+        nextWidth: CGFloat,
+        nextDuration: TimeInterval,
+        at time: TimeInterval,
+        gap: CGFloat,
+        overscan: CGFloat = 0
+    ) -> Bool {
+        let elapsed = time - previousStart
+        guard elapsed >= 0 else { return false }
+        let previousSpeed = (surfaceWidth + previousWidth + overscan) / max(previousDuration, 0.05)
+        let nextSpeed = (surfaceWidth + nextWidth + overscan) / max(nextDuration, 0.05)
+        let previousRight = surfaceWidth + previousWidth - previousSpeed * elapsed
+        guard previousRight > 0 else { return true }
+        let clearance = surfaceWidth - previousRight
+        let remainingVisibleTime = previousRight / previousSpeed
+        let catchupDistance = max(0, nextSpeed - previousSpeed) * remainingVisibleTime
+        return clearance >= max(0, gap) + catchupDistance
+    }
+
 }
 
 nonisolated enum DanmakuQuickActionLayout {
@@ -469,6 +495,8 @@ final class DanmakuAnimationOverlayView: UIView {
     private struct LaneState {
         let releaseTime: TimeInterval
         let itemWidth: CGFloat
+        let startTime: TimeInterval
+        let duration: TimeInterval
     }
 
     private struct TextMeasurementKey: Hashable {
@@ -483,6 +511,7 @@ final class DanmakuAnimationOverlayView: UIView {
     }
 
     private var items: [DanmakuItem] = []
+    private var largestScrollingServerFontSize: Double = 25
     private var timeBuckets: [TimeBucket] = []
     private var settings: DanmakuSettings = .default
     private var itemFilter = DanmakuItemFilter(rules: DanmakuSettings.default.filterRules)
@@ -622,6 +651,7 @@ final class DanmakuAnimationOverlayView: UIView {
         let previousEffectiveTime = effectivePlaybackTime()
         let previousShouldRender = shouldRenderDanmaku
         let previousIsPlaying = isPlaying
+        let previousScrollingLaneHeight = scrollingLaneHeight
         let didChangeItems = newItemsRevision != lastItemsRevision
         let normalizedSettings = newSettings.normalized
         let didChangeFilterRules = normalizedSettings.filterRules != settings.filterRules
@@ -685,7 +715,8 @@ final class DanmakuAnimationOverlayView: UIView {
             return
         }
 
-        if !previousShouldRender || requiresRenderedItemRebuild || jumped {
+        let didChangeScrollingGrid = abs(previousScrollingLaneHeight - scrollingLaneHeight) > 0.5
+        if !previousShouldRender || requiresRenderedItemRebuild || didChangeScrollingGrid || jumped {
             rebuildVisibleItems(at: sanitizedTime, animated: newIsPlaying)
             updateDisplayLinkState()
             updateAnimationPauseState()
@@ -710,8 +741,11 @@ final class DanmakuAnimationOverlayView: UIView {
             }
         }
 
-        if previousIsPlaying != newIsPlaying && newIsPlaying {
-            rebuildVisibleItems(at: sanitizedTime, animated: true)
+        // Pause/resume changes the layer clock in place. Replaying the whole
+        // window here made messages jump or reappear whenever controls toggled.
+        if !previousIsPlaying && newIsPlaying,
+           activeEntries.values.contains(where: { $0.item.isScrolling && $0.label.layer.animation(forKey: "danmaku.scroll") == nil }) {
+            rebuildVisibleItemsAfterLayoutChange(at: sanitizedTime, animated: true)
         }
 
         updateDisplayLinkState()
@@ -1097,8 +1131,10 @@ final class DanmakuAnimationOverlayView: UIView {
         if targetSpeed == 0 {
             layer.timeOffset = currentLayerTime
         } else {
-            let convertedTime = layer.convertTime(now, from: nil)
-            layer.beginTime = convertedTime - currentLayerTime
+            // beginTime is in the parent's clock, while timeOffset is local.
+            // The usual speed=1 resume formula breaks at 1.5x/2x playback.
+            let parentTime = layer.superlayer?.convertTime(now, from: nil) ?? now
+            layer.beginTime = parentTime - currentLayerTime / CFTimeInterval(targetSpeed)
         }
     }
 
@@ -1195,7 +1231,7 @@ final class DanmakuAnimationOverlayView: UIView {
         }
         advanceAnimationGeneration()
 
-        let existingEntries = activeEntries.values
+        let existingEntries = activeEntries.values.sorted { $0.item.time < $1.item.time }
         activeEntries.removeAll(keepingCapacity: true)
         scrollingLaneStates.removeAll(keepingCapacity: true)
 
@@ -1229,9 +1265,24 @@ final class DanmakuAnimationOverlayView: UIView {
             configure(entry.label, for: entry.item, font: font, size: labelSize, textSize: textSize)
 
             let band = displayBand()
-            let laneHeight = max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
+            let laneHeight = entry.item.isScrolling
+                ? scrollingLaneHeight
+                : max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
             let laneCount = max(1, Int(max(1, band.height) / laneHeight))
-            let lane = stableLane(for: entry.item.id, laneCount: laneCount)
+            let lane: Int
+            if entry.item.isScrolling {
+                guard let available = laneIndex(for: entry.item, laneCount: laneCount, labelWidth: labelSize.width, at: entry.item.time) else {
+                    recycle(entry.label)
+                    continue
+                }
+                lane = available
+            } else {
+                guard let available = anchoredLane(for: entry.item, laneHeight: laneHeight, band: band, labelSize: labelSize, at: playbackTime) else {
+                    recycle(entry.label)
+                    continue
+                }
+                lane = available
+            }
             let y = yPosition(for: entry.item, lane: lane, laneHeight: laneHeight, band: band, labelSize: labelSize)
             entry.label.layer.removeAllAnimations()
 
@@ -1315,6 +1366,7 @@ final class DanmakuAnimationOverlayView: UIView {
             let bucketItems = bucket.items
             while nextBucketItemIndex < bucketItems.count, spawnedCount < spawnLimit {
                 let item = bucketItems[nextBucketItemIndex]
+                guard item.time <= playbackTime else { return }
                 nextBucketItemIndex += 1
                 let age = playbackTime - item.time
                 guard age >= -Self.timeBucketDuration, age < displayDuration(for: item) else { continue }
@@ -1363,7 +1415,9 @@ final class DanmakuAnimationOverlayView: UIView {
         let remainingPlaybackDuration = max(0.05, duration - age)
         let animationDuration = animated ? remainingPlaybackDuration : 0
         let band = displayBand()
-        let laneHeight = max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
+        let laneHeight = item.isScrolling
+            ? scrollingLaneHeight
+            : max(labelSize.height, fontSize * CGFloat(settings.lineHeight) + 4)
         let laneCount = max(1, Int(max(1, band.height) / laneHeight))
         let lane: Int
         if item.isScrolling {
@@ -1377,7 +1431,8 @@ final class DanmakuAnimationOverlayView: UIView {
             }
             lane = selectedLane
         } else {
-            lane = stableLane(for: item.id, laneCount: laneCount)
+            guard let available = anchoredLane(for: item, laneHeight: laneHeight, band: band, labelSize: labelSize, at: playbackTime) else { return }
+            lane = available
         }
         let y = yPosition(for: item, lane: lane, laneHeight: laneHeight, band: band, labelSize: labelSize)
 
@@ -1615,6 +1670,9 @@ final class DanmakuAnimationOverlayView: UIView {
             return allowsTimelineFallback && age >= duration + 0.35
         }
 
+        // Core Animation owns smooth motion; avoid asking every active layer
+        // for its presentation tree on every scheduling tick.
+        guard age >= duration - 0.08 else { return false }
         let currentX = label.layer.presentation()?.position.x ?? label.center.x
         let endX = entry.scrollingTrajectory?.endX ?? scrollingEndX(labelWidth: label.bounds.width)
         if currentX <= endX + 1 {
@@ -1733,13 +1791,13 @@ final class DanmakuAnimationOverlayView: UIView {
     ) -> CGFloat {
         if item.isBottomAnchored {
             let anchoredLaneCount = min(3, max(1, Int(max(1, band.height) / laneHeight)))
-            let anchoredLane = stableLane(for: item.id, laneCount: anchoredLaneCount)
+            let anchoredLane = lane % anchoredLaneCount
             let y = band.maxY - laneHeight * (CGFloat(anchoredLane) + 0.5)
             return min(max(y, labelSize.height / 2), bounds.height - labelSize.height / 2)
         }
         if item.isTopAnchored {
             let anchoredLaneCount = min(3, max(1, Int(max(1, band.height) / laneHeight)))
-            let anchoredLane = stableLane(for: item.id, laneCount: anchoredLaneCount)
+            let anchoredLane = lane % anchoredLaneCount
             let y = band.minY + laneHeight * (CGFloat(anchoredLane) + 0.5)
             return min(max(y, labelSize.height / 2), bounds.height - labelSize.height / 2)
         }
@@ -1753,32 +1811,55 @@ final class DanmakuAnimationOverlayView: UIView {
         labelWidth: CGFloat,
         at itemTime: TimeInterval
     ) -> Int? {
-        guard laneCount > 1, item.isScrolling else { return 0 }
+        guard laneCount > 0 else { return nil }
         let startLane = stableLane(for: item.id, laneCount: laneCount)
         for offset in 0..<laneCount {
             let lane = (startLane + offset) % laneCount
-            if (scrollingLaneStates[lane]?.releaseTime ?? 0) <= itemTime {
-                scrollingLaneStates[lane] = LaneState(
-                    releaseTime: itemTime + laneEntranceDelay(for: labelWidth),
-                    itemWidth: labelWidth
-                )
-                return lane
+            if let previous = scrollingLaneStates[lane] {
+                guard previous.releaseTime <= itemTime,
+                      DanmakuMotionTiming.canFollow(
+                        surfaceWidth: bounds.width,
+                        previousWidth: previous.itemWidth,
+                        previousStart: previous.startTime,
+                        previousDuration: previous.duration,
+                        nextWidth: labelWidth,
+                        nextDuration: displayDuration(for: item),
+                        at: itemTime,
+                        gap: bounds.width > 640 ? 40 : 30,
+                        overscan: scrollingRetirementOverscan
+                      ) else { continue }
             }
+            scrollingLaneStates[lane] = LaneState(
+                releaseTime: itemTime + laneEntranceDelay(for: labelWidth),
+                itemWidth: labelWidth,
+                startTime: itemTime,
+                duration: displayDuration(for: item)
+            )
+            return lane
         }
+        return nil
+    }
 
-        guard let earliest = scrollingLaneStates.min(by: { lhs, rhs in
-            lhs.value.releaseTime < rhs.value.releaseTime
-        }) else {
-            return startLane
+    private func anchoredLane(
+        for item: DanmakuItem,
+        laneHeight: CGFloat,
+        band: CGRect,
+        labelSize: CGSize,
+        at playbackTime: TimeInterval
+    ) -> Int? {
+        let count = min(3, max(1, Int(band.height / laneHeight)))
+        let start = stableLane(for: item.id, laneCount: count)
+        for offset in 0..<count {
+            let lane = (start + offset) % count
+            let y = yPosition(for: item, lane: lane, laneHeight: laneHeight, band: band, labelSize: labelSize)
+            let blocked = activeEntries.values.contains { entry in
+                guard !entry.item.isScrolling,
+                      playbackTime - entry.item.time < displayDuration(for: entry.item) else { return false }
+                return abs(entry.label.center.y - y) < (entry.label.bounds.height + labelSize.height) / 2 + 2
+            }
+            if !blocked { return lane }
         }
-        guard earliest.value.releaseTime - itemTime <= maxLaneOverlapTolerance else {
-            return nil
-        }
-        scrollingLaneStates[earliest.key] = LaneState(
-            releaseTime: itemTime + laneEntranceDelay(for: labelWidth),
-            itemWidth: labelWidth
-        )
-        return earliest.key
+        return nil
     }
 
     private func laneEntranceDelay(for labelWidth: CGFloat) -> TimeInterval {
@@ -1789,10 +1870,6 @@ final class DanmakuAnimationOverlayView: UIView {
             duration: scrollDuration,
             gap: gap
         )
-    }
-
-    private var maxLaneOverlapTolerance: TimeInterval {
-        bounds.width > 640 ? 0.16 : 0.10
     }
 
     private func displayDuration(for item: DanmakuItem) -> TimeInterval {
@@ -1866,17 +1943,33 @@ final class DanmakuAnimationOverlayView: UIView {
     private static let timeBucketDuration: TimeInterval = 0.1
 
     private func fontSize(for item: DanmakuItem) -> CGFloat {
+        scaledFontSize(serverFontSize: item.fontSize)
+    }
+
+    // Every scrolling row uses the same grid. A per-message row height puts
+    // small and large text on different grids even when lane IDs differ.
+    private var scrollingLaneHeight: CGFloat {
+        let size = scaledFontSize(serverFontSize: largestScrollingServerFontSize)
+        let font = UIFont.systemFont(ofSize: size, weight: settings.fontWeight.uiFontWeight)
+        return max(ceil(font.lineHeight) + 8 + CGFloat(settings.strokeWidth * 2), size * CGFloat(settings.lineHeight) + 4)
+    }
+
+    private func scaledFontSize(serverFontSize: Double) -> CGFloat {
         let compactScale = bounds.width > 640 ? 0.86 : 0.70
         let maximumSize: CGFloat = bounds.width > 640 ? 24 : 18
         let minimumSize: CGFloat = bounds.width > 640 ? 15 : 13
-        let scaledSize = CGFloat(item.fontSize) * compactScale * CGFloat(settings.fontScale)
+        let scaledSize = CGFloat(serverFontSize) * compactScale * CGFloat(settings.fontScale)
         return min(max(scaledSize, minimumSize * 0.9), maximumSize * 1.35)
     }
 
     private func rebuildTimeBuckets() {
         timeBuckets.removeAll(keepingCapacity: true)
         timeBuckets.reserveCapacity(min(items.count, 600))
+        largestScrollingServerFontSize = 25
         for item in items {
+            if item.isScrolling {
+                largestScrollingServerFontSize = max(largestScrollingServerFontSize, item.fontSize)
+            }
             let bucketIndex = timeBucketIndex(for: item.time)
             if let lastIndex = timeBuckets.indices.last,
                timeBuckets[lastIndex].index == bucketIndex {

@@ -176,6 +176,9 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var dynamicFeedLayoutPreference: DynamicFeedLayoutPreference
     @Published private(set) var homeRecommendFeedSourcePreference: HomeRecommendFeedSourcePreference
     @Published private(set) var showsHotSearches: Bool
+    @Published private(set) var showsSearchSuggestions: Bool
+    @Published private(set) var recordsSearchHistory: Bool
+    @Published private(set) var searchHistory: [String]
 
     private let userDefaults: UserDefaults
     private var pendingDanmakuSettingsPersistence: DanmakuSettings?
@@ -300,6 +303,9 @@ final class LibraryStore: ObservableObject {
     private static let dynamicFeedLayoutPreferenceKey = "cc.bili.dynamic.feedLayout.v1"
     private static let homeRecommendFeedSourcePreferenceKey = "cc.bili.home.recommendFeedSourcePreference.v1"
     private static let showsHotSearchesKey = "cc.bili.search.showsHotSearches.v1"
+    private static let showsSearchSuggestionsKey = "cc.bili.search.showsSuggestions.v1"
+    private static let recordsSearchHistoryKey = "cc.bili.search.recordsHistory.v1"
+    private static let searchHistoryKey = "cc.bili.search.history.v1"
     private static let supportedPlaybackRates = [0.75, 1.0, 1.25, 1.5, 2.0]
     nonisolated static let defaultPreferredVideoQuality = 112
     nonisolated static let defaultCellularPreferredVideoQuality = 64
@@ -643,7 +649,14 @@ final class LibraryStore: ObservableObject {
             rawValue: userDefaults.string(forKey: Self.homeRecommendFeedSourcePreferenceKey) ?? ""
         ) ?? Self.defaultHomeRecommendFeedSourcePreference
         self.showsHotSearches = userDefaults.object(forKey: Self.showsHotSearchesKey) as? Bool ?? true
+        self.showsSearchSuggestions = userDefaults.object(forKey: Self.showsSearchSuggestionsKey) as? Bool ?? true
+        self.recordsSearchHistory = userDefaults.object(forKey: Self.recordsSearchHistoryKey) as? Bool ?? true
+        self.searchHistory = Self.normalizedSearchHistory(userDefaults.stringArray(forKey: Self.searchHistoryKey) ?? [])
     }
+
+    // Explicit nonisolated teardown also works on the local iOS 26.2 preview
+    // runtime affected by swiftlang/swift#88036.
+    nonisolated deinit {}
 
     func setAppearanceMode(_ mode: AppAppearanceMode) {
         appearanceMode = mode
@@ -1471,6 +1484,46 @@ final class LibraryStore: ObservableObject {
     func setShowsHotSearches(_ isEnabled: Bool) {
         showsHotSearches = isEnabled
         userDefaults.set(isEnabled, forKey: Self.showsHotSearchesKey)
+    }
+
+    func setShowsSearchSuggestions(_ isEnabled: Bool) {
+        showsSearchSuggestions = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.showsSearchSuggestionsKey)
+    }
+
+    func setRecordsSearchHistory(_ isEnabled: Bool) {
+        recordsSearchHistory = isEnabled
+        userDefaults.set(isEnabled, forKey: Self.recordsSearchHistoryKey)
+    }
+
+    func recordSearchKeyword(_ keyword: String) {
+        guard recordsSearchHistory, !incognitoModeEnabled else { return }
+        let term = keyword.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+        guard !term.isEmpty, term.count <= 200 else { return }
+        searchHistory = Self.normalizedSearchHistory([term] + searchHistory)
+        userDefaults.set(searchHistory, forKey: Self.searchHistoryKey)
+    }
+
+    func removeSearchKeyword(_ keyword: String) {
+        searchHistory.removeAll { $0 == keyword }
+        userDefaults.set(searchHistory, forKey: Self.searchHistoryKey)
+    }
+
+    func clearSearchHistory() {
+        searchHistory = []
+        userDefaults.removeObject(forKey: Self.searchHistoryKey)
+    }
+
+    private static func normalizedSearchHistory(_ values: [String]) -> [String] {
+        var result = [String]()
+        for value in values {
+            let term = value.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+            guard !term.isEmpty, term.count <= 200,
+                  !result.contains(where: { $0.caseInsensitiveCompare(term) == .orderedSame }) else { continue }
+            result.append(term)
+            if result.count == 30 { break }
+        }
+        return result
     }
 
     private static func normalizedPlaybackRate(_ rate: Double) -> Double {
