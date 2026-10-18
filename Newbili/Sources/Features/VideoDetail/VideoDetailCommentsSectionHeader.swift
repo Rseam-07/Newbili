@@ -20,6 +20,9 @@ struct CommentsSectionHeader: View {
 
             Spacer()
 
+            VideoCommentComposerButton(iconOnly: true)
+                .foregroundStyle(appTintColor)
+
             HStack(spacing: 4) {
                 ForEach(CommentSort.allCases) { sort in
                     Button {

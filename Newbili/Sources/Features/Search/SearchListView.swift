@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct SearchListView: View {
+    @EnvironmentObject private var libraryStore: LibraryStore
     @ObservedObject var viewModel: SearchViewModel
+    @State private var confirmsClearHistory = false
     let showsHotSearches: Bool
     var topContentInset: CGFloat = 0
     let scrollEdgeStore: SearchScrollEdgeStore
@@ -14,7 +16,9 @@ struct SearchListView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                if viewModel.showsDiscovery {
+                if viewModel.showsSuggestions {
+                    suggestionsContent
+                } else if viewModel.showsDiscovery {
                     discoveryContent
                 } else if viewModel.results.isEmpty && viewModel.state.isLoading {
                     SearchLoadingContent(scope: viewModel.selectedScope)
@@ -32,16 +36,48 @@ struct SearchListView: View {
         .scrollDismissesKeyboard(.immediately)
         .scrollBounceBehavior(.always, axes: .vertical)
         .defersRemoteImageLoadsDuringFastScroll()
-        .background(Color(.systemGroupedBackground))
+        .background(AppSurfaceColors.groupedPage)
         .ignoresSafeArea(.container, edges: .top)
         .nativeTopScrollEdgeEffect(hidesRootNavigationTitle: false)
         .refreshable {
             await refresh()
         }
+        .confirmationDialog("清空搜索历史？", isPresented: $confirmsClearHistory, titleVisibility: .visible) {
+            Button("清空历史", role: .destructive) { libraryStore.clearSearchHistory() }
+            Button("取消", role: .cancel) {}
+        }
     }
 
     @ViewBuilder
     private var discoveryContent: some View {
+        if !libraryStore.incognitoModeEnabled, !libraryStore.searchHistory.isEmpty {
+            SearchContentSection(title: "搜索历史", systemImage: "clock.arrow.circlepath") {
+                HStack {
+                    Text("保存在此设备")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("清空", systemImage: "trash") { confirmsClearHistory = true }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("清空搜索历史")
+                }
+                LazyVGrid(columns: discoveryColumns, alignment: .leading, spacing: 10) {
+                    ForEach(libraryStore.searchHistory, id: \.self) { keyword in
+                        SearchDiscoveryChip(item: HotSearchItem(keyword: keyword, showName: nil, icon: nil)) {
+                            Task { await viewModel.search(keyword) }
+                        }
+                        .accessibilityLabel("搜索历史，\(keyword)")
+                        .contextMenu {
+                            Button("删除此记录", systemImage: "trash", role: .destructive) {
+                                libraryStore.removeSearchKeyword(keyword)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 8)
+        }
         if viewModel.state.isLoading {
             SearchDiscoveryLoadingCard()
         }
@@ -65,6 +101,24 @@ struct SearchListView: View {
         }
     }
 
+    private var suggestionsContent: some View {
+        SearchContentSection(title: "搜索建议", systemImage: "magnifyingglass") {
+            ForEach(viewModel.suggestions.prefix(10)) { item in
+                Button {
+                    Task { await viewModel.search(item.value) }
+                } label: {
+                    Label(item.value.removingHTMLTags(), systemImage: "magnifyingglass")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .background(AppSurfaceColors.groupedCard, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     @ViewBuilder
     private var resultsContent: some View {
         ForEach(viewModel.results) { result in
@@ -72,7 +126,7 @@ struct SearchListView: View {
                 .equatable()
         }
 
-        if let lastResult = viewModel.results.last {
+        if let lastResult = viewModel.paginationTriggerItem {
             Color.clear
                 .frame(height: 1)
                 .accessibilityHidden(true)
@@ -83,6 +137,21 @@ struct SearchListView: View {
 
         if viewModel.state.isLoading {
             SearchLoadingContent(scope: viewModel.selectedScope, count: 4, showsTitle: false)
+        } else if case .failed(let message) = viewModel.state {
+            VStack(spacing: 8) {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                Button("重试加载更多") {
+                    Task { await viewModel.loadMoreIfNeeded(current: viewModel.paginationTriggerItem) }
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity)
+        } else if viewModel.canLoadMore {
+            Button("加载更多") {
+                Task { await viewModel.loadMoreIfNeeded(current: viewModel.paginationTriggerItem) }
+            }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -150,7 +219,7 @@ private struct SearchDiscoveryChip: View {
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(AppSurfaceColors.groupedCard)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -242,6 +311,8 @@ private struct SearchScopedResultSkeletonRow: View {
             SearchNonVideoResultSkeletonRow(style: .user)
         case .bangumi, .movie:
             SearchNonVideoResultSkeletonRow(style: .media)
+        case .article:
+            SearchNonVideoResultSkeletonRow(style: .article)
         case .comprehensive, .video:
             SearchVideoResultSkeletonRow()
         }
@@ -252,6 +323,7 @@ private struct SearchNonVideoResultSkeletonRow: View {
     enum Style {
         case user
         case media
+        case article
     }
 
     let style: Style
@@ -276,6 +348,8 @@ private struct SearchNonVideoResultSkeletonRow: View {
             SkeletonBlock(width: 54, height: 54, shape: .circle)
         case .media:
             SkeletonBlock(width: 76, height: 102, shape: .rounded(10))
+        case .article:
+            SkeletonBlock(width: 78, height: 78, shape: .rounded(10))
         }
     }
 
@@ -291,7 +365,7 @@ private struct SearchNonVideoResultSkeletonRow: View {
                     SkeletonBlock(width: 62, height: 11, shape: .capsule)
                     SkeletonBlock(width: 72, height: 11, shape: .capsule)
                 }
-            case .media:
+            case .media, .article:
                 SkeletonBlock(width: 92, height: 18, shape: .capsule)
                 SkeletonBlock(width: 150, height: 11, shape: .capsule)
                 SkeletonBlock(height: 12, shape: .rounded(5))

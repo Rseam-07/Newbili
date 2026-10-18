@@ -4,18 +4,21 @@
 
 # Newbili
 
-Newbili（简称 **nb**）是一个面向 iPhone、iPad 与 Android 的第三方客户端。iOS/iPadOS 由 SwiftUI、UIKit 和 AVFoundation 实现；Android 基于完整的 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) Flutter 功能底座，以现有 iOS 界面和交互为对齐基准，复用 Material 组件及分级 Liquid Glass。跨端深层页面仍在逐步对齐。
+Newbili（简称 **nb**）是面向 **iPhone 和 iPad** 的原生第三方客户端，使用 SwiftUI、UIKit 和 AVFoundation。
+
+**Android 已统一迁移至 [Newbili MD](https://github.com/Rseam-07/Newbili-MD)，本仓库停止 Android 构建和 APK 发布。** [下载 MD 版](https://github.com/Rseam-07/Newbili-MD/releases)。旧源码保留在 Git 历史及原 android 分支。
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.4%2B-lightgrey.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-5%20%2F%206-orange.svg)](https://www.swift.org/)
-[![Android](https://img.shields.io/badge/Android%2012%2B-Flutter%20%2B%20MD3-3DDC84.svg)](AndroidFlutter/)
 
 项目主页：[github.com/Rseam-07/Newbili](https://github.com/Rseam-07/Newbili) · 维护者：[Serge（@Rseam-07）](https://github.com/Rseam-07)
 
 > Newbili 与哔哩哔哩无隶属、授权或背书关系。本项目仅用于学习、研究与个人使用，不提供破解内容、账号凭据、签名证书或私有密钥。使用者应自行遵守目标平台服务条款和当地法律法规。
 
 ## 当前能力
+
+原生主线正在恢复维护，保留既有界面并改进响应、弹幕和功能可靠性。本轮改动、MD 对照缺口与真机验收状态见 [原生恢复与功能审查](NATIVE_RECOVERY_AND_FEATURE_AUDIT_2026-10-14.md)。最新响应、转场、播放字幕与收藏夹管理见 [10 月 18 日实现记录](NATIVE_IMPLEMENTATION_UPDATE_2026-10-18.md)。本轮设备检查步骤见 [原生预览验收单](NATIVE_DEVICE_ACCEPTANCE_2026-10-15.md)。下列已有能力仍需逐项完成真机流程验收。
 
 - 首页推荐、热门、完整分区榜单、番剧/影视索引与更新日历、搜索、多类型搜索结果和 UP 主空间；首页可选默认沉浸式新版或简约信息流，实时玻璃光晕默认开启并可单独切换。
 - 视频详情、分 P、清晰度/编码/线路选择、续播、点赞、投币、收藏、评论与分享。
@@ -27,13 +30,7 @@ Newbili（简称 **nb**）是一个面向 iPhone、iPad 与 Android 的第三方
 - 原生标签页、导航栈、菜单、表单、材质与 Liquid Glass 外观。
 - 首页、图片缓存、音频浮条与弹幕渲染采用低分配和精确状态订阅策略，在保留动画、实时模糊和全部功能的前提下降低滚动与播放时的主线程负担。
 
-Newbili 仍在持续补齐 PiliPlus 的长尾功能。PGC 高级筛选与完整追番管理、离线下载、WebDAV、DLNA、完整专栏/音频、动态发布和私信高级能力尚未全部达到一比一覆盖；请以 [功能对照基线](UPSTREAM_PARITY_2026-08-19.md) 为准，避免把“已有入口”误认为“完整闭环”。
-
-Android 端位于 [`AndroidFlutter/`](AndroidFlutter/)，直接从 PiliPlus `44680b8a486a0518f366a2c9bff6242506cf8783`（2.1.2 系列，2026-08-30）演进，保留其完整业务路由、网络模型、登录、多账号、推荐/热门/动态、视频与直播播放器、弹幕、评论、下载、DLNA、后台音频和画中画。Newbili 的改动集中在主题、公共组件、响应式导航、首页焦点推荐、播放器控制层、触控命中区和性能分级，不以删功能换性能。
-
-Android 当前首页、个人页、搜索、分组设置及播放器详情/评论导航按 iOS 重排：居中分类、问候语、默认双列、五项胶囊导航和共享圆角卡片。保留早期参考 [BiliBili-UWP](https://github.com/Richasy/BiliBili-UWP) 的分层与宽屏适配思路，但不再用独立 Fluent 首页替代 iOS 对齐目标。Liquid Glass 使用 Flutter `BackdropFilter` 与自研能力分档实现；Android 13+ 为增强档，Android 12/12L 为基础模糊档，低内存或省电模式自动退化为静态 MD3 材质。实时模糊用于固定控件，不放到每张滚动视频卡片上。
-
-v1.0.7 新增 Android 的关注 UP 分档通知、我的追更、新增分 P 通知与三档后台播放。通知通过系统周期检查，非服务端即时推送；验证范围与剩余差距见 [本轮对齐记录](PERFORMANCE_PARITY_2026-09-05.md) 和 [版本说明](RELEASE_NOTES_1.0.7.md)。
+Newbili 仍在持续补齐 PiliPlus 的长尾功能。完整账号追番管理、离线下载、WebDAV、DLNA、完整专栏/音频、动态发布和私信高级能力尚未全部达到一比一覆盖；请以 [功能对照基线](UPSTREAM_PARITY_2026-08-19.md) 为准，避免把“已有入口”误认为“完整闭环”。
 
 ## 播放器设计
 
@@ -53,11 +50,9 @@ v1.0.7 新增 Android 的关注 UP 分档通知、我的追更、新增分 P 通
 ## 开发环境
 
 - macOS
-- Xcode 27.0 beta 或更新版本（构建 Design Generation 27 分层图标）
+- Xcode 26.3 或更新版本；本地已验证 26.3 编译，正式发布保持 iOS 26.4 最低版本
 - iOS / iPadOS 26.4+
 - Swift 5 语言模式，兼容 Swift 6 工具链
-- Android Studio / Android SDK 37、JDK 17
-- Flutter 3.47.2（Android）
 
 打开 `Newbili.xcodeproj`，选择 `Newbili` scheme 即可运行。命令行示例：
 
@@ -85,16 +80,6 @@ xcodebuild test \
 
 测试覆盖服务解码、账号会话、播放器恢复、HLS Bridge、弹幕、评论、稍后再看、PGC 路由和主要设置持久化。登录态接口仍需使用测试账号在真机上做端到端验证。
 
-Android 静态检查与测试：
-
-```bash
-cd AndroidFlutter
-flutter analyze --no-pub --no-fatal-infos
-flutter test --no-pub
-```
-
-Android 的完整构建步骤、Flutter 补丁和 ABI 产物说明见 [`AndroidFlutter/README.md`](AndroidFlutter/README.md)。
-
 ## 构建未签名 IPA
 
 ```bash
@@ -105,7 +90,7 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
 输出位于 `build/release-unsigned-ipa/Newbili-release-unsigned.ipa`。未签名 IPA 不能直接安装，需要使用自己的 Apple 证书/描述文件或合规侧载工具签名。
 
 仓库内置 `.github/workflows/unsigned-ipa.yml`，推送到 `main` / `master` 或手动触发时会生成 Release 未签名 IPA artifact。
-工作流使用 GitHub Actions 的 `xcode-27` 预览运行器，以便正确编译 Design Generation 27 图标。
+预览发布使用 native-preview-release.yml 工作流，在 GitHub macOS 运行器上构建未签名 IPA；产物不含个人开发证书或设备描述文件。
 
 ## 使用自己的证书安装
 
@@ -124,10 +109,10 @@ Newbili/                 App 源码、资源与分层主图标
 NewbiliTests/            单元与回归测试
 Newbili.xcodeproj/       Xcode 工程与共享 Scheme
 Brand/NewbiliIcon/       图标 SVG、PNG 和 Icon Composer 源工程
-AndroidFlutter/           完整 PiliPlus Flutter Android 衍生客户端
+AndroidFlutter/         Android 停止维护与迁移说明
 Config/                  非敏感构建配置
-Scripts/                 iOS/Android 构建、签名与验证脚本
-.github/workflows/       未签名 IPA 与 Android Debug APK 自动构建
+Scripts/                 原生 iOS 构建、签名与验证脚本
+.github/workflows/       原生未签名 IPA 与 iOS 预览发布
 ```
 
 项目不依赖 CocoaPods 或 Swift Package；运行时主要使用 SwiftUI、UIKit、AVFoundation、AVKit、VideoToolbox、Metal、Network、WebKit、AuthenticationServices、PhotosUI、Compression 与系统 zlib。

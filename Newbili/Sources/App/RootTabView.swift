@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var dependencies: AppDependencies
     @EnvironmentObject var libraryStore: LibraryStore
     @StateObject var runtimeSettings = RootRuntimeSettingsStore()
@@ -11,6 +12,7 @@ struct RootTabView: View {
     @StateObject var searchBottomAccessoryStore = SearchBottomAccessoryStore()
     @StateObject var audioMiniPlayerCoordinator = AudioMiniPlayerCoordinator.shared
     @StateObject var appIntentRouteInbox = AppIntentRouteInbox.shared
+    @Namespace private var videoTransitionNamespace
     @State var selectedTab = Self.initialTab.appTab
     @State var bottomMode: BottomTabMode = .root
     @State var rootTabBarRestoreRequestID = 0
@@ -42,6 +44,11 @@ struct RootTabView: View {
                     .zIndex(2)
             }
         }
+        .environment(\.videoNavigationContext, VideoNavigationContext(
+            namespace: videoTransitionNamespace,
+            open: { video, sourceID in openVideo(video, sourceID: sourceID) },
+            prewarm: beginPlaybackPreload
+        ))
         .environment(\.openVideoAction, openVideo)
         .environment(\.openLiveRoomAction, openLiveRoom)
         .environment(\.prewarmVideoRouteAction, beginPlaybackPreload)
@@ -57,7 +64,7 @@ struct RootTabView: View {
             return .handled
         })
         .background(NavigationChromeInstaller(isStandardChromeEnabled: bottomMode == .video))
-        .animation(.smooth(duration: 0.28), value: bottomMode)
+        .animation(AppMotion.navigation(reduceMotion: reduceMotion), value: bottomMode)
         .preferredColorScheme(runtimeSettings.appearanceMode.preferredColorScheme)
         .sheet(item: $inAppBrowserItem) { item in
             InAppBrowserView(url: item.url, cookieHeader: item.cookieHeader)

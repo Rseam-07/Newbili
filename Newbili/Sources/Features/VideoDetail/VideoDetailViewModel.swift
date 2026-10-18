@@ -9,6 +9,7 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var detail: VideoItem {
         didSet {
             refreshDetailDisplayMetrics()
+            syncSubtitleContext()
             scheduleRenderStoreSync([.description, .playback, .networkDiagnostics, .danmaku])
         }
     }
@@ -18,12 +19,16 @@ final class VideoDetailViewModel: ObservableObject {
             scheduleRenderStoreSync([.playback, .networkDiagnostics])
         }
     }
+    let subtitleModel: PlaybackSubtitleModel
     let renderStores = VideoDetailViewModelRenderStores()
     var detailPresentationState = VideoDetailPresentationState()
     var relatedStateStorage = VideoDetailRelatedState()
     var commentListState = VideoDetailCommentListState()
     @Published var selectedCID: Int? {
-        didSet { scheduleRenderStoreSync([.description, .playback]) }
+        didSet {
+            scheduleRenderStoreSync([.description, .playback])
+            syncSubtitleContext()
+        }
     }
     @Published var state: LoadingState = .idle {
         didSet { scheduleRenderStoreSync(.playback) }
@@ -77,6 +82,12 @@ final class VideoDetailViewModel: ObservableObject {
     }
     var interactionMutationState = VideoDetailInteractionMutationState()
     var interactionMutationRevision = 0
+    var followConfirmation: VideoDetailFollowConfirmation?
+    var interactionMetadataRefreshTask: Task<Void, Never>?
+    var favoriteFolderRequestID: UUID?
+    var favoriteFolderAccount: FavoriteFolderAccount? {
+        didSet { scheduleRenderStoreSync(.favoriteFolder) }
+    }
     @Published var favoriteFolders: [FavoriteFolder] = [] {
         didSet { scheduleRenderStoreSync(.favoriteFolder) }
     }
@@ -126,6 +137,7 @@ final class VideoDetailViewModel: ObservableObject {
     var commentLikeMutationIDs = Set<Int>()
 
     let serviceDependencies: VideoDetailViewModelDependencies
+    let commentThreadService: any CommentThreadServing
     let playbackOptions: VideoDetailPlaybackOptions
     var coreTaskState = VideoDetailCoreTaskState()
     var relatedTaskState = VideoDetailRelatedTaskState()
@@ -159,7 +171,8 @@ final class VideoDetailViewModel: ObservableObject {
         sessionStore: SessionStore,
         sponsorBlockService: SponsorBlockService,
         playbackOptions: VideoDetailPlaybackOptions = VideoDetailPlaybackOptions(),
-        videoListenPlaybackSessionStore: VideoListenPlaybackSessionStore? = nil
+        videoListenPlaybackSessionStore: VideoListenPlaybackSessionStore? = nil,
+        commentThreadService: (any CommentThreadServing)? = nil
     ) {
         let resolvedVideoListenPlaybackSessionStore = videoListenPlaybackSessionStore
             ?? .shared
@@ -187,6 +200,8 @@ final class VideoDetailViewModel: ObservableObject {
             sessionStore: sessionStore,
             sponsorBlockService: sponsorBlockService
         )
+        self.subtitleModel = PlaybackSubtitleModel(service: api)
+        self.commentThreadService = commentThreadService ?? api
         self.playbackOptions = playbackOptions
         if playbackOptions.resumesPlaybackHistory,
            let resumeTime = seedVideo.historyResumeTime,
@@ -200,10 +215,12 @@ final class VideoDetailViewModel: ObservableObject {
         refreshDetailDisplayMetrics()
         refreshUploaderFanCountText()
         configureLifecycleBindings()
+        syncSubtitleContext()
         syncAllRenderStores()
     }
 
     deinit {
+        interactionMetadataRefreshTask?.cancel()
         videoListenQueueTask?.cancel()
         videoListenContentSwitchTask?.cancel()
         videoListenSleepTimerTask?.cancel()

@@ -7,9 +7,9 @@ final class SearchViewModelHolder: ObservableObject {
     private var cancellable: AnyCancellable?
     private var lastSnapshot: SearchRenderSnapshot?
 
-    func configure(api: BiliAPIClient) {
+    func configure(api: BiliAPIClient, libraryStore: LibraryStore) {
         if viewModel == nil {
-            let viewModel = SearchViewModel(api: api)
+            let viewModel = SearchViewModel(api: api, libraryStore: libraryStore)
             self.viewModel = viewModel
             lastSnapshot = SearchRenderSnapshot(viewModel)
             cancellable = viewModel.objectWillChange.sink { [weak self, weak viewModel] _ in
@@ -40,6 +40,7 @@ private struct SearchRenderSnapshot: Equatable {
     let query: String
     let selectedScope: SearchScope
     let selectedOrder: SearchSortOrder
+    let videoFilters: SearchVideoFilters
     let state: LoadingState
     let hotSearchState: LoadingState
     let hotSearchCount: Int
@@ -55,6 +56,7 @@ private struct SearchRenderSnapshot: Equatable {
         query = viewModel.query
         selectedScope = viewModel.selectedScope
         selectedOrder = viewModel.selectedOrder
+        videoFilters = viewModel.videoFilters
         state = viewModel.state
         hotSearchState = viewModel.hotSearchState
         hotSearchCount = viewModel.hotSearches.count

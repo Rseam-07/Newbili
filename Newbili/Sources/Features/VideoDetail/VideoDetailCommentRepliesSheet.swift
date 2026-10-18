@@ -4,24 +4,25 @@ struct CommentRepliesSheet: View {
     let rootComment: Comment
     @ObservedObject var store: VideoDetailCommentThreadRenderStore
     let initialReplyID: Int?
-    let loadReplies: (Comment) async -> Void
-    let reloadReplies: (Comment) async -> Void
-    let loadMoreReplies: (Comment) async -> Void
-    let loadDialog: (Comment, Comment) async -> Void
-    let reloadDialog: (Comment, Comment) async -> Void
+    let loadReplies: CommentReplyLoadAction
+    let reloadReplies: CommentReplyLoadAction
+    let loadMoreReplies: CommentReplyLoadAction
+    let loadDialog: CommentDialogLoadAction
+    let reloadDialog: CommentDialogLoadAction
     let toggleLike: (Comment) -> Void
     @State private var dialogReply: Comment?
     @State private var didPresentInitialReply = false
+    @State private var selectedDetent: PresentationDetent = .large
 
     init(
         rootComment: Comment,
         store: VideoDetailCommentThreadRenderStore,
         initialReplyID: Int? = nil,
-        loadReplies: @escaping (Comment) async -> Void,
-        reloadReplies: @escaping (Comment) async -> Void,
-        loadMoreReplies: @escaping (Comment) async -> Void,
-        loadDialog: @escaping (Comment, Comment) async -> Void,
-        reloadDialog: @escaping (Comment, Comment) async -> Void,
+        loadReplies: @escaping CommentReplyLoadAction,
+        reloadReplies: @escaping CommentReplyLoadAction,
+        loadMoreReplies: @escaping CommentReplyLoadAction,
+        loadDialog: @escaping CommentDialogLoadAction,
+        reloadDialog: @escaping CommentDialogLoadAction,
         toggleLike: @escaping (Comment) -> Void
     ) {
         self.rootComment = rootComment
@@ -47,7 +48,8 @@ struct CommentRepliesSheet: View {
                 loadReplies: loadReplies
             )
         }
-        .presentationDetents([.fraction(0.7)])
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
+        .presentationBackground(AppSurfaceColors.page)
         .presentationDragIndicator(.visible)
         .sheet(item: $dialogReply) { reply in
             CommentDialogSheet(

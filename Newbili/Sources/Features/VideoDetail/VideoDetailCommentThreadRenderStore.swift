@@ -27,6 +27,10 @@ final class VideoDetailCommentThreadRenderStore: ObservableObject {
 
     private func setSnapshot(_ next: VideoDetailCommentThreadRenderSnapshot) {
         guard next.changeSignature != snapshot.changeSignature else { return }
+        let activeRoots = Set(next.replyThreads.keys).union(next.replyThreadStates.keys)
+        let activeDialogs = Set(next.dialogThreads.keys).union(next.dialogThreadStates.keys)
+        replyDisplayCache = replyDisplayCache.filter { activeRoots.contains($0.key) }
+        dialogDisplayCache = dialogDisplayCache.filter { activeDialogs.contains($0.key) }
         snapshot = next
     }
 }

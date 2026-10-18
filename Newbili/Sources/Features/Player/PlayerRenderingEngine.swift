@@ -446,6 +446,7 @@ protocol PlayerRenderingEngine: AnyObject {
     func detachSurface(_ surface: UIView)
     func refreshSurfaceLayout()
     func recoverSurface()
+    func ensureAudioSessionActive(force: Bool)
     @discardableResult
     func refreshVideoOutputForPlaybackRecovery() -> Bool
     @discardableResult
@@ -489,6 +490,8 @@ protocol PlayerRenderingEngine: AnyObject {
 }
 
 extension PlayerRenderingEngine {
+    func ensureAudioSessionActive(force: Bool) {}
+
     func pauseForUserScrub() {
         pause()
     }

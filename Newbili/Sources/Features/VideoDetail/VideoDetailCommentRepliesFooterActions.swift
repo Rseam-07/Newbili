@@ -3,9 +3,11 @@ import Foundation
 @MainActor
 struct CommentRepliesFooterActions {
     let rootComment: Comment
-    let loadMoreReplies: (Comment) async -> Void
+    let loadMoreReplies: CommentReplyLoadAction
 
     func performLoadMoreReplies() {
-        Task { await loadMoreReplies(rootComment) }
+        let rootID = rootComment.id
+        let load = loadMoreReplies
+        Task { @MainActor in await load(rootID) }
     }
 }

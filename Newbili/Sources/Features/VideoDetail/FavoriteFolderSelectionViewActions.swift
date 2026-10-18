@@ -18,7 +18,8 @@ struct FavoriteFolderSelectionViewActions {
     }
 
     var canSaveFavoriteFolders: Bool {
-        !store.favoriteFolderState.isLoading && !store.isMutatingInteraction
+        store.favoriteFolderState == .loaded && presentationState.wrappedValue.didInitializeSelection
+            && presentationState.wrappedValue.saveTask == nil && !store.isMutatingInteraction
     }
 
     func initializeSelectionIfNeeded(force: Bool = false) {
@@ -26,6 +27,7 @@ struct FavoriteFolderSelectionViewActions {
     }
 
     func dismissFavoriteFolderSelection() {
+        guard presentationState.wrappedValue.saveTask == nil else { return }
         cancelPendingTasks()
         dismiss()
     }
@@ -35,6 +37,7 @@ struct FavoriteFolderSelectionViewActions {
     }
 
     func saveFavoriteFoldersSelection() {
+        guard canSaveFavoriteFolders else { return }
         taskActions.saveFavoriteFoldersSelection()
     }
 

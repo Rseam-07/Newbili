@@ -314,13 +314,16 @@ final class DynamicLikeControllerRegistry {
         let initialStatus: DynamicLikeStatus = accountContext.adoptsDynamicFeedState
             ? .ready(isLiked: snapshot.isLiked, likeCount: snapshot.likeCount)
             : .loading
-        let hydration: DynamicLikeController.Hydration? = accountContext.adoptsDynamicFeedState
-            ? nil
-            : { [hydration, hydrationGate] dynamicID in
-                try await hydrationGate.run {
-                    try await hydration(dynamicID)
-                }
+        let hydration: DynamicLikeController.Hydration?
+        if accountContext.adoptsDynamicFeedState {
+            hydration = nil
+        } else {
+            let fetchState = self.hydration
+            let gate = hydrationGate
+            hydration = { dynamicID in
+                try await gate.run { try await fetchState(dynamicID) }
             }
+        }
         let controller = DynamicLikeController(
             dynamicID: snapshot.dynamicID,
             initialStatus: initialStatus,

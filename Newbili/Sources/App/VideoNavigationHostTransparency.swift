@@ -6,20 +6,20 @@ enum AppNavigationChrome {
         let appearance = standardAppearance()
         let navigationBar = UINavigationBar.appearance()
         navigationBar.standardAppearance = appearance
-        navigationBar.scrollEdgeAppearance = appearance
+        navigationBar.scrollEdgeAppearance = topLevelAppearance()
         navigationBar.compactAppearance = appearance
-        navigationBar.compactScrollEdgeAppearance = appearance
-        navigationBar.isTranslucent = false
+        navigationBar.compactScrollEdgeAppearance = topLevelAppearance()
+        navigationBar.isTranslucent = true
         navigationBar.tintColor = .label
     }
 
     static func applyStandard(to navigationBar: UINavigationBar) {
         let appearance = standardAppearance()
         navigationBar.standardAppearance = appearance
-        navigationBar.scrollEdgeAppearance = appearance
+        navigationBar.scrollEdgeAppearance = topLevelAppearance()
         navigationBar.compactAppearance = appearance
-        navigationBar.compactScrollEdgeAppearance = appearance
-        navigationBar.isTranslucent = false
+        navigationBar.compactScrollEdgeAppearance = topLevelAppearance()
+        navigationBar.isTranslucent = true
         navigationBar.tintColor = .label
         navigationBar.barStyle = .default
     }
@@ -68,10 +68,8 @@ enum AppNavigationChrome {
 
     private static func standardAppearance() -> UINavigationBarAppearance {
         let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = .systemBackground
-        appearance.backgroundEffect = nil
-        appearance.shadowColor = .separator.withAlphaComponent(0.22)
+        appearance.configureWithDefaultBackground()
+        appearance.shadowColor = .clear
         appearance.titleTextAttributes = [
             .foregroundColor: UIColor.label
         ]

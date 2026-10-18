@@ -7,7 +7,9 @@ extension VideoDetailViewModel {
         guard renderStoreSyncTask == nil else { return }
         let syncGeneration = advanceRenderStoreSyncGeneration()
         renderStoreSyncTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: Self.renderStoreSyncCoalescingDelayNanoseconds)
+            // Merge mutations from the current actor turn without imposing a
+            // fixed 16 ms wait on every tap (two frames on a 120 Hz display).
+            await Task.yield()
             guard let self,
                   !Task.isCancelled,
                   self.renderStoreSyncGeneration == syncGeneration

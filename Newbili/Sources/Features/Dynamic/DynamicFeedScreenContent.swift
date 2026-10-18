@@ -12,7 +12,7 @@ struct DynamicInitialFeedContent: View {
             }
         }
         .rootFloatingTabBarContentPadding()
-        .background(Color(.systemBackground))
+        .background(AppSurfaceColors.page)
     }
 }
 
@@ -39,6 +39,6 @@ struct DynamicFeedScreenContent: View {
                 pullRefreshTriggerDistance: pullRefreshTriggerDistance
             )
         }
-        .background(Color(.systemBackground))
+        .background(AppSurfaceColors.page)
     }
 }

@@ -9,6 +9,8 @@ extension VideoDetailViewModel {
     ) async -> Bool {
         guard !isPlaybackInvalidatedForNavigation else { return false }
         guard !isInteractionMutationActive(kind) else { return false }
+        interactionMetadataRefreshTask?.cancel()
+        interactionMetadataRefreshTask = nil
         setInteractionMutationActive(true, for: kind)
         interactionMutationRevision += 1
         interactionMessage = nil
@@ -23,11 +25,10 @@ extension VideoDetailViewModel {
             guard !isPlaybackInvalidatedForNavigation,
                   isCurrent()
             else { return false }
-            let confirmation = VideoDetailInteractionMutationConfirmation(
-                kind: kind,
-                state: interactionState
-            )
-            await refreshDetailMetadata(preserving: confirmation)
+            // The mutation already applied its acknowledged state. Invalidate
+            // older reads before releasing the button; counters can refresh later.
+            interactionMutationRevision += 1
+            scheduleAcknowledgedInteractionMetadataRefresh()
             return true
         } catch {
             guard !isPlaybackInvalidatedForNavigation,

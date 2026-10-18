@@ -26,6 +26,15 @@ struct RootVideoNavigationHost: View {
                     )
                     .id(video.id)
                 }
+                .navigationDestination(for: VideoSourceRoute.self) { route in
+                    VideoDetailView(
+                        seedVideo: route.video,
+                        hidesRootTabBar: false,
+                        onRequestClose: onRequestClose,
+                        onPopOne: onPopOne
+                    )
+                    .modifier(VideoCardDestinationTransition(sourceID: route.sourceID))
+                }
                 .navigationDestination(for: VideoCommentRoute.self) { route in
                     VideoDetailView(
                         seedVideo: route.video,

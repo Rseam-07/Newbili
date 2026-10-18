@@ -16,7 +16,7 @@ struct FavoriteFolderSelectionTaskActions {
         state.retryTask = Task { @MainActor in
             await loadFavoriteFolders(true)
             guard stateActions.isCurrentRetryTask(token) else { return }
-            stateActions.initializeSelectionIfNeeded(force: true)
+            stateActions.initializeSelectionIfNeeded()
             stateActions.clearRetryTaskIfCurrent(token)
         }
         presentationState.wrappedValue = state
@@ -24,7 +24,7 @@ struct FavoriteFolderSelectionTaskActions {
 
     func saveFavoriteFoldersSelection() {
         var state = presentationState.wrappedValue
-        state.saveTask?.cancel()
+        guard state.saveTask == nil else { return }
         let token = UUID()
         let selectedFolderIDs = state.selectedFolderIDs
         state.saveTaskToken = token

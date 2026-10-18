@@ -4,6 +4,25 @@ import UIKit
 
 @MainActor
 final class ActivePlaybackCoordinatorTests: XCTestCase {
+    func testPlaybackStillRequiresForegroundWhenBackgroundModeIsOff() {
+        let phase = PlaybackApplicationPhaseFixture()
+        let engine = PlayerLifecycleEngineSpy(isPlaying: false)
+        let player = PlayerStateViewModel(
+            videoURL: URL(string: "https://example.com/video.m4s"), audioURL: nil,
+            title: "前后台门控", referer: "https://www.bilibili.com", backgroundPlaybackMode: .off,
+            engine: engine, applicationState: { phase.value }
+        )
+        let surface = VideoSurfaceContainerView()
+        player.attachSurface(surface, prefersNativePlaybackControls: false)
+        defer { player.stop(); ActivePlaybackCoordinator.shared.stopActivePlayback() }
+        player.play()
+        XCTAssertEqual(engine.playCallCount, 0)
+        phase.value = .active
+        player.play()
+        XCTAssertGreaterThan(engine.playCallCount, 0)
+        XCTAssertTrue(player.wantsAutoplay)
+    }
+
     func testCancelledNavigationRestoresActivePlayerIntent() {
         let coordinator = ActivePlaybackCoordinator.shared
         coordinator.stopActivePlayback()
@@ -13,7 +32,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "导航恢复测试",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -51,7 +71,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
             audioURL: nil,
             title: "画中画导航测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -78,7 +99,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
             audioURL: nil,
             title: "全局后台暂停测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -108,7 +130,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
             audioURL: nil,
             title: "应用代理后台暂停测试",
             referer: "https://www.bilibili.com",
-            engine: engine
+            engine: engine,
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -131,7 +154,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
                 videoURL: nil,
                 audioURL: nil,
                 title: "深链播放器 \(index)",
-                referer: "https://www.bilibili.com/video/BV-retention-\(index)"
+                referer: "https://www.bilibili.com/video/BV-retention-\(index)",
+                applicationState: { .active }
             )
         }
         defer {
@@ -157,13 +181,15 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
             audioURL: URL(string: "https://example.com/audio.m4s"),
             title: "听视频保留测试",
             referer: "https://www.bilibili.com",
-            playbackContentMode: .audioOnly
+            playbackContentMode: .audioOnly,
+            applicationState: { .active }
         )
         let pictureInPicturePlayer = PlayerStateViewModel(
             videoURL: nil,
             audioURL: nil,
             title: "画中画保留测试",
-            referer: "https://www.bilibili.com"
+            referer: "https://www.bilibili.com",
+            applicationState: { .active }
         )
         pictureInPicturePlayer.isPictureInPictureActive = true
         let visualPlayers = (0..<3).map { index in
@@ -171,7 +197,8 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
                 videoURL: nil,
                 audioURL: nil,
                 title: "普通播放器 \(index)",
-                referer: "https://www.bilibili.com/video/BV-visual-\(index)"
+                referer: "https://www.bilibili.com/video/BV-visual-\(index)",
+                applicationState: { .active }
             )
         }
         let players = [listenPlayer, pictureInPicturePlayer] + visualPlayers
@@ -188,4 +215,9 @@ final class ActivePlaybackCoordinatorTests: XCTestCase {
         XCTAssertFalse(pictureInPicturePlayer.isTerminated)
         XCTAssertEqual(visualPlayers.filter { !$0.isTerminated }.count, 2)
     }
+}
+
+@MainActor
+private final class PlaybackApplicationPhaseFixture {
+    var value: UIApplication.State = .background
 }

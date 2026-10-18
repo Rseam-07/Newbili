@@ -90,3 +90,11 @@ Packages/FFmpegKit/Sources/*.xcframework/
 
 # macOS
 .DS_Store
+
+# Local compatibility build; production project stays unchanged.
+.native-preview.xcodeproj/
+.native-device-preview.xcodeproj/
+NativeDevicePreview.xcodeproj/
+NativeDeviceRegression.xcodeproj/
+.native-device-regression-Info.plist
+.native-device-preview-Info.plist

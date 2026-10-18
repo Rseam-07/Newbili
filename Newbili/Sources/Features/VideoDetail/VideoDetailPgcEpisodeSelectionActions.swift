@@ -54,6 +54,8 @@ extension VideoDetailViewModel {
         interactionState = VideoInteractionState()
         interactionMessage = nil
         favoriteFolders = []
+        favoriteFolderRequestID = nil
+        favoriteFolderAccount = nil
         favoriteFolderState = .idle
         uploaderProfile = nil
     }

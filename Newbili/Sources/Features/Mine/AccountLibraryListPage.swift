@@ -12,8 +12,16 @@ struct AccountLibraryListPage: View {
             }
         }
         .nativeTopScrollEdgeEffect()
-        .hiddenInlineNavigationTitle()
+        .navigationTitle(kind.title)
+        .navigationBarTitleDisplayMode(.large)
+        .scrollContentBackground(.hidden)
+        .background(AppSurfaceColors.groupedPage)
         .toolbar {
+            if kind == .favorites, sessionStore.isLoggedIn {
+                ToolbarItem(placement: .topBarTrailing) {
+                    FavoriteFolderEditButton { _ in Task { await reload() } }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await reload() }
@@ -29,6 +37,7 @@ struct AccountLibraryListPage: View {
         .refreshable {
             await reload()
         }
+        .favoriteFolderManagement()
     }
 
     @ViewBuilder
@@ -98,6 +107,10 @@ struct AccountLibraryListPage: View {
                     FavoriteFolderContentPage(folder: folder, viewModel: viewModel)
                 } label: {
                     FavoriteFolderRow(folder: folder)
+                }
+                .contextMenu {
+                    FavoriteFolderEditButton(folder: folder) { _ in Task { await reload() } }
+                    FavoriteFolderDeleteButton(folder: folder) { Task { await reload() } }
                 }
             }
 

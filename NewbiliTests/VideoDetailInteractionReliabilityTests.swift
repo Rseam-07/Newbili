@@ -3,6 +3,16 @@ import XCTest
 @testable import bili
 
 final class VideoDetailInteractionReliabilityTests: XCTestCase {
+    func testFollowConfirmationBelongsToOneOwnerAndCredentialRevision() {
+        let account = FavoriteFolderAccount(mid: 12, version: 4)
+        let confirmation = VideoDetailFollowConfirmation(ownerMID: 100, account: account, isFollowing: true)
+        XCTAssertTrue(confirmation.matches(ownerMID: 100, account: account))
+        XCTAssertFalse(confirmation.matches(ownerMID: 101, account: account))
+        XCTAssertFalse(confirmation.matches(ownerMID: 100, account: .init(mid: 12, version: 5)))
+        XCTAssertFalse(confirmation.matches(ownerMID: 100, account: .init(mid: 13, version: 4)))
+        XCTAssertFalse(confirmation.matches(ownerMID: 100, account: nil))
+    }
+
     func testLikeFeedbackOnlyTreatsANewLikeAsSuccess() {
         XCTAssertEqual(
             VideoDetailSummaryCardFeedbackPolicy.likeOutcome(

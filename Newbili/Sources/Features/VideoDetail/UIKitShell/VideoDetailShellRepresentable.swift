@@ -7,7 +7,8 @@ import SwiftUI
 struct VideoDetailShellRepresentable: UIViewControllerRepresentable {
     @EnvironmentObject private var dependencies: AppDependencies
     @Environment(\.openVideoOwnerRouteAction) private var openVideoOwnerRoute
-    @ObservedObject var viewModel: VideoDetailViewModel
+    @Environment(\.videoNavigationContext) private var videoNavigationContext
+    let viewModel: VideoDetailViewModel
     @ObservedObject var fullscreenCoordinator: VideoDetailFullscreenCoordinator
     @ObservedObject var runtimeSettings: VideoDetailRuntimeSettingsStore
     @Binding var selectedContentTab: VideoDetailContentTab
@@ -59,7 +60,8 @@ struct VideoDetailShellRepresentable: UIViewControllerRepresentable {
                     )
                 )
             },
-            onNavigateBack: onNavigateBack
+            onNavigateBack: onNavigateBack,
+            videoNavigationContext: videoNavigationContext
         )
     }
 

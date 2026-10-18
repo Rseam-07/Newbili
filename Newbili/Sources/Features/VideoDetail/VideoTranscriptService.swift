@@ -173,15 +173,15 @@ nonisolated struct VideoSubtitleCue: Decodable, Equatable, Sendable {
     }
 }
 
-private nonisolated struct VideoPlayerSubtitlePayload: Decodable {
+nonisolated struct VideoPlayerSubtitlePayload: Decodable {
     let subtitle: VideoPlayerSubtitleContainer?
 }
 
-private nonisolated struct VideoPlayerSubtitleContainer: Decodable {
+nonisolated struct VideoPlayerSubtitleContainer: Decodable {
     let subtitles: [VideoSubtitleTrack]?
 }
 
-private nonisolated struct VideoSubtitleDocument: Decodable {
+nonisolated struct VideoSubtitleDocument: Decodable {
     let body: [VideoSubtitleCue]?
 }
 

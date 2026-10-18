@@ -1,0 +1,119 @@
+name: Publish native iOS preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/native-main-rescue]
+    paths:
+      - Newbili/**
+      - NewbiliTests/**
+      - Newbili.xcodeproj/**
+      - Config/**
+      - Scripts/*ipa*.sh
+      - .github/workflows/native-preview-release.yml
+      - RELEASE_NOTES_1.0.9-ios-preview.1.md
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-preview-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'Rseam-07/Newbili'
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: v1.0.9-ios-preview.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest installed Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, os, re, subprocess
+          candidates = []
+          for app in glob.glob('/Applications/Xcode*.app'):
+              developer = app + '/Contents/Developer'
+              try:
+                  env = dict(os.environ, DEVELOPER_DIR=developer)
+                  output = subprocess.check_output(['xcodebuild', '-version'], env=env, text=True)
+                  match = re.search(r'Xcode (\d+(?:\.\d+)*)', output)
+                  if match:
+                      candidates.append((tuple(map(int, match[1].split('.'))), developer))
+              except (OSError, subprocess.CalledProcessError):
+                  pass
+          if not candidates:
+              raise SystemExit('No usable Xcode installation')
+          version, developer = max(candidates)
+          if version < (26, 3):
+              raise SystemExit('Xcode 26.3 or newer is required')
+          with open(os.environ['GITHUB_ENV'], 'a') as file:
+              file.write('DEVELOPER_DIR=' + developer + '\n')
+          print(developer)
+          PY
+
+      - name: Build unsigned native Release
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks
+          ./Scripts/build-release-unsigned-ipa.sh
+
+      - name: Validate and prepare public assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/native-public-assets
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, plistlib, shutil, subprocess, zipfile
+          source = Path('build/release-unsigned-ipa/Newbili-release-unsigned.ipa')
+          output = Path('build/native-public-assets')
+          ipa = output / 'Newbili-iOS-1.0.9-13-unsigned.ipa'
+          shutil.copy2(source, ipa)
+          with zipfile.ZipFile(ipa) as archive:
+              names = archive.namelist()
+              info = plistlib.loads(archive.read('Payload/Newbili.app/Info.plist'))
+              forbidden = [name for name in names if name.endswith(('.mobileprovision', '.provisionprofile', '.p12', '.p8')) or '/_CodeSignature/' in name]
+              if forbidden:
+                  raise SystemExit('Private signing material or a signature was packaged: ' + repr(forbidden))
+              expected = {'CFBundleIdentifier': 'com.rseam07.newbili', 'CFBundleShortVersionString': '1.0.9', 'CFBundleVersion': '13', 'MinimumOSVersion': '26.4'}
+              for key, value in expected.items():
+                  if info.get(key) != value:
+                      raise SystemExit('Unexpected package identity: ' + key)
+          metadata = {'commit': os.environ['GITHUB_SHA'], 'version': '1.0.9', 'build': 13, 'platform': 'iOS/iPadOS', 'minimumOS': '26.4', 'configuration': 'Release', 'signed': False, 'runtimeAcceptance': 'not performed for this release', 'unitTestsExecutedForThisCommit': False, 'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(), 'sdk': subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-version'], text=True).strip()}
+          validation = output / 'VALIDATION-1.0.9-13.json'
+          validation.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
+          checksums = output / 'SHA256SUMS-1.0.9-13.txt'
+          checksums.write_text(''.join(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n' for path in [ipa, validation]))
+          print(json.dumps(metadata, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'This preview tag is already published; refusing to overwrite its assets.' >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" build/native-public-assets/* \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title 'Newbili iOS 1.0.9 预览 1 · 原生恢复更新' \
+            --notes-file RELEASE_NOTES_1.0.9-ios-preview.1.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-preview-build-evidence
+          path: |
+            build/logs/release-unsigned-ipa.log
+            build/native-public-assets/
+          if-no-files-found: warn

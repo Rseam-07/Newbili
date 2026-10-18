@@ -5,32 +5,35 @@ nonisolated enum VideoDetailCommentThreadResolver {
         if let dialogID = reply.dialogID, dialogID > 0 {
             return "dialog-\(root.id)-\(dialogID)"
         }
-        if let parentID = reply.parentID, parentID > 0 {
+        if let parentID = reply.parentID, parentID > 0, parentID != root.id {
             return "parent-\(root.id)-\(parentID)"
         }
         return "reply-\(root.id)-\(reply.id)"
     }
 
-    static func localDialogReplies(_ reply: Comment, siblings: [Comment]) -> [Comment] {
+    static func localDialogReplies(_ reply: Comment, siblings: [Comment], rootID: Int? = nil) -> [Comment] {
         let dialogID = reply.dialogID
         let parentID = reply.parentID
+        let knownRootID = rootID ?? reply.rootID
         let relatedReplies = siblings.filter { sibling in
             if sibling.id == reply.id { return true }
-            if let dialogID, dialogID > 0, sibling.dialogID == dialogID {
-                return true
+            if let dialogID, dialogID > 0 {
+                return sibling.dialogID == dialogID
+                    || (parentID != knownRootID && sibling.id == parentID)
             }
-            if let parentID, parentID > 0, sibling.parentID == parentID {
-                return true
+            if sibling.parentID == reply.id { return true }
+            if let parentID, parentID > 0, let knownRootID, parentID != knownRootID {
+                return sibling.id == parentID || sibling.parentID == parentID
             }
             return false
         }
-        return uniqueComments(relatedReplies.isEmpty ? [reply] : relatedReplies)
+        return uniqueComments(relatedReplies + [reply])
     }
 
     static func uniqueComments(_ comments: [Comment]) -> [Comment] {
         var seen = Set<Int>()
         return comments.filter { comment in
-            seen.insert(comment.id).inserted
+            comment.id > 0 && seen.insert(comment.id).inserted
         }
     }
 }

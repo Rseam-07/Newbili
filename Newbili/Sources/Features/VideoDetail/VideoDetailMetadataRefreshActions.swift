@@ -1,26 +1,37 @@
 import Foundation
 
 extension VideoDetailViewModel {
-    func refreshDetailMetadata(
-        preserving confirmation: VideoDetailInteractionMutationConfirmation? = nil
-    ) async {
+    func scheduleAcknowledgedInteractionMetadataRefresh() {
+        interactionMetadataRefreshTask?.cancel()
+        let revision = interactionMutationRevision
         let bvid = detail.bvid
         let aid = detail.aid
-        do {
-            let updated = try await fetchCurrentFullDetail()
-            guard isCurrentVideoContext(aid: aid, bvid: bvid) else { return }
-            detail = updated
-            syncCommentsRenderStore()
-            if selectedCID == nil {
-                selectedCID = updated.pages?.first?.cid ?? updated.cid
+        let account = currentInteractionAccount
+        let task = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled,
+                  self.interactionMutationRevision == revision,
+                  self.currentInteractionAccount == account,
+                  !self.isPlaybackInvalidatedForNavigation,
+                  self.isCurrentVideoContext(aid: aid, bvid: bvid) else { return }
+            defer {
+                if self.interactionMutationRevision == revision { self.interactionMetadataRefreshTask = nil }
             }
-        } catch {
-            // Interaction already succeeded, so stale stat counts should not block the UI update.
+            do {
+                let updated = try await self.fetchCurrentFullDetail()
+                guard !Task.isCancelled, self.interactionMutationRevision == revision,
+                      self.currentInteractionAccount == account, !self.isPlaybackInvalidatedForNavigation,
+                      self.isCurrentVideoContext(aid: aid, bvid: bvid) else { return }
+                self.detail = updated
+                self.syncCommentsRenderStore()
+                if self.selectedCID == nil {
+                    self.selectedCID = updated.pages?.first?.cid ?? updated.cid
+                }
+            } catch {
+                // The write already succeeded. A failed counter refresh must
+                // not delay feedback, roll back state, or invite a second write.
+            }
         }
-
-        guard isCurrentVideoContext(aid: aid, bvid: bvid) else { return }
-        await loadUploaderProfile(bvid: bvid, aid: aid)
-        guard isCurrentVideoContext(aid: aid, bvid: bvid) else { return }
-        await loadInteractionState(aid: aid, bvid: bvid, preserving: confirmation)
+        interactionMetadataRefreshTask = task
+        trackBackgroundTask(task)
     }
 }

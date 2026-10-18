@@ -76,11 +76,13 @@ struct VideoRouteLink<Label: View>: View {
     @ViewBuilder let label: () -> Label
     @Environment(\.openVideoAction) private var openVideo
     @Environment(\.prewarmVideoRouteAction) private var prewarmVideoRoute
+    @Environment(\.videoNavigationContext) private var navigationContext
+    @State private var transitionSourceID = UUID()
 
     init(
         _ video: VideoItem,
         onOpen: (() -> Void)? = nil,
-        showsPressFeedback: Bool = false,
+        showsPressFeedback: Bool = true,
         @ViewBuilder label: @escaping () -> Label
     ) {
         self.video = video
@@ -90,7 +92,17 @@ struct VideoRouteLink<Label: View>: View {
     }
 
     var body: some View {
-        if let openVideo {
+        if let navigationContext {
+            VideoRouteTapLink(
+                video: video,
+                openVideo: { navigationContext.open($0, transitionSourceID) },
+                prewarmVideoRoute: prewarmVideoRoute ?? navigationContext.prewarm,
+                onOpen: onOpen,
+                showsPressFeedback: showsPressFeedback,
+                label: label
+            )
+            .modifier(VideoCardTransitionSource(sourceID: transitionSourceID))
+        } else if let openVideo {
             VideoRouteTapLink(
                 video: video,
                 openVideo: openVideo,
@@ -146,9 +158,14 @@ private struct VideoRouteTapPrewarmButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
-            .opacity(showsPressFeedback && configuration.isPressed ? 0.90 : 1)
+            .opacity(showsPressFeedback && configuration.isPressed ? 0.92 : 1)
+            .scaleEffect(showsPressFeedback && configuration.isPressed && !reduceMotion ? 0.985 : 1)
             .animation(
-                showsPressFeedback ? AppMotion.feedback(reduceMotion: reduceMotion) : nil,
+                showsPressFeedback
+                    ? (reduceMotion ? .easeOut(duration: 0.08)
+                        : configuration.isPressed ? .easeOut(duration: 0.07)
+                        : .spring(response: 0.24, dampingFraction: 0.84))
+                    : nil,
                 value: configuration.isPressed
             )
             .onChange(of: configuration.isPressed) { _, isPressed in
@@ -159,14 +176,15 @@ private struct VideoRouteTapPrewarmButtonStyle: ButtonStyle {
 }
 
 private struct VideoRoutePrewarmButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onPress: () -> Void
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.94 : 1)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.smooth(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(reduceMotion ? .easeOut(duration: 0.08) : configuration.isPressed ? .easeOut(duration: 0.07) : .spring(response: 0.24, dampingFraction: 0.84), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
                 guard isPressed else { return }
                 onPress()

@@ -29,17 +29,18 @@ struct CommentDialogRow: View {
             )
 
             VStack(alignment: .leading, spacing: 11) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
-                        .foregroundStyle(.secondary)
-
-                    if !display.timeText.isEmpty {
-                        Text(display.timeText)
-                            .appTypography(.metadata, fallback: .caption)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        if !display.timeText.isEmpty {
+                            Text(display.timeText)
+                                .appTypography(.metadata, fallback: .caption)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-
-                    Spacer(minLength: 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button(action: toggleLike) {
                         CommentMetricBadge(
@@ -67,8 +68,13 @@ struct CommentDialogRow: View {
                     images: display.pictures,
                     transitionScope: reply.id.description
                 )
+                VideoCommentComposerButton(parent: reply)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
         .padding(.horizontal, isFocused ? 10 : 0)
         .background(isFocused ? appTintColor.opacity(0.06) : Color.clear)

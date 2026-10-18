@@ -4,7 +4,7 @@ struct CommentRepliesContentStateView: View {
     let state: CommentRepliesContentState
     let snapshot: VideoDetailCommentThreadRepliesSnapshot
     let rootComment: Comment
-    let loadMoreReplies: (Comment) async -> Void
+    let loadMoreReplies: CommentReplyLoadAction
     let showDialog: (Comment) -> Void
     let toggleLike: (Comment) -> Void
     let actions: CommentRepliesContentStateActions
@@ -13,8 +13,8 @@ struct CommentRepliesContentStateView: View {
         state: CommentRepliesContentState,
         snapshot: VideoDetailCommentThreadRepliesSnapshot,
         rootComment: Comment,
-        reloadReplies: @escaping (Comment) async -> Void,
-        loadMoreReplies: @escaping (Comment) async -> Void,
+        reloadReplies: @escaping CommentReplyLoadAction,
+        loadMoreReplies: @escaping CommentReplyLoadAction,
         showDialog: @escaping (Comment) -> Void,
         toggleLike: @escaping (Comment) -> Void
     ) {
@@ -50,7 +50,7 @@ struct CommentRepliesContentStateView: View {
             CommentRepliesLoadedList(
                 snapshot: snapshot,
                 rootComment: rootComment,
-                loadMoreReplies: loadMoreReplies,
+                loadMoreReplies: { @MainActor [loadMoreReplies] rootID in await loadMoreReplies(rootID) },
                 showDialog: showDialog,
                 toggleLike: toggleLike
             )

@@ -536,7 +536,7 @@ private struct HomeImmersiveBackdrop: View {
                 colors: usesCinematicWideLayout
                     ? [Color.black, Color(red: 0.07, green: 0.06, blue: 0.10), Color.black]
                     : colorScheme == .dark
-                    ? [Color(red: 0.04, green: 0.05, blue: 0.09), Color(red: 0.11, green: 0.07, blue: 0.12), .black]
+                    ? AppSurfaceColors.darkHomeGradient
                     : [Color(red: 0.98, green: 0.98, blue: 1), Color(red: 1, green: 0.96, blue: 0.98), .white],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -544,21 +544,21 @@ private struct HomeImmersiveBackdrop: View {
 
             if realtimeAmbientBlurEnabled {
                 Circle()
-                    .fill((mode == .popular ? Color.orange : Color.pink).opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16))
+                    .fill((mode == .popular ? Color.orange : Color.pink).opacity(usesCinematicWideLayout ? 0.24 : colorScheme == .dark ? 0.12 : 0.16))
                     .frame(width: usesCinematicWideLayout ? 620 : 360, height: usesCinematicWideLayout ? 620 : 360)
                     .blur(radius: usesCinematicWideLayout ? 128 : 84)
                     .offset(x: usesCinematicWideLayout ? -260 : -160, y: usesCinematicWideLayout ? -330 : -250)
 
                 Circle()
-                    .fill(Color.cyan.opacity(usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12))
+                    .fill(Color.cyan.opacity(usesCinematicWideLayout ? 0.17 : colorScheme == .dark ? 0.075 : 0.12))
                     .frame(width: usesCinematicWideLayout ? 680 : 380, height: usesCinematicWideLayout ? 680 : 380)
                     .blur(radius: usesCinematicWideLayout ? 142 : 88)
                     .offset(x: usesCinematicWideLayout ? 360 : 170, y: usesCinematicWideLayout ? 460 : 310)
             } else {
                 HomeAmbientGradientGlow(
                     color: mode == .popular ? .orange : .pink,
-                    innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.24 : 0.16,
-                    middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.11 : 0.07,
+                    innerOpacity: usesCinematicWideLayout ? 0.24 : colorScheme == .dark ? 0.12 : 0.16,
+                    middleOpacity: usesCinematicWideLayout ? 0.11 : colorScheme == .dark ? 0.045 : 0.07,
                     endRadius: usesCinematicWideLayout ? 420 : 260
                 )
                 .frame(width: usesCinematicWideLayout ? 840 : 520, height: usesCinematicWideLayout ? 840 : 520)
@@ -566,8 +566,8 @@ private struct HomeImmersiveBackdrop: View {
 
                 HomeAmbientGradientGlow(
                     color: .cyan,
-                    innerOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.17 : 0.12,
-                    middleOpacity: usesCinematicWideLayout || colorScheme == .dark ? 0.08 : 0.05,
+                    innerOpacity: usesCinematicWideLayout ? 0.17 : colorScheme == .dark ? 0.075 : 0.12,
+                    middleOpacity: usesCinematicWideLayout ? 0.08 : colorScheme == .dark ? 0.03 : 0.05,
                     endRadius: usesCinematicWideLayout ? 450 : 280
                 )
                 .frame(width: usesCinematicWideLayout ? 900 : 560, height: usesCinematicWideLayout ? 900 : 560)

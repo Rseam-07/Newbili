@@ -71,6 +71,8 @@ extension VideoDetailViewModel {
     }
 
     func cancelBackgroundTasks() {
+        interactionMetadataRefreshTask?.cancel()
+        interactionMetadataRefreshTask = nil
         backgroundTasks.values.forEach { $0.cancel() }
         backgroundTasks.removeAll()
         cloudHistoryResumeTask?.cancel()

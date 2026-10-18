@@ -56,6 +56,7 @@ enum SearchScope: String, CaseIterable, Identifiable, Hashable {
     case bangumi
     case movie
     case user
+    case article
 
     var id: String { rawValue }
 
@@ -71,6 +72,8 @@ enum SearchScope: String, CaseIterable, Identifiable, Hashable {
             return "影视"
         case .user:
             return "UP主"
+        case .article:
+            return "专栏"
         }
     }
 
@@ -86,6 +89,8 @@ enum SearchScope: String, CaseIterable, Identifiable, Hashable {
             return "film"
         case .user:
             return "person.crop.circle"
+        case .article:
+            return "doc.text"
         }
     }
 
@@ -118,10 +123,24 @@ enum SearchResultItem: Identifiable, Hashable {
 }
 
 @MainActor
+protocol NativeSearchServing {
+    func fetchHotSearch() async throws -> [HotSearchItem]
+    func fetchSearchSuggest(term: String) async throws -> [SearchSuggestItem]
+    func searchVideos(keyword: String, page: Int, order: String?, filters: [String: String]) async throws -> [VideoItem]
+    func searchUsers(keyword: String, page: Int) async throws -> [SearchUserItem]
+    func searchBangumi(keyword: String, page: Int) async throws -> [SearchMediaItem]
+    func searchMovies(keyword: String, page: Int) async throws -> [SearchMediaItem]
+    func searchArticles(keyword: String, page: Int) async throws -> [SearchArticleItem]
+}
+
+extension BiliAPIClient: NativeSearchServing {}
+
+@MainActor
 final class SearchViewModel: ObservableObject {
     @Published var query = ""
     @Published var selectedScope: SearchScope = .comprehensive
     @Published var selectedOrder: SearchSortOrder = .comprehensive
+    @Published private(set) var videoFilters = SearchVideoFilters()
     @Published var hotSearches: [HotSearchItem] = []
     @Published var suggestions: [SearchSuggestItem] = []
     @Published var results: [SearchResultItem] = []
@@ -131,19 +150,58 @@ final class SearchViewModel: ObservableObject {
     private(set) var suggestionsRevision = 0
     private(set) var resultsRevision = 0
 
-    private let api: BiliAPIClient
+    private let api: any NativeSearchServing
+    private let libraryStore: LibraryStore?
     private let debouncer = TaskDebouncer()
+    private let suggestionDebounceDelay: Duration
     private var page = 1
     private var lastKeyword = ""
+    private var videoFilterParameters: [String: String] = [:]
     private var hasMore = false
+    private var requestRevision = 0
+    private var searchTask: Task<[SearchResultItem], Error>?
+    private var userTask: Task<[SearchUserItem], Never>?
+    private var supplementaryTask: Task<Void, Never>?
 
-    init(api: BiliAPIClient) {
+
+    init(api: any NativeSearchServing, libraryStore: LibraryStore? = nil, suggestionDebounceDelay: Duration = .milliseconds(250)) {
         self.api = api
+        self.libraryStore = libraryStore
+        self.suggestionDebounceDelay = suggestionDebounceDelay
+    }
+
+    deinit {
+        searchTask?.cancel()
+        userTask?.cancel()
+        supplementaryTask?.cancel()
+    }
+
+    private func invalidateRequests() {
+        requestRevision &+= 1
+        searchTask?.cancel()
+        userTask?.cancel()
+        supplementaryTask?.cancel()
+        searchTask = nil
+        userTask = nil
+        supplementaryTask = nil
     }
 
     var showsDiscovery: Bool {
         results.isEmpty && lastKeyword.isEmpty
     }
+
+    var showsSuggestions: Bool {
+        showsDiscovery && libraryStore?.showsSearchSuggestions != false
+            && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !suggestions.isEmpty
+    }
+
+    var paginationTriggerItem: SearchResultItem? {
+        selectedScope == .comprehensive
+            ? results.last(where: { if case .video = $0 { return true }; return false })
+            : results.last
+    }
+
+    var canLoadMore: Bool { hasMore && !lastKeyword.isEmpty && !state.isLoading }
 
     var showsEmptyResults: Bool {
         results.isEmpty && !lastKeyword.isEmpty && state == .loaded
@@ -171,6 +229,8 @@ final class SearchViewModel: ObservableObject {
     func queryChanged() {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else {
+            debouncer.cancel()
+            invalidateRequests()
             updateSuggestions([])
             updateResults([])
             lastKeyword = ""
@@ -179,17 +239,25 @@ final class SearchViewModel: ObservableObject {
             return
         }
         if term != lastKeyword {
+            invalidateRequests()
             updateResults([])
             lastKeyword = ""
             hasMore = false
             state = .idle
         }
-        debouncer.schedule { [weak self] in
+        updateSuggestions([])
+        guard libraryStore?.showsSearchSuggestions != false else {
+            debouncer.cancel()
+            return
+        }
+        debouncer.schedule(delay: suggestionDebounceDelay) { [weak self] in
             await self?.loadSuggestions(term: term)
         }
     }
 
     func clearQuery() {
+        debouncer.cancel()
+        invalidateRequests()
         query = ""
         updateSuggestions([])
         updateResults([])
@@ -201,19 +269,68 @@ final class SearchViewModel: ObservableObject {
     func search(_ keyword: String? = nil) async {
         let term = (keyword ?? query).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else { return }
+        debouncer.cancel()
+        invalidateRequests()
+        let revision = requestRevision
+        let scope = selectedScope
+        let order = selectedOrder
+        let filters = videoFilters.parameters()
+        videoFilterParameters = filters
         query = term
+        libraryStore?.recordSearchKeyword(term)
         page = 1
         lastKeyword = term
         hasMore = false
         updateSuggestions([])
+        updateResults([])
         state = .loading
+        let api = api
+        let users: Task<[SearchUserItem], Never>?
+        if scope == .comprehensive {
+            users = Task { (try? await api.searchUsers(keyword: term, page: 1)) ?? [] }
+        } else {
+            users = nil
+        }
+        userTask = users
+        let task = Task { try await self.fetchResults(keyword: term, page: 1, scope: scope, order: order, filters: filters) }
+        searchTask = task
         do {
-            let fetched = try await fetchResults(keyword: term, page: page)
+            let fetched = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: { task.cancel(); users?.cancel() }
+            guard revision == requestRevision else { return }
+            guard !Task.isCancelled, !task.isCancelled else {
+                searchTask = nil
+                users?.cancel()
+                userTask = nil
+                lastKeyword = ""
+                state = .idle
+                return
+            }
+            searchTask = nil
             updateResults(fetched)
             hasMore = !fetched.isEmpty
             state = .loaded
+            if let users {
+                supplementaryTask = Task { [weak self] in
+                    let items = await users.value
+                    guard let self, !Task.isCancelled, revision == self.requestRevision else { return }
+                    // Optional uploader results never hold back playable results
+                    // or move cards that the user has already started reading.
+                    self.appendUnique(items.prefix(3).map(SearchResultItem.user))
+                    self.userTask = nil
+                    self.supplementaryTask = nil
+                }
+            }
         } catch {
-            state = .failed(error.localizedDescription)
+            guard revision == requestRevision else { return }
+            users?.cancel()
+            searchTask = nil
+            userTask = nil
+            if error is CancellationError || Task.isCancelled {
+                lastKeyword = ""
+                state = .idle
+            } else { state = .failed(error.localizedDescription) }
         }
     }
 
@@ -243,64 +360,80 @@ final class SearchViewModel: ObservableObject {
         await search(lastKeyword)
     }
 
+    func selectVideoFilters(_ filters: SearchVideoFilters) async {
+        guard videoFilters != filters else { return }
+        videoFilters = filters
+        guard selectedScope.supportsOrder, !lastKeyword.isEmpty else { return }
+        await search(lastKeyword)
+    }
+
     func loadMoreIfNeeded(current item: SearchResultItem?) async {
-        guard let item,
-              results.last?.id == item.id,
-              !state.isLoading,
-              !lastKeyword.isEmpty,
-              hasMore
-        else { return }
-        page += 1
+        // Supplemental uploader cards must not trigger another video page.
+        guard let item, paginationTriggerItem?.id == item.id, !state.isLoading,
+              !lastKeyword.isEmpty, hasMore else { return }
+        let revision = requestRevision
+        let nextPage = page + 1
+        let term = lastKeyword
+        let scope = selectedScope
+        let order = selectedOrder
+        let filters = videoFilterParameters
         state = .loading
+        let task = Task { try await self.fetchResults(keyword: term, page: nextPage, scope: scope, order: order, filters: filters) }
+        searchTask = task
         do {
-            let more = try await fetchResults(keyword: lastKeyword, page: page)
-            if more.isEmpty {
-                hasMore = false
+            let more = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: { task.cancel() }
+            guard revision == requestRevision else { return }
+            guard !Task.isCancelled, !task.isCancelled else {
+                searchTask = nil
+                state = .loaded
+                return
             }
+            searchTask = nil
+            page = nextPage
+            if more.isEmpty { hasMore = false }
             appendUnique(more)
             state = .loaded
         } catch {
-            page = max(1, page - 1)
-            state = .failed(error.localizedDescription)
+            guard revision == requestRevision else { return }
+            searchTask = nil
+            state = error is CancellationError || Task.isCancelled ? .loaded : .failed(error.localizedDescription)
         }
     }
 
-    private func fetchResults(keyword: String, page: Int) async throws -> [SearchResultItem] {
-        switch selectedScope {
-        case .comprehensive:
-            let videos = try await api.searchVideos(keyword: keyword, page: page, order: selectedOrder.apiValue)
-                .map(SearchResultItem.video)
-            guard page == 1 else { return videos }
-            let users = ((try? await api.searchUsers(keyword: keyword, page: 1)) ?? [])
-                .prefix(3)
-                .map(SearchResultItem.user)
-            return users + videos
-        case .video:
-            return try await api.searchVideos(keyword: keyword, page: page, order: selectedOrder.apiValue)
-                .map(SearchResultItem.video)
+    private func fetchResults(keyword: String, page: Int, scope: SearchScope, order: SearchSortOrder, filters: [String: String]) async throws -> [SearchResultItem] {
+        switch scope {
+        case .comprehensive, .video:
+            return try await api.searchVideos(keyword: keyword, page: page, order: order.apiValue, filters: filters).map(SearchResultItem.video)
         case .bangumi:
-            return try await api.searchBangumi(keyword: keyword, page: page)
-                .map(SearchResultItem.bangumi)
+            return try await api.searchBangumi(keyword: keyword, page: page).map(SearchResultItem.bangumi)
         case .movie:
-            return try await api.searchMovies(keyword: keyword, page: page)
-                .map(SearchResultItem.movie)
+            return try await api.searchMovies(keyword: keyword, page: page).map(SearchResultItem.movie)
         case .user:
-            return try await api.searchUsers(keyword: keyword, page: page)
-                .map(SearchResultItem.user)
+            return try await api.searchUsers(keyword: keyword, page: page).map(SearchResultItem.user)
+        case .article:
+            return try await api.searchArticles(keyword: keyword, page: page).map(SearchResultItem.article)
         }
     }
 
     private func loadSuggestions(term: String) async {
         do {
-            updateSuggestions(try await api.fetchSearchSuggest(term: term))
+            let items = try await api.fetchSearchSuggest(term: term)
+            guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == term,
+                  lastKeyword != term, libraryStore?.showsSearchSuggestions != false else { return }
+            var seen = Set<String>()
+            updateSuggestions(items.filter { !$0.value.isEmpty && seen.insert($0.value).inserted })
         } catch {
+            guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == term else { return }
             updateSuggestions([])
         }
     }
 
     private func appendUnique(_ more: [SearchResultItem]) {
         let existing = Set(results.map(\.id))
-        let uniqueItems = more.filter { !existing.contains($0.id) }
+        var seen = existing
+        let uniqueItems = more.filter { seen.insert($0.id).inserted }
         guard !uniqueItems.isEmpty else { return }
         results.append(contentsOf: uniqueItems)
         resultsRevision &+= 1

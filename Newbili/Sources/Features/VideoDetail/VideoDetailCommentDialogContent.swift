@@ -4,7 +4,7 @@ struct CommentDialogContent: View {
     let rootComment: Comment
     let focusReply: Comment
     @ObservedObject var store: VideoDetailCommentThreadRenderStore
-    let reloadDialog: (Comment, Comment) async -> Void
+    let reloadDialog: CommentDialogLoadAction
     let toggleLike: (Comment) -> Void
 
     var body: some View {
@@ -14,7 +14,7 @@ struct CommentDialogContent: View {
             snapshot: snapshot,
             focusReplyID: focusReply.id,
             reloadDialog: {
-                await reloadDialog(rootComment, focusReply)
+                await reloadDialog(rootComment.id, focusReply.id)
             },
             toggleLike: toggleLike
         )

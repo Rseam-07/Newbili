@@ -46,7 +46,7 @@ private struct PlayerNativePressFeedbackButtonStyle: ButtonStyle {
             .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.94)
             .opacity(configuration.isPressed ? 0.72 : 1)
             .animation(
-                AppMotion.feedback(reduceMotion: reduceMotion),
+                AppMotion.press(isPressed: configuration.isPressed, reduceMotion: reduceMotion),
                 value: configuration.isPressed
             )
     }

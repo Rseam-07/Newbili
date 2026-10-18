@@ -10,7 +10,7 @@ struct PressPreloadButtonStyle: ButtonStyle {
     init(
         pressedScale: CGFloat = 0.985,
         pressedOpacity: Double = 0.94,
-        pressAnimation: Animation = .smooth(duration: 0.12),
+        pressAnimation: Animation = .spring(response: 0.24, dampingFraction: 0.84),
         onPress: @escaping () -> Void
     ) {
         actions = PressPreloadButtonActions(onPress: onPress)
@@ -23,8 +23,12 @@ struct PressPreloadButtonStyle: ButtonStyle {
         configuration.label
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? pressedOpacity : 1)
-            .scaleEffect(configuration.isPressed ? pressedScale : 1)
-            .animation(reduceMotion ? nil : pressAnimation, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? pressedScale : 1)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.08)
+                    : configuration.isPressed ? .easeOut(duration: 0.07) : pressAnimation,
+                value: configuration.isPressed
+            )
             .onChange(of: configuration.isPressed) { _, isPressed in
                 actions.handlePressedChange(isPressed)
             }

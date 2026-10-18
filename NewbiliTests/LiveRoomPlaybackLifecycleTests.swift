@@ -16,7 +16,8 @@ final class LiveRoomPlaybackLifecycleTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "直播生命周期测试",
-            referer: "https://live.bilibili.com/1"
+            referer: "https://live.bilibili.com/1",
+            applicationState: { .active }
         )
         let surface = VideoSurfaceContainerView()
         player.attachSurface(surface, prefersNativePlaybackControls: false)
@@ -41,13 +42,15 @@ final class LiveRoomPlaybackLifecycleTests: XCTestCase {
             videoURL: nil,
             audioURL: nil,
             title: "直播会话初始播放器",
-            referer: "https://live.bilibili.com/1"
+            referer: "https://live.bilibili.com/1",
+            applicationState: { .active }
         )
         let replacementPlayer = PlayerStateViewModel(
             videoURL: nil,
             audioURL: nil,
             title: "直播会话替换播放器",
-            referer: "https://live.bilibili.com/1"
+            referer: "https://live.bilibili.com/1",
+            applicationState: { .active }
         )
 
         viewModel.playerViewModel = initialPlayer

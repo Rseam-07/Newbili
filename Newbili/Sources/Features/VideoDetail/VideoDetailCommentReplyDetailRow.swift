@@ -29,17 +29,19 @@ struct CommentReplyDetailRow: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
-                        .foregroundStyle(.secondary)
-
-                    if !display.timeText.isEmpty {
-                        Text(display.timeText)
-                            .appTypography(.metadata, fallback: .caption)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
                             .foregroundStyle(.secondary)
-                    }
+                            .lineLimit(1)
 
-                    Spacer(minLength: 8)
+                        if !display.timeText.isEmpty {
+                            Text(display.timeText)
+                                .appTypography(.metadata, fallback: .caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button(action: toggleLike) {
                         CommentMetricBadge(
@@ -68,20 +70,25 @@ struct CommentReplyDetailRow: View {
                     transitionScope: reply.id.description
                 )
 
-                if let showDialog {
-                    Button(action: showDialog) {
-                        Label("查看对话", systemImage: "text.bubble")
-                            .appTypography(.action, fallback: .caption.weight(.semibold))
-                            .padding(.horizontal, 9)
-                            .frame(height: 26)
+                HStack(spacing: 14) {
+                    VideoCommentComposerButton(parent: reply)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let showDialog {
+                        Button(action: showDialog) {
+                            Label("查看对话", systemImage: "text.bubble")
+                                .appTypography(.action, fallback: .caption.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(appTintColor)
+                        .biliMinimumInteractiveTarget(alignment: .leading)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(appTintColor)
-                    .biliMinimumInteractiveTarget(alignment: .leading)
-                    .padding(.top, 2)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 9)
         .commentCopyContextMenu(text: reply.content?.message, title: "复制回复")
     }

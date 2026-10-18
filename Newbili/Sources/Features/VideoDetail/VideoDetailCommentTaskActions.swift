@@ -13,27 +13,30 @@ extension VideoDetailViewModel {
     func clearCommentThreadLoads() {
         replyThreadLoadTokens.removeAll()
         dialogThreadLoadTokens.removeAll()
+        for (rootID, state) in commentThreadState.replyThreadStates where state.isLoading {
+            commentThreadState.replyThreadStates[rootID] = (replyThreadPages[rootID] ?? 0) > 0 ? .loaded : .idle
+        }
+        for (key, state) in commentThreadState.dialogThreadStates where state.isLoading {
+            commentThreadState.dialogThreadStates[key] = dialogThreads[key] == nil ? .idle : .loaded
+        }
+        syncCommentThreadRenderStore()
     }
 
     func clearCommentThreadCaches(preservingRootID: Int? = nil) {
-        if let preservingRootID {
-            let preservedReplies = replyThreads[preservingRootID]
-            let preservedState = replyThreadStates[preservingRootID]
-            let preservedPage = replyThreadPages[preservingRootID]
-            let preservedHasMore = replyThreadHasMore[preservingRootID]
-            replyThreads = preservedReplies.map { [preservingRootID: $0] } ?? [:]
-            replyThreadStates = preservedState.map { [preservingRootID: $0] } ?? [:]
-            replyThreadPages = preservedPage.map { [preservingRootID: $0] } ?? [:]
-            replyThreadHasMore = preservedHasMore.map { [preservingRootID: $0] } ?? [:]
-        } else {
-            replyThreads = [:]
-            replyThreadStates = [:]
-            replyThreadPages = [:]
-            replyThreadHasMore = [:]
-            commentThreadState.deepLinkAnchor = nil
+        let previous = commentThreadState
+        var next = VideoDetailCommentThreadState()
+        if let rootID = preservingRootID {
+            next.replyRoots[rootID] = previous.replyRoots[rootID]
+            next.replyRootContextKey = previous.replyRootContextKey
+            next.replyThreads[rootID] = previous.replyThreads[rootID]
+            next.replyThreadStates[rootID] = previous.replyThreadStates[rootID]
+            next.replyThreadPages[rootID] = previous.replyThreadPages[rootID]
+            next.replyThreadHasMore[rootID] = previous.replyThreadHasMore[rootID]
+            next.replyThreadRetryPages[rootID] = previous.replyThreadRetryPages[rootID]
+            next.deepLinkAnchor = previous.deepLinkAnchor
         }
-        dialogThreads = [:]
-        dialogThreadStates = [:]
+        commentThreadState = next
+        syncCommentThreadRenderStore()
     }
 
     func resetCommentThreadStateForNewComments() {
@@ -66,7 +69,8 @@ extension VideoDetailViewModel {
         replyThreadLoadTokens[commentID] == token
             && (comments.contains { $0.id == commentID }
                 || replyThreadStates[commentID] != nil)
-            && isCurrentCommentTarget(target)
+            && commentTarget == target
+            && !isPlaybackInvalidatedForNavigation
     }
 
     func clearReplyThreadLoadIfCurrent(commentID: Int, token: UUID) {
@@ -90,7 +94,8 @@ extension VideoDetailViewModel {
         dialogThreadLoadTokens[key] == token
             && (comments.contains { $0.id == rootID }
                 || replyThreadStates[rootID] != nil)
-            && isCurrentCommentTarget(target)
+            && commentTarget == target
+            && !isPlaybackInvalidatedForNavigation
     }
 
     func clearDialogThreadLoadIfCurrent(key: String, token: UUID) {

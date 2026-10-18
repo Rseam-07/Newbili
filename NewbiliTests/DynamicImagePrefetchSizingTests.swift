@@ -2,6 +2,29 @@ import XCTest
 @testable import bili
 
 final class DynamicImagePrefetchSizingTests: XCTestCase {
+    private var previousQualityPreference: Any?
+
+    override func setUp() {
+        super.setUp()
+        previousQualityPreference = UserDefaults.standard.object(forKey: RemoteImageQualityPreference.storageKey)
+        UserDefaults.standard.set(RemoteImageQualityPreference.high.rawValue, forKey: RemoteImageQualityPreference.storageKey)
+    }
+
+    override func tearDown() {
+        if let previousQualityPreference {
+            UserDefaults.standard.set(previousQualityPreference, forKey: RemoteImageQualityPreference.storageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: RemoteImageQualityPreference.storageKey)
+        }
+        super.tearDown()
+    }
+
+    func testDataSaverStillCapsTheRequestedExpandedImage() {
+        UserDefaults.standard.set(RemoteImageQualityPreference.dataSaver.rawValue, forKey: RemoteImageQualityPreference.storageKey)
+        let request = DynamicImageThumbnailSizing.prefetchRequest(for: image(), imageCount: 1, usesCompactImages: false)
+        XCTAssertTrue(request?.source.url.absoluteString.contains("/w/560/") == true)
+    }
+
     func testSingleImagePrefetchMatchesExpandedThumbnailRequest() {
         let request = DynamicImageThumbnailSizing.prefetchRequest(
             for: image(),

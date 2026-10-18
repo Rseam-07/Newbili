@@ -251,13 +251,18 @@ final class DanmakuSettingsTests: XCTestCase {
 
     @MainActor
     func testSettingsSearchDoesNotAdvertiseUnavailableControls() {
-        let unavailableQueries = ["搜索建议", "搜索发现", "缓冲", "黑名单", "已关注UP"]
+        let unavailableQueries = ["搜索发现", "缓冲", "黑名单", "已关注UP"]
 
         for query in unavailableQueries {
             XCTAssertFalse(
                 MineSettingsSearchView.searchableItems.contains { $0.matches(query) },
                 "不应把尚未提供的“\(query)”导向只有分类入口的设置页"
             )
+        }
+        for query in ["搜索建议", "搜索历史"] {
+            XCTAssertTrue(MineSettingsSearchView.searchableItems.contains {
+                $0.route == .homeAndSearchSettings && $0.matches(query)
+            })
         }
     }
 

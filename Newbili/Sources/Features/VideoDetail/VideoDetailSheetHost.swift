@@ -18,11 +18,17 @@ private struct VideoDetailSheetHostModifier: ViewModifier {
                             rootComment: comment,
                             focusReply: reply,
                             store: viewModel.commentThreadRenderStore,
-                            loadDialog: sheetActions.replies.loadDialog,
-                            reloadDialog: sheetActions.replies.reloadDialog,
+                            loadDialog: { @MainActor [viewModel] rootID, replyID in
+                                await viewModel.loadDialog(for: rootID, replyID: replyID)
+                            },
+                            reloadDialog: { @MainActor [viewModel] rootID, replyID in
+                                await viewModel.reloadDialog(for: rootID, replyID: replyID)
+                            },
                             toggleLike: { viewModel.toggleCommentLike($0) }
                         )
                         .environment(\.commentContentOwnerMID, viewModel.detail.owner?.mid)
+                        .environment(\.videoCommentComposerContext, VideoCommentComposerContext(viewModel: viewModel, rootComment: comment))
+                        .onAppear { viewModel.registerReplyRoot(comment) }
                     } else {
                         VideoDetailReplySheetHost(
                             rootComment: comment,
@@ -63,6 +69,11 @@ private struct VideoDetailSheetHostModifier: ViewModifier {
                     viewModel: viewModel,
                     libraryStore: libraryStore
                 )
+            }
+            .onChange(of: viewModel.commentTarget) { _, _ in
+                if case .commentThread = sheetRouteBinding.wrappedValue {
+                    sheetRouteBinding.wrappedValue = nil
+                }
             }
     }
 

@@ -9,7 +9,7 @@ struct CommentRepliesFooter: View {
     init(
         snapshot: VideoDetailCommentThreadRepliesSnapshot,
         rootComment: Comment,
-        loadMoreReplies: @escaping (Comment) async -> Void
+        loadMoreReplies: @escaping CommentReplyLoadAction
     ) {
         self.snapshot = snapshot
         actions = CommentRepliesFooterActions(

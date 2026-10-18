@@ -1,27 +1,30 @@
 import Foundation
 
+typealias CommentReplyLoadAction = @MainActor @Sendable (Int) async -> Void
+typealias CommentDialogLoadAction = @MainActor @Sendable (Int, Int) async -> Void
+
 @MainActor
 struct VideoDetailReplySheetActions {
     let viewModel: VideoDetailViewModel
 
-    func loadReplies(for comment: Comment) async {
-        await viewModel.loadReplies(for: comment)
+    func loadReplies(for rootID: Int) async {
+        await viewModel.loadReplies(for: rootID)
     }
 
-    func reloadReplies(for comment: Comment) async {
-        await viewModel.reloadReplies(for: comment)
+    func reloadReplies(for rootID: Int) async {
+        await viewModel.reloadReplies(for: rootID)
     }
 
-    func loadMoreReplies(for comment: Comment) async {
-        await viewModel.loadMoreReplies(for: comment)
+    func loadMoreReplies(for rootID: Int) async {
+        await viewModel.loadMoreReplies(for: rootID)
     }
 
-    func loadDialog(for rootComment: Comment, reply: Comment) async {
-        await viewModel.loadDialog(for: rootComment, reply: reply)
+    func loadDialog(for rootID: Int, replyID: Int) async {
+        await viewModel.loadDialog(for: rootID, replyID: replyID)
     }
 
-    func reloadDialog(for rootComment: Comment, reply: Comment) async {
-        await viewModel.reloadDialog(for: rootComment, reply: reply)
+    func reloadDialog(for rootID: Int, replyID: Int) async {
+        await viewModel.reloadDialog(for: rootID, replyID: replyID)
     }
 
     func toggleCommentLike(_ comment: Comment) {

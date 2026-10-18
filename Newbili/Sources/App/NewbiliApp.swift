@@ -16,9 +16,17 @@ struct NewbiliApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainInterfaceHost()
-                .background(LaunchWindowBackgroundInstaller())
+            if isRunningUnitTests {
+                Color.clear
+            } else {
+                MainInterfaceHost()
+                    .background(LaunchWindowBackgroundInstaller())
+            }
         }
+    }
+
+    private var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
 }

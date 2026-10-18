@@ -38,6 +38,7 @@ final class VideoDetailShellViewController: UIViewController {
             }
         )
     }()
+    private let startupCoverHost: UIHostingController<AnyView>
     private let playerContainer = UIView()
     private let contentHost: UIHostingController<VideoDetailShellContentView>
     private let contentState = VideoDetailShellContentView.State()
@@ -72,7 +73,8 @@ final class VideoDetailShellViewController: UIViewController {
     private let selectedContentTabBinding: Binding<VideoDetailContentTab>
     private var activeContentTab: VideoDetailContentTab
     private var scrollOffsets: [VideoDetailContentTab: CGFloat] = [:]
-    private var contentActionSuppressionWorkItem: DispatchWorkItem?
+    private weak var observedEdgeBackGesture: UIGestureRecognizer?
+    private weak var observedContentBackGesture: UIGestureRecognizer?
     private var didTearDownPlayerSurface = false
 
     /// 竖屏标准高度（对齐原项目：固定 16:9，与视频真实比例无关）。
@@ -127,7 +129,8 @@ final class VideoDetailShellViewController: UIViewController {
         onPresentPlayerMoreControls: @escaping (PlayerStateViewModel, @escaping () -> Void) -> Void,
         onDismissPlayerMoreControls: @escaping () -> Void,
         onReply: @escaping (Comment) -> Void,
-        onNavigateBack: @escaping () -> Void
+        onNavigateBack: @escaping () -> Void,
+        videoNavigationContext: VideoNavigationContext? = nil
     ) {
         self.viewModel = viewModel
         self.fullscreenCoordinator = fullscreenCoordinator
@@ -139,6 +142,13 @@ final class VideoDetailShellViewController: UIViewController {
         self.onNavigateBack = onNavigateBack
         self.selectedContentTabBinding = selectedContentTab
         self.activeContentTab = selectedContentTab.wrappedValue
+        self.startupCoverHost = UIHostingController(rootView: AnyView(
+            PlayerLoadingPlaceholder(progress: 0.08, message: "正在准备播放", isFinishing: false)
+                .environment(\.playerStartupArtworkURL, viewModel.detail.playbackArtworkURL)
+                .overlay(alignment: .topLeading) {
+                    VideoDetailInitialPlayerPlaceholderBackButtonLayer(action: onNavigateBack)
+                }
+        ))
         self.contentHost = UIHostingController(
             rootView: VideoDetailShellContentView(
                 viewModel: viewModel,
@@ -151,6 +161,7 @@ final class VideoDetailShellViewController: UIViewController {
                 onShowCoinPicker: onShowCoinPicker,
                 onReply: onReply,
                 openVideoOwnerRoute: openVideoOwnerRoute,
+                videoNavigationContext: videoNavigationContext,
                 onSelectedTabChange: { _ in },
                 onScrollOffsetChange: { _, _ in }
             )
@@ -168,6 +179,7 @@ final class VideoDetailShellViewController: UIViewController {
             onShowCoinPicker: onShowCoinPicker,
             onReply: onReply,
             openVideoOwnerRoute: openVideoOwnerRoute,
+            videoNavigationContext: videoNavigationContext,
             onSelectedTabChange: { [weak self] tab in
                 self?.handleSelectedTabChange(tab)
             },
@@ -220,6 +232,11 @@ final class VideoDetailShellViewController: UIViewController {
         view.addSubview(contentHost.view)
         contentHost.didMove(toParent: self)
         view.addSubview(playerContainer)
+        addChild(startupCoverHost)
+        startupCoverHost.view.frame = playerContainer.bounds
+        startupCoverHost.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        playerContainer.addSubview(startupCoverHost.view)
+        startupCoverHost.didMove(toParent: self)
         playerContainer.addSubview(collapsedDimmingView)
 
         bindViewModel()
@@ -230,6 +247,7 @@ final class VideoDetailShellViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         isViewActive = true
+        resetContentActionSuppression()
         AppStatusBarCompatibility.applyPlaybackPresentation(
             isHidden: isLandscape || isPortraitFullscreen
         )
@@ -537,7 +555,9 @@ final class VideoDetailShellViewController: UIViewController {
             // 内容留白 = expanded（固定，对齐原项目）：播放器覆盖在内容上层、随滚动
             // 收缩，内容顶部始终贴播放器底部。这样"拖动先把播放器收到最小、再正常
             // 滚内容"是自然结果，且内容不会双倍滚动。
-            contentState.topInset = contentTopInset
+            if abs(contentState.topInset - contentTopInset) > 0.5 {
+                contentState.topInset = contentTopInset
+            }
         }
 
         updateSurfaceLayout(usesLandscapeChrome: landscape || isPortraitFullscreen)
@@ -661,9 +681,9 @@ final class VideoDetailShellViewController: UIViewController {
         AppStatusBarCompatibility.applyPlaybackPresentation(isHidden: active)
         setSurfaceLandscape(active) // 复用全屏 chrome 样式（隐藏导航栏等）
         UIView.animate(
-            withDuration: PlaybackDetailRotationTiming.portraitFullscreenDuration,
+            withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : PlaybackDetailRotationTiming.portraitFullscreenDuration,
             delay: 0,
-            options: [.curveEaseInOut]
+            options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]
         ) {
             self.applyLayout()
             self.setNeedsStatusBarAppearanceUpdate()
@@ -857,6 +877,7 @@ final class VideoDetailShellViewController: UIViewController {
     }
 
     private func bindPlaybackState(to playerViewModel: PlayerStateViewModel?) {
+        startupCoverHost.view.isHidden = playerViewModel != nil
         playbackStateCancellable = nil
         removeCollapsedBarHost()
         guard let playerViewModel else {
@@ -884,7 +905,7 @@ final class VideoDetailShellViewController: UIViewController {
                 let target = max(minimum, min(expanded, expanded - self.lastScrollOffset))
                 guard self.currentPlayerHeight.map({ abs($0 - target) > 0.5 }) ?? true else { return }
                 self.currentPlayerHeight = target
-                UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseInOut]) {
+                UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.24, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
                     self.updatePlayerContainerHeight()
                 }
             }
@@ -902,9 +923,26 @@ final class VideoDetailShellViewController: UIViewController {
     private func restoreSystemBackGestures() {
         guard let navigationController else { return }
         systemBackGestureDelegateLease.acquire(in: navigationController, owner: self)
+        let edgeGesture = navigationController.interactivePopGestureRecognizer
+        if observedEdgeBackGesture !== edgeGesture {
+            observedEdgeBackGesture?.removeTarget(self, action: #selector(systemBackGestureChanged(_:)))
+            observedEdgeBackGesture = edgeGesture
+            edgeGesture?.addTarget(self, action: #selector(systemBackGestureChanged(_:)))
+        }
+        let contentGesture = navigationController.interactiveContentPopGestureRecognizer
+        if observedContentBackGesture !== contentGesture {
+            observedContentBackGesture?.removeTarget(self, action: #selector(systemBackGestureChanged(_:)))
+            observedContentBackGesture = contentGesture
+            contentGesture?.addTarget(self, action: #selector(systemBackGestureChanged(_:)))
+        }
     }
 
     func releaseSystemBackGestureOwnership() {
+        observedEdgeBackGesture?.removeTarget(self, action: #selector(systemBackGestureChanged(_:)))
+        observedContentBackGesture?.removeTarget(self, action: #selector(systemBackGestureChanged(_:)))
+        observedEdgeBackGesture = nil
+        observedContentBackGesture = nil
+        resetContentActionSuppression()
         systemBackGestureDelegateLease.release()
     }
 
@@ -922,22 +960,35 @@ final class VideoDetailShellViewController: UIViewController {
     }
 
     private func suppressContentActionsDuringSystemBackGesture() {
-        contentActionSuppressionWorkItem?.cancel()
+        guard !contentState.suppressesInteractiveContentActions else { return }
         contentState.suppressesInteractiveContentActions = true
         contentHost.view.isUserInteractionEnabled = false
-
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.resetContentActionSuppression()
-        }
-        contentActionSuppressionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: workItem)
     }
 
     private func resetContentActionSuppression() {
-        contentActionSuppressionWorkItem?.cancel()
-        contentActionSuppressionWorkItem = nil
+        guard contentState.suppressesInteractiveContentActions else { return }
         contentState.suppressesInteractiveContentActions = false
         contentHost.view.isUserInteractionEnabled = true
+    }
+
+    @objc private func systemBackGestureChanged(_ gesture: UIGestureRecognizer) {
+        switch gesture.state {
+        case .began:
+            suppressContentActionsDuringSystemBackGesture()
+        case .ended, .cancelled, .failed:
+            // Follow the interactive transition, including a cancelled swipe.
+            // A fixed timer both blocked quick taps and expired during long drags.
+            guard let coordinator = navigationController?.transitionCoordinator else {
+                resetContentActionSuppression()
+                return
+            }
+            let registered = coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+                self?.resetContentActionSuppression()
+            }
+            if !registered { resetContentActionSuppression() }
+        default:
+            break
+        }
     }
 
 }
@@ -949,7 +1000,6 @@ extension VideoDetailShellViewController: UIGestureRecognizerDelegate {
         guard !isLandscape else { return false }
         guard let navigationController else { return true }
         guard navigationController.viewControllers.count > 1 else { return false }
-        suppressContentActionsDuringSystemBackGesture()
         return navigationController.viewControllers.count > 1
     }
 

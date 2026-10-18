@@ -6,11 +6,14 @@ struct VideoDetailCommentThreadAnchor: Equatable {
 }
 
 struct VideoDetailCommentThreadState {
+    var replyRoots: [Int: Comment] = [:]
+    var replyRootContextKey: String?
     var replyThreads: [Int: [Comment]] = [:]
     var replyThreadStates: [Int: LoadingState] = [:]
     var replyThreadPages: [Int: Int] = [:]
     var replyThreadHasMore: [Int: Bool] = [:]
     var replyThreadLoadTokens: [Int: UUID] = [:]
+    var replyThreadRetryPages: [Int: Int] = [:]
     var dialogThreads: [String: [Comment]] = [:]
     var dialogThreadStates: [String: LoadingState] = [:]
     var dialogThreadLoadTokens: [String: UUID] = [:]

@@ -16,6 +16,7 @@ struct VideoDetailReplySheetHost: View {
         self.rootComment = rootComment
         self.viewModel = viewModel
         self.initialReplyID = initialReplyID
+        viewModel.registerReplyRoot(rootComment)
         renderPack = VideoDetailReplySheetRenderPack(
             viewModel: viewModel,
             actions: actions
@@ -27,12 +28,23 @@ struct VideoDetailReplySheetHost: View {
             rootComment: rootComment,
             store: renderPack.store,
             initialReplyID: initialReplyID,
-            loadReplies: renderPack.actions.loadReplies,
-            reloadReplies: renderPack.actions.reloadReplies,
-            loadMoreReplies: renderPack.actions.loadMoreReplies,
-            loadDialog: renderPack.actions.loadDialog,
-            reloadDialog: renderPack.actions.reloadDialog,
+            loadReplies: { @MainActor [viewModel] rootID in
+                await viewModel.loadReplies(for: rootID)
+            },
+            reloadReplies: { @MainActor [viewModel] rootID in
+                await viewModel.reloadReplies(for: rootID)
+            },
+            loadMoreReplies: { @MainActor [viewModel] rootID in
+                await viewModel.loadMoreReplies(for: rootID)
+            },
+            loadDialog: { @MainActor [viewModel] rootID, replyID in
+                await viewModel.loadDialog(for: rootID, replyID: replyID)
+            },
+            reloadDialog: { @MainActor [viewModel] rootID, replyID in
+                await viewModel.reloadDialog(for: rootID, replyID: replyID)
+            },
             toggleLike: renderPack.actions.toggleCommentLike
         )
+        .environment(\.videoCommentComposerContext, VideoCommentComposerContext(viewModel: viewModel, rootComment: rootComment))
     }
 }

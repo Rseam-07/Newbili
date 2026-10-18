@@ -727,6 +727,14 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
                     )
                     .zIndex(2.5)
 
+                    PlaybackSubtitleOverlay(
+                        model: detailViewModel.subtitleModel,
+                        clock: viewModel.playbackClock,
+                        bottomInset: videoInsets.bottom + (playbackControlsVisibility.isVisible ? 92 : 12)
+                    )
+                    .allowsHitTesting(false)
+                    .zIndex(4)
+
                     VideoDetailSponsorBlockOverlay(
                         playerViewModel: viewModel,
                         libraryStore: libraryStore,
@@ -738,6 +746,7 @@ private struct SurfaceOnlyPlayerOverlayRoot: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
+        .environment(\.playerStartupArtworkURL, overlaySnapshot.historyVideo.playbackArtworkURL)
         .animation(
             AppMotion.feedback(reduceMotion: reduceMotion),
             value: showsCenterPlaybackControl
@@ -1301,7 +1310,7 @@ struct SurfaceOnlyMoreControlsSheet: View {
             onToggleDanmaku: onToggleDanmaku,
             close: closeSheet
         )
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -1633,6 +1642,12 @@ private struct SurfaceOnlyMoreControlsNavigationContent: View {
                 }
 
                 if !detailViewModel.isVideoListenModeEnabled {
+                    NavigationLink {
+                        PlaybackSubtitleSettingsView(model: detailViewModel.subtitleModel)
+                    } label: {
+                        Label("字幕", systemImage: "captions.bubble")
+                    }
+
                     NavigationLink {
                         SurfaceOnlyDanmakuSettingsPage(
                             detailViewModel: detailViewModel,
@@ -1971,6 +1986,7 @@ private enum SurfaceOnlyLandscapeMoreControlsPage {
     case danmakuComposer
     case danmaku
     case rate
+    case subtitles
 
     var title: String {
         switch self {
@@ -1992,6 +2008,8 @@ private enum SurfaceOnlyLandscapeMoreControlsPage {
             return "弹幕设置"
         case .rate:
             return "倍速"
+        case .subtitles:
+            return "字幕"
         }
     }
 }
@@ -2077,6 +2095,8 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
                 .scrollContentBackground(.hidden)
             case .rate:
                 ratePage
+            case .subtitles:
+                PlaybackSubtitleSettingsView(model: detailViewModel.subtitleModel)
             }
         }
     }
@@ -2146,6 +2166,10 @@ private struct SurfaceOnlyLandscapeMoreContent: View {
                     }
 
                     if !detailViewModel.isVideoListenModeEnabled {
+                        SurfaceOnlyLandscapeMenuRow(
+                            title: "字幕", systemImage: "captions.bubble", accessory: nil, showsChevron: true
+                        ) { page = .subtitles }
+                        Divider().padding(.leading, 44)
                         SurfaceOnlyLandscapeMenuRow(
                             title: "弹幕设置",
                             systemImage: "text.bubble",

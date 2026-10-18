@@ -5,17 +5,19 @@ struct CommentRowHeader: View {
     let toggleLike: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
-                .foregroundStyle(.primary)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                CommentAuthorIdentity(name: display.authorName, owner: display.authorOwner)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-            if !display.timeText.isEmpty {
-                Text(display.timeText)
-                    .appTypography(.metadata, fallback: .caption)
-                    .foregroundStyle(.secondary)
+                if !display.timeText.isEmpty {
+                    Text(display.timeText)
+                        .appTypography(.metadata, fallback: .caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-
-            Spacer(minLength: 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: toggleLike) {
                 CommentMetricBadge(

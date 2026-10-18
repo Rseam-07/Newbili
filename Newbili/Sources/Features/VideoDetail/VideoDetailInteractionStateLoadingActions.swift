@@ -9,13 +9,17 @@ extension VideoDetailViewModel {
         let bvid = capturedBVID ?? detail.bvid
         guard let aid = capturedAID ?? detail.aid else { return }
         let capturedMutationRevision = interactionMutationRevision
+        let account = currentInteractionAccount
         do {
             var state = try await api.fetchVideoInteractionState(aid: aid, bvid: bvid)
             guard !Task.isCancelled,
+                  currentInteractionAccount == account,
                   capturedMutationRevision == interactionMutationRevision,
                   isCurrentVideoContext(aid: aid, bvid: bvid)
             else { return }
-            if let isFollowing = uploaderProfile?.following {
+            if let followConfirmation, followConfirmation.matches(ownerMID: detail.owner?.mid, account: account) {
+                state.isFollowing = followConfirmation.isFollowing
+            } else if let isFollowing = uploaderProfile?.following {
                 state.isFollowing = isFollowing
             }
             if let confirmation {
@@ -35,12 +39,14 @@ extension VideoDetailViewModel {
             interactionMessage = nil
         } catch BiliAPIError.missingSESSDATA {
             guard !Task.isCancelled,
+                  currentInteractionAccount == account,
                   capturedMutationRevision == interactionMutationRevision,
                   isCurrentVideoContext(aid: aid, bvid: bvid)
             else { return }
             interactionState.isFollowing = uploaderProfile?.following == true
         } catch {
             guard !Task.isCancelled,
+                  currentInteractionAccount == account,
                   capturedMutationRevision == interactionMutationRevision,
                   isCurrentVideoContext(aid: aid, bvid: bvid)
             else { return }

@@ -4,8 +4,8 @@ extension VideoDetailViewModel {
     func toggleCommentLike(_ requestedComment: Comment) {
         let commentID = requestedComment.id
         guard commentID > 0,
-              commentLikeMutationIDs.insert(commentID).inserted,
-              let target = commentTarget
+              let target = commentTarget,
+              commentLikeMutationIDs.insert(commentID).inserted
         else { return }
 
         let current = currentComment(withID: commentID) ?? requestedComment
@@ -26,6 +26,7 @@ extension VideoDetailViewModel {
                     liked: shouldLike
                 )
             } catch {
+                guard self.commentTarget == target, !self.isPlaybackInvalidatedForNavigation else { return }
                 self.applyCommentLike(id: commentID, count: originalCount, state: originalState)
                 self.interactionMessage = "评论点赞失败：\(error.localizedDescription)"
             }
@@ -33,6 +34,9 @@ extension VideoDetailViewModel {
     }
 
     private func currentComment(withID id: Int) -> Comment? {
+        for root in commentThreadState.replyRoots.values {
+            if let match = findComment(id: id, in: root) { return match }
+        }
         for comment in comments {
             if let match = findComment(id: id, in: comment) { return match }
         }
@@ -56,6 +60,9 @@ extension VideoDetailViewModel {
     }
 
     private func applyCommentLike(id: Int, count: Int, state: Int) {
+        commentThreadState.replyRoots = commentThreadState.replyRoots.mapValues {
+            $0.replacingCommentLike(id: id, count: count, state: state)
+        }
         comments = comments.map {
             $0.replacingCommentLike(id: id, count: count, state: state)
         }
